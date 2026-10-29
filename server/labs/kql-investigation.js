@@ -10,7 +10,7 @@ export default {
   minutes: 25,
   topics: ['KQL', 'union', 'AzureActivity', 'Microsoft Graph activity logs'],
   examObjective: '2.3 / 3.2 Investigate activity and hunt with KQL',
-  sourceQuestions: [38, 39, 44, 47, 48],
+  sourceQuestions: { set1: [38, 39, 44, 47, 48], set2: [38, 43, 47, 48] },
   scenarios: ['identity-and-graph-abuse'],
   brief:
     'Your SOC suspects a compromised account. Use the Logs blade to answer three questions: ' +

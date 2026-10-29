@@ -235,3 +235,27 @@ test('rate limiting kicks in', async () => {
   srv.close();
   assert.ok(codes.includes(429), `expected a 429 in ${codes}`);
 });
+
+test('views do not leak lab truth: file verdicts before deep analysis, "investigable", unrevealed findings', async () => {
+  const s = await session();
+  await raw('POST', '/api/lab/start', { headers: authed(s), body: { labId: 'unblock-lob1' } });
+  let files = await raw('GET', '/api/view/defender-files', { headers: { Cookie: s.cookie } });
+  assert.equal(files.status, 200);
+  assert.doesNotMatch(files.text, /"verdict"[^}]*"Malicious"|Drops payload|Disables Defender|"behaviors":\["/); // hidden until deep analysis
+  assert.equal(files.json.data.files.length, 2);
+  assert.ok(files.json.data.files.every((f) => f.analysis === null));
+
+  await raw('POST', '/api/lab/start', { headers: authed(s), body: { labId: 'entity-mapping' } });
+  const inc = await raw('GET', '/api/view/sentinel-incidents', { headers: { Cookie: s.cookie } });
+  assert.equal(inc.json.data.incidents.length, 4);
+  assert.doesNotMatch(inc.text, /investigable/);
+
+  await raw('POST', '/api/lab/start', { headers: authed(s), body: { labId: 'triage-ws23' } });
+  const dev = await raw('GET', '/api/view/device/dev-0201', { headers: { Cookie: s.cookie } });
+  assert.equal(dev.json.data.timeline.length, 7);
+  assert.equal((await raw('GET', '/api/view/device/..%2f..%2fx', { headers: { Cookie: s.cookie } })).status, 404);
+  assert.equal((await raw('GET', '/api/view/device/nope', { headers: { Cookie: s.cookie } })).status, 404);
+  assert.equal((await raw('GET', '/api/view/device/__proto__', { headers: { Cookie: s.cookie } })).status, 404);
+  const state = await raw('GET', '/api/state', { headers: { Cookie: s.cookie } });
+  assert.doesNotMatch(state.text, /"findings"/);
+});

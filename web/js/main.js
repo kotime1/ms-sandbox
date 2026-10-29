@@ -1,4 +1,4 @@
-import { h, clear } from './dom.js';
+import { h, clear, safeContainer } from './dom.js';
 import * as api from './api.js';
 import { ctx } from './app.js';
 import { renderLabPanel, noteFeed, feedCursor, resetFeed, applyGlow } from './components/lab-panel.js';
@@ -13,8 +13,8 @@ const PORTALS = {
 };
 const NAV = {
   azure: [['azure/resources', 'Resources'], ['azure/iam', 'Access control (IAM)']],
-  sentinel: [['sentinel/incidents', 'Incidents'], ['sentinel/logs', 'Logs'], ['sentinel/analytics', 'Analytics'], ['sentinel/automation', 'Automation']],
-  defender: [['defender/alerts', 'Incidents & alerts'], ['defender/hunting', 'Advanced hunting'], ['defender/devices', 'Devices'], ['defender/rules', 'Rules & detections']],
+  sentinel: [['sentinel/incidents', 'Incidents'], ['sentinel/logs', 'Logs'], ['sentinel/hunting', 'Hunting'], ['sentinel/analytics', 'Analytics'], ['sentinel/automation', 'Automation'], ['sentinel/summary', 'Summary rules']],
+  defender: [['defender/alerts', 'Incidents & alerts'], ['defender/hunting', 'Advanced hunting'], ['defender/devices', 'Devices'], ['defender/rules', 'Rules & lists']],
 };
 const PAGES = {
   home: () => import('./pages/home.js'),
@@ -23,6 +23,8 @@ const PAGES = {
   'azure/logicapp': () => import('./pages/azure-logicapp.js'),
   'sentinel/incidents': () => import('./pages/sentinel-incidents.js'),
   'sentinel/logs': () => import('./pages/sentinel-logs.js'),
+  'sentinel/hunting': () => import('./pages/sentinel-hunting.js'),
+  'sentinel/summary': () => import('./pages/sentinel-summary.js'),
   'sentinel/analytics': () => import('./pages/sentinel-analytics.js'),
   'sentinel/automation': () => import('./pages/sentinel-automation.js'),
   'defender/alerts': () => import('./pages/defender-alerts.js'),
@@ -55,7 +57,7 @@ async function renderPage() {
   try {
     const mod = await PAGES[key]();
     if (token !== renderToken) return;
-    const page = h('div', { class: 'page' });
+    const page = safeContainer('div', { class: 'page' });
     await mod.render(page, param);
     if (token !== renderToken) return;
     clear(shell.main).append(page);
@@ -119,7 +121,7 @@ async function boot() {
   shell.top = h('header', { class: 'topbar' });
   shell.nav = h('aside', { class: 'sidenav', 'aria-label': 'Section navigation' });
   shell.main = h('main', { class: 'content', id: 'main' });
-  shell.panel = h('aside', { class: 'labpanel', 'aria-label': 'Lab coach' });
+  shell.panel = safeContainer('aside', { class: 'labpanel', 'aria-label': 'Lab coach' });
   app.append(h('a', { class: 'skip', href: '#main' }, 'Skip to content'), shell.top, h('div', { class: 'layout' }, shell.nav, shell.main, shell.panel));
   try {
     const s = await api.startSession();

@@ -22,11 +22,25 @@ export function h(tag, props, ...kids) {
   return el;
 }
 
+// Always the native method: safeContainer() replaces el.append, which would otherwise recurse into this function.
+const nativeAppend = Element.prototype.append;
+
 export function append(el, kids) {
   for (const k of kids.flat(Infinity)) {
     if (k === undefined || k === null || k === false) continue;
-    el.append(k instanceof Node ? k : document.createTextNode(String(k)));
+    nativeAppend.call(el, k instanceof Node ? k : document.createTextNode(String(k)));
   }
+  return el;
+}
+
+/**
+ * A container whose .append() skips null/undefined/false and flattens arrays, exactly like h().
+ * Pages receive one of these, so `cond ? node : null` is safe. The native Element.append would
+ * render a literal "null" into the page.
+ */
+export function safeContainer(tag, props) {
+  const el = h(tag, props);
+  el.append = (...kids) => { append(el, kids); };
   return el;
 }
 

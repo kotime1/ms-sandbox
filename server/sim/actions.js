@@ -8,12 +8,13 @@
 import { validateObject, idSpec } from '../core/validate.js';
 import { ROLES, getRole } from './rbac.js';
 import {
-  SUB, RG, WS_ID, LEARNER, SimError, capCheck, resource, device, can, query, runPlaybook, runDetections,
+  SUB, RG, WS_ID, LEARNER, ASI_PRINCIPAL, SimError, capCheck, resource, device, can, query, runPlaybook, runDetections,
   raiseDefenderAlert, REQUIRED_DETECTION_COLUMNS, ENTITY_COLUMNS,
 } from './world.js';
 import { runQuery } from './kql/engine.js';
 import { tablesFor } from './world.js';
 import { runScenario } from '../attacks/scenarios.js';
+import { EXTRA_ACTIONS } from './actions-extra.js';
 
 const LEARNER_ID = 'u-admin1';
 const name = (extra = {}) => ({ type: 'string', min: 1, max: 80, pattern: /^[\w .:()-]+$/, ...extra });
@@ -33,7 +34,8 @@ export function listPrincipals(w) {
     .map((u) => ({ id: `u-${u.split('@')[0]}`, name: u, type: 'User' }));
   if (!users.some((u) => u.id === LEARNER_ID)) users.push({ id: LEARNER_ID, name: LEARNER, type: 'User' });
   const idents = w.azure.resources.filter((r) => r.identity?.systemAssigned).map((r) => ({ id: r.identity.principalId, name: r.name, type: 'Managed identity' }));
-  return [...users, ...idents].sort((a, b) => a.name.localeCompare(b.name));
+  const apps = [{ id: ASI_PRINCIPAL, name: 'Azure Security Insights', type: 'Service principal' }];
+  return [...users, ...idents, ...apps].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 const principalById = (w, id) => listPrincipals(w).find((p) => p.id === id) ?? null;
@@ -264,6 +266,8 @@ export const ACTIONS = {
     run: ({ bus }, p) => ({ message: bus.request('attack.run', { scenario: p.scenario }) }),
   },
 };
+
+Object.assign(ACTIONS, EXTRA_ACTIONS);
 
 export const ROLE_CATALOG = ROLES.map(({ name: n, description, privileged }) => ({ name: n, description, privileged }));
 

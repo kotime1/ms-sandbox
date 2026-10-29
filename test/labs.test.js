@@ -7,10 +7,17 @@ import { LABS } from '../server/labs/index.js';
 const SUB = '/subscriptions/00000000-0000-0000-0000-000000000000';
 const RG = `${SUB}/resourceGroups/rg-sentinel`;
 const fresh = () => new SessionStore({ env: {} }).create();
+// A solution step may be `[type, params, { fails: /regex/ }]` for a deliberate dead end (e.g. reproducing a time-out).
+// Then we assert that it fails for exactly that reason, so it cannot silently become a different bug.
 const solve = (s, lab) => {
-  for (const [type, params] of lab.solution(s.world)) {
+  for (const [type, params, opts] of lab.solution(s.world)) {
     const out = perform(s.ctx, type, params);
-    assert.ok(out.ok, `${lab.id}: ${type} failed: ${out.error?.message}`);
+    if (opts?.fails) {
+      assert.equal(out.ok, false, `${lab.id}: ${type} was expected to fail`);
+      assert.match(out.error.message, opts.fails, `${lab.id}: ${type} failed for the wrong reason`);
+    } else {
+      assert.ok(out.ok, `${lab.id}: ${type} failed: ${out.error?.message}`);
+    }
   }
 };
 

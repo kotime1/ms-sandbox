@@ -3,8 +3,7 @@
 // the server.
 
 import { listScopes, listPrincipals, ROLE_CATALOG } from '../sim/actions.js';
-import { SCHEMAS, SURFACES } from '../sim/tables.js';
-import { LEARNER } from '../sim/world.js';
+import { LEARNER, visibleTables, tableColumns } from '../sim/world.js';
 
 const iso = (ms) => new Date(ms).toISOString();
 
@@ -51,13 +50,52 @@ const sentinelConfig = (w) => ({
 
 const defender = (w) => ({
   alerts: w.defender.alerts.map((a) => ({ id: a.id, title: a.title, severity: a.severity, status: a.status, device: a.deviceName, process: a.evidence?.process ?? null, source: a.source, createdAt: iso(a.createdAt), suppressed: Boolean(a.suppressedBy), action: a.actionTaken ?? null })),
-  devices: w.defender.devices.map((d) => ({ id: d.id, name: d.name, os: d.os, isolated: d.isolated, risk: d.riskScore })),
+  devices: w.defender.devices.map((d) => ({ id: d.id, name: d.name, os: d.os, isolated: d.isolated, risk: d.riskScore, onboarding: d.onboarding })),
   suppression: w.defender.suppression.map((s) => ({ id: s.id, alertTitle: s.alertTitle, ioc: s.ioc, scope: s.scope, device: s.deviceId, action: s.action })),
   detections: w.defender.detections.map((d) => ({ id: d.id, name: d.name, alertTitle: d.alertTitle, severity: d.severity, query: d.query, actions: d.actions, enabled: d.enabled })),
 });
 
+// Indicator state is derived, never stored: an indicator with no valid target is Inactive.
+const indicatorStatus = (i) => (i.targets.length ? 'Active' : 'Inactive');
+
+const fileView = (f) => ({
+  sha256: f.sha256, name: f.name, blocked: f.blocked, blockedBy: f.blocked ? f.blockedBy ?? null : null,
+  // The verdict and sandbox behaviours are what deep analysis REVEALS, so they are only sent once it has run.
+  analysis: f.deepAnalysis ? { status: f.deepAnalysis.status, verdict: f.deepAnalysis.verdict, behaviors: f.deepAnalysis.behaviors } : null,
+});
+
+const defenderFiles = (w) => ({
+  files: w.defender.files.map(fileView),
+  allowBlock: w.defender.allowBlock.map((e) => ({ id: e.id, kind: e.kind, value: e.value, action: e.action, expiry: e.expiry })),
+  indicators: w.defender.indicators.map((i) => ({ id: i.id, type: i.type, value: i.value, action: i.action, targets: i.targets, status: indicatorStatus(i) })),
+  deviceGroups: w.defender.deviceGroups,
+});
+
+const deviceDetail = (w, id) => {
+  const d = w.defender.devices.find((x) => x.id === id);
+  if (!d) return null;
+  return {
+    device: { id: d.id, name: d.name, os: d.os, isolated: d.isolated, risk: d.riskScore, onboarding: d.onboarding },
+    timeline: (w.defender.timelines[id] ?? []).map((e) => ({ id: e.id, at: iso(e.at), kind: e.kind, text: e.text, flagged: e.flagged })).sort((a, b) => (a.at < b.at ? -1 : 1)),
+    packages: w.defender.packages.filter((p) => p.deviceId === id).map((p) => ({ id: p.id, at: iso(p.at), contents: p.contents })),
+    alerts: w.defender.alerts.filter((a) => a.deviceId === id).map((a) => ({ id: a.id, title: a.title, severity: a.severity })),
+  };
+};
+
+const sentinelHunting = (w) => {
+  const h = w.sentinel.hunting;
+  return {
+    queries: h.queries.map((q) => ({ id: q.id, name: q.name, tactics: q.tactics, query: q.query, favorite: h.favorites.includes(q.id), lastRun: q.lastRun ? { at: iso(q.lastRun.at), count: q.lastRun.count ?? null, error: q.lastRun.error ?? null } : null })),
+  };
+};
+
+const sentinelSummary = (w) => ({
+  rules: w.sentinel.summaryRules.map((r) => ({ id: r.id, name: r.name, source: r.source, destination: r.destination, binMinutes: r.binMinutes, rowsWritten: r.rowsWritten, query: r.query })),
+  sources: [...w.enabledTables].filter((n) => w.tables.has(n) && !w.sentinel.summaryRules.some((r) => r.destination === n)),
+});
+
 const schema = (w, surface) => ({
-  tables: (SURFACES[surface] ?? []).map((n) => ({ name: n, columns: SCHEMAS[n].map((c) => ({ name: c.name, type: c.type })) })),
+  tables: visibleTables(w, surface).map((n) => ({ name: n, columns: tableColumns(w, n).map((c) => ({ name: c.name, type: c.type })) })),
 });
 
 export const VIEWS = {
@@ -66,10 +104,18 @@ export const VIEWS = {
   'sentinel-incidents': sentinelIncidents,
   'sentinel-config': sentinelConfig,
   defender,
+  'defender-files': defenderFiles,
+  'sentinel-hunting': sentinelHunting,
+  'sentinel-summary': sentinelSummary,
   'schema-sentinel': (w) => schema(w, 'sentinel'),
   'schema-defender': (w) => schema(w, 'defender'),
 };
 
 export function getView(w, name) {
+  // Parameterised views look like "device/dev-0201".
+  if (typeof name === 'string' && name.startsWith('device/')) {
+    const id = name.slice('device/'.length);
+    return /^[a-z0-9][a-z0-9._-]{0,63}$/.test(id) ? deviceDetail(w, id) : null;
+  }
   return typeof name === 'string' && Object.hasOwn(VIEWS, name) ? VIEWS[name](w) : null;
 }

@@ -6,7 +6,9 @@
 
 | Field | Purpose |
 |---|---|
-| `id, title, level, minutes, topics, examObjective, sourceQuestions` | Catalogue card |
+| `id, title, level, minutes, topics, examObjective` | Catalogue card |
+| `sourceQuestions` | `{ set1: [n...], set2: [n...] }`. Numbers are per question set (the sets overlap, so a bare number would be ambiguous). `node scripts/coverage.mjs` turns these into `docs/COVERAGE.md`; a test fails if you forget |
+| `answers` | Optional `[{ id, label, placeholder }]`: fields the learner types a finding into (see *Investigation labs*) |
 | `brief` | Scenario text. State the *requirements*, not the answer |
 | `scenarios` | Attack scenarios the learner may replay (allowlist) |
 | `setup(world)` | Mutate the fresh world (add resources...). Return scenario ids to seed now |
@@ -26,9 +28,27 @@
 - Add a *least-privilege* or *too-broad* objective when the exam trap is "it works but is over-permissioned". Add a test that the sloppy solution fails it.
 - A required objective must not be met at the start (the suite enforces this).
 
+### Guard objectives must not pass by doing nothing
+
+An objective like "the malware is still blocked" is true before the learner acts. Gate it on the fix it protects (`check: (w) => Boolean(allowEntry(w)) && mal(w).blocked`). The suite fails any lab where a required objective is met at the start.
+
+### Objectives describe outcomes, never the mechanism
+
+Objective text is shown up front, and the assistant can echo it. Say *what* must be true ("Play1 becomes selectable"), not *how* ("the Azure Security Insights principal has Automation Contributor"). A test fails if an objective names the role that appears in the lab's reference solution.
+
+### Investigation labs (facts, not state)
+
+Declare `answers`, check with `foundEquals(w, 'id', expected)` from `labs/helpers.js`, and compute `expected` from the world, not a literal where you can. Make the wrong-but-tempting answer fail (a count that includes the Android phone, a user filter that over-reports) and add a test for it in `test/labs2.test.js`.
+
+### A deliberate dead end in `solution`
+
+`['query.run', {...}, { fails: /timed out/ }]` asserts the step fails for exactly that reason. Use it when the lab's first objective is to *reproduce* a problem.
+
 ### Adding a data table
 
-`server/sim/tables.js`: add the schema to `SCHEMAS`, seed rows in `seedBaseline`, and list it under a surface in `SURFACES` (`sentinel` = Logs blade, `defender` = Advanced hunting). Using a table from the wrong surface fails, as in the real portals.
+In `server/sim/tables.js`: add the schema to `SCHEMAS`, seed rows in `seedBaseline` (or in a scenario), and list the table under a surface in `SURFACES` (`sentinel` = Logs blade, `defender` = Advanced hunting). Using a table from the wrong surface fails, as in the real portals.
+
+If the table would give away a lab's answer or clutter other labs, make it **optional**: add it to `OPTIONAL_TABLES` and have the lab's scenario call `enableTables(w, 'Name')`. To make a table expensive to aggregate (a "too big to query" lab), set `scanCost` on it in the scenario. Tables created at runtime, such as summary-rule outputs, need nothing here.
 
 ## Add an attack scenario
 

@@ -1,6 +1,10 @@
 import { roleAllows, getRole } from '../sim/rbac.js';
 
-export const visited = (w, page) => w.log.some((e) => e.ok && e.action === 'ui.visit' && e.params?.page === page);
+/** The learner's reported answer for an investigation objective, normalised for comparison. */
+export const finding = (w, id) => w.findings.find((f) => f.objectiveId === id)?.value?.trim().toLowerCase() ?? null;
+export const foundEquals = (w, id, expected) => finding(w, id) === String(expected).trim().toLowerCase();
+
+export const visited =(w, page) => w.log.some((e) => e.ok && e.action === 'ui.visit' && e.params?.page === page);
 
 const covers = (scope, target) => target === scope || target.startsWith(`${scope}/`);
 export const assignmentsFor = (w, principalId) => w.azure.assignments.filter((a) => a.principalId === principalId);

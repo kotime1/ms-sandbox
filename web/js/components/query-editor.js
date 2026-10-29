@@ -2,6 +2,7 @@ import { h, clear } from '../dom.js';
 import { resultGrid } from './table.js';
 import { chart } from './chart.js';
 import { ctx } from '../app.js';
+import { answerBox } from './answer-box.js';
 
 const drafts = { sentinel: 'SigninLogs\n| take 10', defender: 'DeviceLogonEvents\n| take 10' }; // kept for the page session only
 
@@ -52,4 +53,7 @@ export async function queryEditor(host, surface, { extra } = {}) {
       toolbarExtra,
       ...(extra ? [extra(() => last ?? area.value)] : [])),
     out)));
+  // Investigation labs ask for a fact ("who?", "how many?"), typed here and checked server-side.
+  const answers = ctx.lab?.briefing?.answers;
+  if (answers?.length) answerBox(host, answers);
 }

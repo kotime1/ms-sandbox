@@ -2,10 +2,9 @@
 // functions. Nothing here touches the network, the filesystem or child processes: the
 // "environment" is entirely in memory, which is what makes the sandbox safe to run.
 
-import { newTables, seedBaseline } from './tables.js';
+import { newTables, seedBaseline, SURFACES, OPTIONAL_TABLES, SCHEMAS } from './tables.js';
 import { getRole, roleAllows } from './rbac.js';
 import { runQuery, KqlError } from './kql/engine.js';
-import { SURFACES } from './tables.js';
 import { rng, guid, randomToken } from '../core/util.js';
 
 export const SUB = '00000000-0000-0000-0000-000000000000';
@@ -14,7 +13,10 @@ export const WS_ID = `${RG}/providers/Microsoft.OperationalInsights/workspaces/l
 export const VM1_ID = `/subscriptions/${SUB}/resourceGroups/rg-workloads/providers/Microsoft.Compute/virtualMachines/VM1`;
 export const LEARNER = 'admin1@contoso.com';
 
-const MAX = { assignments: 200, automationRules: 50, suppression: 50, detections: 50, runs: 200, incidents: 500, alerts: 1000 };
+const MAX = { assignments: 200, automationRules: 50, suppression: 50, detections: 50, runs: 200, incidents: 500, alerts: 1000, indicators: 100, summaryRules: 20, favorites: 50, bookmarks: 100, workbooks: 30, findings: 40 };
+
+/** The identity Sentinel itself uses to run playbooks from incidents/automation rules. */
+export const ASI_PRINCIPAL = 'sp-azure-security-insights';
 
 export function createWorld() {
   const now = Date.now();
@@ -27,6 +29,7 @@ export function createWorld() {
     r,
     tables,
     counters: { report: nextReportId, incident: 1040, alert: 1, run: 1, rule: 1 },
+    enabledTables: new Set(),
     log: [], // every learner action: { at, action, params, ok } -- the audit trail labs are graded on
     queries: [], // successful learner queries: { surface, text, columns, records, tables, ops } (server-side only)
     flags: Object.create(null),
@@ -52,25 +55,36 @@ export function createWorld() {
       analyticsRules: [
         { id: 'rule-nrt1', name: 'NRTRule1', kind: 'NRT', severity: 'High', enabled: true, tactics: ['Execution'], query: 'SecurityAlert\n| where AlertName has "Suspicious"' },
         { id: 'rule-sch1', name: 'Rule3 - Rare admin sign-in', kind: 'Scheduled', severity: 'Medium', enabled: true, tactics: ['InitialAccess'], query: 'SigninLogs\n| where ResultType == "0"\n| summarize count() by UserPrincipalName' },
-        { id: 'rule-fusion', name: 'Advanced Multistage Attack Detection', kind: 'Fusion', severity: 'High', enabled: true, tactics: [], query: null },
-        { id: 'rule-ml', name: 'Anomalous RDP Login Detection', kind: 'MLBehaviorAnalytics', severity: 'Medium', enabled: true, tactics: ['LateralMovement'], query: null },
+        { id: 'rule-fusion', name: 'Advanced Multistage Attack Detection', kind: 'Fusion', severity: 'High', enabled: true, tactics: [], query: null, entityMapping: false },
+        { id: 'rule-ml', name: 'Anomalous RDP Login Detection', kind: 'MLBehaviorAnalytics', severity: 'Medium', enabled: true, tactics: ['LateralMovement'], query: null, entityMapping: false },
+        { id: 'rule-msft', name: 'Create incidents from Defender for Cloud alerts', kind: 'MicrosoftSecurity', severity: 'Medium', enabled: true, tactics: [], query: null, entityMapping: false },
       ],
       automationRules: [],
       incidents: [],
       playbooks: [], // ids of logic-app resources that are playbooks (see azure.resources[].playbook)
       runs: [],
+      workbooks: [], // saved workbooks: { id, name, template, tiles[] }
+      hunting: { queries: [], favorites: [], bookmarks: [] }, // queries are seeded by labs
+      summaryRules: [], // { id, name, source, destination, query, binMinutes }
     },
     defender: {
       devices: [
-        { id: 'dev-0001', name: 'Device1', os: 'Windows 11', isolated: false, riskScore: 'Low' },
-        { id: 'dev-0002', name: 'Device2', os: 'Windows 11', isolated: false, riskScore: 'Low' },
-        { id: 'dev-0003', name: 'Device3', os: 'Windows 11', isolated: false, riskScore: 'Low' },
-        { id: 'dev-0004', name: 'SRV-APP01', os: 'Windows Server 2022', isolated: false, riskScore: 'Low' },
+        { id: 'dev-0001', name: 'Device1', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
+        { id: 'dev-0002', name: 'Device2', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
+        { id: 'dev-0003', name: 'Device3', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
+        { id: 'dev-0004', name: 'SRV-APP01', os: 'Windows Server 2022', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
       ],
       alerts: [],
       suppression: [],
       detections: [],
+      deviceGroups: [{ id: 'grp-all', name: 'All devices' }, { id: 'grp-servers', name: 'Servers' }],
+      timelines: Object.create(null), // deviceId -> events[] (seeded by labs)
+      indicators: [], // custom indicators: { id, type, value, action, targets[], active }
+      allowBlock: [], // tenant allow/block list: { id, kind, value, action, expires }
+      files: [], // files known to the tenant: { sha256, name, blocked, blockedBy, deepAnalysis }
+      packages: [], // collected investigation packages: { id, deviceId, at, contents[] }
     },
+    findings: [], // answers to "what did you find" questions: { objectiveId, value }
   };
 }
 
@@ -85,6 +99,18 @@ const covers = (scope, target) => target === scope || target.startsWith(`${scope
 /** Is `principalId` allowed `action` on `target`, via any role assignment whose scope covers it? */
 export function can(w, principalId, action, target) {
   return w.azure.assignments.some((a) => a.principalId === principalId && covers(a.scope, target) && roleAllows(a.role, action));
+}
+
+/**
+ * Can Sentinel (the Azure Security Insights identity) run this playbook from an automation rule?
+ * Mirrors the documented behaviour: the Automation Contributor role must be delegated on the playbook's
+ * RESOURCE GROUP (or above). A role on the playbook resource itself, or Logic App Contributor, does not make it selectable.
+ */
+export function asiCanRun(w, playbook) {
+  return w.azure.assignments.some((a) => a.principalId === ASI_PRINCIPAL
+    && a.role === 'Microsoft Sentinel Automation Contributor'
+    && a.scope !== playbook.id
+    && covers(a.scope, playbook.id));
 }
 
 export function validRoleName(name) {
@@ -105,10 +131,31 @@ export class SimError extends Error {
 
 // ------------------------------------------------------------------ querying
 
-export function tablesFor(w, surface) {
+/** Table names visible on a surface: the always-on ones plus any optional table the active lab enabled. */
+export function visibleTables(w, surface) {
   const allowed = SURFACES[surface];
   if (!allowed) throw new SimError('Unknown query surface');
-  return new Map(allowed.map((n) => [n, w.tables.get(n)]));
+  const base = allowed.filter((n) => !OPTIONAL_TABLES.has(n) || w.enabledTables.has(n));
+  // Summary-rule destination tables are created at runtime and live in the Sentinel workspace only.
+  const dynamic = surface === 'sentinel' ? w.sentinel.summaryRules.map((r) => r.destination) : [];
+  return [...base, ...dynamic];
+}
+
+/** Column list for the schema browser: static schema, or the live table's columns for runtime-created tables. */
+export function tableColumns(w, name) {
+  return SCHEMAS[name] ?? w.tables.get(name)?.columns ?? [];
+}
+
+export function tablesFor(w, surface) {
+  return new Map(visibleTables(w, surface).map((n) => [n, w.tables.get(n)]));
+}
+
+/** Lab setup hook: make optional tables queryable (and visible in the schema browser). */
+export function enableTables(w, ...names) {
+  for (const n of names) {
+    if (!OPTIONAL_TABLES.has(n)) throw new Error(`not an optional table: ${n}`);
+    w.enabledTables.add(n);
+  }
 }
 
 export function query(w, surface, text) {
@@ -144,12 +191,25 @@ export function raiseSentinelIncident(w, { title, severity, ruleId, entities = [
   w.sentinel.incidents.unshift(inc);
   for (const row of alertRows) w.tables.get('SecurityAlert').rows.push({ TimeGenerated: new Date(), SystemAlertId: guid(w.r), ...row });
   w.tables.get('SecurityIncident').rows.push({ TimeGenerated: new Date(), IncidentNumber: inc.number, Title: title, Severity: severity, Status: 'New', Owner: '' });
+  // Incidents from rules without entity mapping have nothing to investigate (no investigation graph).
+  inc.investigable = (rule?.entityMapping ?? true) && entities.length > 0;
   // Automation rules: evaluated in order; conditions are ANDed.
   for (const ar of [...w.sentinel.automationRules].filter((x) => x.enabled).sort((a, b) => a.order - b.order)) {
     if (ar.trigger !== 'incidentCreated') continue;
     if (ar.ruleIds.length && !ar.ruleIds.includes(inc.ruleId)) continue;
     for (const act of ar.actions) {
-      if (act.type === 'runPlaybook') runPlaybook(w, { playbookId: act.playbookId, incident: inc, by: `automation:${ar.name}` });
+      if (act.type === 'runPlaybook') {
+        // Automation rules run playbooks as Sentinel's own identity, which needs permission on the playbook's resource group.
+        const pb = resource(w, act.playbookId);
+        if (!pb || !asiCanRun(w, pb)) {
+          capCheck(w.sentinel.runs, 'runs');
+          const run = { id: `run-${w.counters.run++}`, playbookId: act.playbookId, playbookName: pb?.name ?? act.playbookId, incidentId: inc.id, by: `automation:${ar.name}`, at: Date.now(), status: 'Failed', steps: [{ name: 'Trigger', detail: 'Automation rule', status: 'Failed', message: 'Microsoft Sentinel does not have permission to run this playbook. Grant the Azure Security Insights identity the Microsoft Sentinel Automation Contributor role on the playbook\'s resource group.' }], error: 'Microsoft Sentinel does not have permission to run this playbook.' };
+          w.sentinel.runs.unshift(run);
+          inc.runs.unshift(run.id);
+          continue;
+        }
+        runPlaybook(w, { playbookId: act.playbookId, incident: inc, by: `automation:${ar.name}` });
+      }
       if (act.type === 'changeSeverity') inc.severity = act.value;
       if (act.type === 'assignOwner') inc.owner = act.value;
     }

@@ -26,6 +26,10 @@ Make the *motions* of a Sentinel/Defender workflow learnable by hand without a s
 
 The simulated tenant lives on the server, per session. The browser only renders views and sends actions. This means: grading cannot be tampered with from devtools, secrets (solutions, hints not yet unlocked) never reach the page, and the same engine is testable without a browser (the tests solve every lab through `perform()`).
 
+### Splitting by iteration
+
+Actions and scenarios added after iteration 1 live in `server/sim/actions-extra.js` and `server/attacks/scenarios-extra.js` and are merged in (`Object.assign`) by the original modules. This keeps each file reviewable. Nothing depends on the split; fold them together if you prefer.
+
 ### Actions, not endpoints per feature
 
 Every state change is a named action in `ACTIONS` with a validation spec (`server/core/validate.js`). Adding a feature never adds an HTTP route; it adds an action plus a page that calls `ctx.act(name, params)`. Unknown names are rejected via `Object.hasOwn`.
@@ -46,15 +50,36 @@ Agents communicate through `EventBus.request()/handle()` (RPC) and `emit()/on()`
 
 A hand-written lexer → parser → AST interpreter. Supported: `where/filter`, `project`, `project-away/keep`, `extend`, `summarize` (`count countif dcount count_distinct sum avg min max make_set make_list arg_max arg_min`), `sort/order by`, `take/limit`, `top`, `distinct`, `count`, `union`, `render`; operators `== != =~ !~ < > <= >= contains has startswith endswith in between` (+ `!` forms), `and/or`, arithmetic; functions like `ago bin now strlen tolower toupper tostring toint isempty isnotempty iff coalesce strcat substring round`.
 
-Not supported on purpose (clear error with a hint): `join`, `let`, `mv-expand`, `parse`, `evaluate`, regex. Errors mimic Log Analytics wording and suggest corrections ("Did you mean 'IPAddress'?").
+`join` (iteration 2) supports `kind=inner|leftouter`, a parenthesised right-hand sub-query, and `on Col` or `on $left.A == $right.B`. A right-side column whose name clashes gets a numeric suffix (`BehaviorId1`), as in real Kusto.
 
-Safety limits: 4000-char queries, nesting depth 40, 3M evaluation steps, 1000 result rows, 50k groups; no `eval`; own-property lookups only.
+Not supported on purpose (clear error): `lookup`, `let`, `mv-expand`, `parse`, `evaluate`, other join kinds, regex. Errors mimic Log Analytics wording and suggest corrections ("Did you mean 'IPAddress'?").
+
+Safety limits: 4000-char queries, nesting depth 40, 3M evaluation steps, 1000 result rows, 50k groups, 100k join rows; no `eval`; own-property lookups only.
+
+**Scan cost.** A table can carry a `scanCost`. Reading it charges `rows × scanCost` evaluation steps up front, so aggregating a huge raw table "times out" exactly as it does on a real high-volume custom table, while a small summary table does not. This is what makes the summary-rule lab teach something. Backend jobs (a summary rule's own query) run with `noScanCost`.
+
+## Tables: surfaces, optional tables, runtime tables
+
+`server/sim/tables.js` declares schemas and which **surface** exposes each table: `sentinel` (the Logs blade) or `defender` (Advanced hunting). Using a table from the wrong surface is a teachable error, as in the real portals.
+
+Some tables are **optional** (`OPTIONAL_TABLES`): hidden from the schema browser and from queries until a lab's scenario calls `enableTables(w, ...)`. This keeps labs from giving away their answer through the schema (a lab about "which table has behaviour titles" would otherwise list it up front) and keeps unrelated labs uncluttered. **Runtime tables** (a summary rule's destination) are created by the learner and become visible through `visibleTables()`.
+
+## Findings
+
+Some objectives are facts, not state changes ("who edited the rule", "how many requests"). These use the `findings.report` action. The learner types an answer into an answer box; the lab's `check` compares it with the server's own data, and the expected value is never sent to the browser. A lab opts in with `answers: [{ id, label }]`.
+
+## The coach and walkthrough steps
+
+`nextStep()` returns the first incomplete step. **Pure navigation steps** (`target` starts with `nav:`) are skippable once any later step is done, so a learner who reached the right page another way is not told to go back. Steps that change the environment are never skipped.
 
 ## Fidelity: what is and is not simulated
 
 | Area | Faithful where it teaches | Simplified |
 |---|---|---|
-| Playbooks | Trigger type decides availability; managed identity required; RBAC on the *target* decides success; `AuthorizationFailed` wording | Playbook actions are a fixed list per lab |
+| Playbooks | Trigger type decides availability; managed identity required; RBAC on the *target* decides success; `AuthorizationFailed` wording. Automation rules run as the Azure Security Insights identity, which needs a role on the playbook's **resource group** (a role on the playbook itself does not count) | Playbook actions are a fixed list per lab |
+| Allow/Block, indicators | An allow entry releases a file immediately; an indicator is Inactive until it has a valid target (derived, never stored) | One tenant, device groups are a fixed pair |
+| Device onboarding | Devices can be listed but unapproved, and then report nothing | No real sensor |
+| Summary rules | Aggregating the raw table times out; the rule writes a new `_CL` table that queries instantly | The rule runs once on save, not on a schedule |
 | RBAC | Built-in role descriptions, scope inheritance, privileged flag | Action model is coarse (`vm.restart`, `playbook.run`...), not the full RBAC action set |
 | Suppression rules | Title + IOC + scope; apply to *future* alerts | Only process IOC; one alert source |
 | Custom detections | Required columns (`Timestamp`, `ReportId`, entity column); isolate needs `DeviceId` | Runs on save/scenario instead of on a schedule |

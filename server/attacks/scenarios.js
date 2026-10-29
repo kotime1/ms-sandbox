@@ -7,6 +7,7 @@
 import { raiseSentinelIncident, raiseDefenderAlert, runDetections, device } from '../sim/world.js';
 import { pushDeviceLogon } from '../sim/tables.js';
 import { guid } from '../core/util.js';
+import { EXTRA_SCENARIOS } from './scenarios-extra.js';
 
 export const ATTACKER_IP = '203.0.113.66';
 const MIN = 60_000;
@@ -82,6 +83,8 @@ export const SCENARIOS = {
     },
   },
 };
+
+Object.assign(SCENARIOS, EXTRA_SCENARIOS);
 
 export function listScenarios() {
   return Object.entries(SCENARIOS).map(([id, s]) => ({ id, title: s.title, mitre: s.mitre }));

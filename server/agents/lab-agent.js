@@ -52,6 +52,8 @@ export class LabAgent {
       ...labSummary(l),
       brief: l.brief,
       objectives: l.objectives.map((o) => ({ id: o.id, text: o.text, optional: Boolean(o.optional) })),
+      // Fields the learner types findings into. Labels only: the expected values never leave the server.
+      answers: (l.answers ?? []).map((a) => ({ id: a.id, label: a.label, placeholder: a.placeholder ?? null })),
       scenarios: this.bus.request('attack.list'),
     };
   }
@@ -87,7 +89,11 @@ export class LabAgent {
     const l = this.lab;
     if (!l) return null;
     const w = this.getWorld();
-    const idx = l.steps.findIndex((s) => { try { return !s.done(w); } catch { return true; } });
+    // Steps that are pure navigation ("open page X", target `nav:*`) are skippable: a learner who got to the
+    // right page by another route is not behind. Steps that change the environment are never skipped.
+    const isDone = (s) => { try { return Boolean(s.done(w)); } catch { return false; } };
+    const isNav = (s) => typeof s.target === 'string' && s.target.startsWith('nav:');
+    const idx = l.steps.findIndex((s) => !isDone(s) && !(isNav(s) && l.steps.slice(l.steps.indexOf(s) + 1).some(isDone)));
     if (idx < 0) return { index: l.steps.length, total: l.steps.length, text: 'Walkthrough complete. Check your objectives.', target: null };
     const s = l.steps[idx];
     const target = typeof s.target === 'function' ? s.target(w) : s.target;

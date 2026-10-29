@@ -81,7 +81,9 @@ test('helpful errors: unknown column suggests the right one', () => {
 
 test('helpful errors: unknown table, join unsupported, syntax', () => {
   assert.throws(() => q('SigninLog | take 1'), /Did you mean 'SigninLogs'/);
-  assert.throws(() => q('SigninLogs | join AuditLogs on IPAddress'), /union/);
+  assert.throws(() => q('SigninLogs | lookup AuditLogs on IPAddress'), /not supported/);
+  assert.throws(() => q('SigninLogs | join kind=fullouter (AuditLogs) on IPAddress'), /not supported/);
+  assert.throws(() => q('SigninLogs | join AuditLogs on IPAddress'), /Syntax error/); // the right side must be parenthesised
   assert.throws(() => q('SigninLogs | where'), /Syntax error/);
   assert.throws(() => q('SigninLogs | where "abc'), /unterminated/);
 });
@@ -99,4 +101,32 @@ test('limits: query length, nesting depth, result rows', () => {
   const r = runQuery('T', { tables: big, now: NOW });
   assert.equal(r.rows.length, LIMITS.maxResultRows);
   assert.equal(r.meta.truncated, true);
+});
+
+test('join: inner on a shared column, right-side name clashes get a numeric suffix', () => {
+  const r = q('SigninLogs | where ResultType == "50126" | join (AuditLogs | project IPAddress, OperationName, TimeGenerated) on IPAddress | project UserPrincipalName, OperationName, TimeGenerated, TimeGenerated1');
+  assert.equal(r.rows.length, 2);
+  assert.deepEqual(r.columns.map((c) => c.name), ['UserPrincipalName', 'OperationName', 'TimeGenerated', 'TimeGenerated1']);
+});
+
+test('join: $left/$right keys, leftouter keeps unmatched rows, inner drops them', () => {
+  const inner = q('SigninLogs | join (AuditLogs) on $left.IPAddress == $right.IPAddress');
+  const outer = q('SigninLogs | join kind=leftouter (AuditLogs) on IPAddress');
+  assert.equal(inner.rows.length, 2);
+  assert.equal(outer.rows.length, 4);
+});
+
+test('join: helpful errors for a missing key column, and a runaway join is capped', () => {
+  assert.throws(() => q('SigninLogs | join (AuditLogs) on IpAddres'), /left side of the join\. Did you mean 'IPAddress'/);
+  assert.throws(() => q('SigninLogs | join (AuditLogs) on $left.IPAddress == $right.Nope'), /right side of the join/);
+  const dup = new Map([['A', { columns: [{ name: 'k' }], rows: Array.from({ length: 400 }, () => ({ k: 1 })) }]]);
+  assert.throws(() => runQuery('A | join (A) on k', { tables: dup, now: NOW }), /join produced more than/);
+});
+
+test('scanCost: aggregating a huge raw table times out, a small summary table does not', () => {
+  const raw = { columns: [{ name: 'x' }], rows: Array.from({ length: 5000 }, (_, i) => ({ x: i })), scanCost: 1000 };
+  const summary = { columns: [{ name: 'x' }], rows: [{ x: 1 }] };
+  const tbl = new Map([['Raw_CL', raw], ['Summary_CL', summary]]);
+  assert.throws(() => runQuery('Raw_CL | summarize count()', { tables: tbl, now: NOW }), (e) => e.kind === 'Timeout' && /summary rule/.test(e.message));
+  assert.equal(runQuery('Summary_CL | summarize count()', { tables: tbl, now: NOW }).rows[0][0], 1);
 });

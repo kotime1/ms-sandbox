@@ -21,6 +21,7 @@ export const LIMITS = Object.freeze({
   maxDepth: 40,
   maxSteps: 3_000_000,
   maxResultRows: 1000,
+  maxJoinRows: 100_000,
 });
 
 const TS_UNITS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
@@ -30,7 +31,7 @@ const CMP_WORDS = new Set([
   'endswith', '!endswith', 'in', '!in', 'between',
 ]);
 const UNSUPPORTED_OPS = new Set([
-  'join', 'lookup', 'mv-expand', 'mvexpand', 'parse', 'evaluate', 'invoke', 'make-series',
+  'lookup', 'mv-expand', 'mvexpand', 'parse', 'evaluate', 'invoke', 'make-series',
   'serialize', 'sample', 'getschema', 'as', 'let', 'externaldata', 'materialize',
 ]);
 
@@ -76,13 +77,13 @@ function lex(src) {
       i = end;
       continue;
     }
-    if (/[A-Za-z_]/.test(c)) {
+    if (/[A-Za-z_$]/.test(c)) { // '$' only so `$left.Col == $right.Col` lexes
       const rest = src.slice(i, i + 40);
       const h = HYPHEN_OPS.exec(rest);
-      const m = h || /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest);
+      const m = h || /^[A-Za-z_$][A-Za-z0-9_]*/.exec(rest);
       // identifiers longer than the 40-char window are re-read in full
       let word = m[0];
-      if (!h && word.length === 40) word = /^[A-Za-z_][A-Za-z0-9_]*/.exec(src.slice(i))[0];
+      if (!h && word.length === 40) word = /^[A-Za-z_$][A-Za-z0-9_]*/.exec(src.slice(i))[0];
       toks.push({ t: 'id', v: word, pos: i });
       i += word.length;
       continue;
@@ -142,6 +143,13 @@ class Parser {
   leave() { this.depth--; }
 
   parseQuery() {
+    const stages = this.parseStages();
+    if (this.peek().t !== 'eof') throw this.err('unexpected token');
+    return stages;
+  }
+
+  /** A table-or-union source followed by `| operator` stages. Stops at ')' or end of input. */
+  parseStages() {
     const stages = [];
     const t = this.peek();
     if (t.t !== 'id') throw this.err('a query must start with a table name');
@@ -158,8 +166,42 @@ class Parser {
       this.next();
       stages.push(this.parseOperator());
     }
-    if (this.peek().t !== 'eof') throw this.err('unexpected token');
     return stages;
+  }
+
+  // join [kind=inner|leftouter] ( <sub-query> ) on Col[, Col2]  |  on $left.A == $right.B
+  parseJoin() {
+    let kind = 'inner';
+    if (this.isWord('kind') && this.isOp('=', 1)) {
+      this.next(); this.next();
+      kind = this.expectId().toLowerCase();
+      if (kind !== 'inner' && kind !== 'leftouter') {
+        throw new KqlError(`join kind '${kind}' is not supported in this sandbox (use inner or leftouter)`, 'Unsupported');
+      }
+    }
+    this.expectOp('(');
+    this.enter();
+    const sub = this.parseStages();
+    this.leave();
+    this.expectOp(')');
+    if (!this.isWord('on')) throw this.err("expected 'on' followed by the join column(s)");
+    this.next();
+    const keys = [];
+    do {
+      if (keys.length) this.next();
+      if (this.peek().t === 'id' && this.peek().v === '$left') {
+        this.next(); this.expectOp('.');
+        const l = this.expectId();
+        this.expectOp('==');
+        if (!(this.peek().t === 'id' && this.peek().v === '$right')) throw this.err("expected '$right'");
+        this.next(); this.expectOp('.');
+        keys.push({ l, r: this.expectId() });
+      } else {
+        const c = this.expectId();
+        keys.push({ l: c, r: c });
+      }
+    } while (this.isOp(','));
+    return { op: 'join', kind, sub, keys };
   }
 
   parseUnionArgs(asSource) {
@@ -181,8 +223,7 @@ class Parser {
     if (t.t !== 'id') throw this.err('expected an operator');
     const name = t.v.toLowerCase();
     if (UNSUPPORTED_OPS.has(name)) {
-      const hint = name === 'join' ? ' Try `union` to combine tables.' : '';
-      throw new KqlError(`The '${t.v}' operator is not supported in this sandbox.${hint}`, 'Unsupported');
+      throw new KqlError(`The '${t.v}' operator is not supported in this sandbox.`, 'Unsupported');
     }
     this.next();
     switch (name) {
@@ -205,6 +246,7 @@ class Parser {
       case 'distinct': return { op: 'distinct', items: this.parseNamedList() };
       case 'count': return { op: 'count' };
       case 'union': return { op: 'union', ...this.parseUnionArgs(false) };
+      case 'join': return this.parseJoin();
       case 'render': {
         const chart = this.expectId().toLowerCase();
         if (this.isWord('with')) {
@@ -639,6 +681,15 @@ function sourceTable(name, ctx) {
     throw new KqlError(`Failed to resolve table or column expression named '${name}'.${s ? ` Did you mean '${s}'?` : ''}`);
   }
   ctx.touched.add(name);
+  // Huge tables: charge a per-row scan cost up front so aggregating the raw table "times out" the way
+  // it does on a real high-volume custom table. Summary tables carry no scanCost.
+  if (t.scanCost && !ctx.noScanCost) {
+    const cost = t.rows.length * t.scanCost;
+    if (ctx.steps + cost > LIMITS.maxSteps) {
+      throw new KqlError(`The request timed out while scanning '${name}' (${t.rows.length.toLocaleString('en-US')} rows). Aggregate the raw table with a summary rule and query the summary table instead.`, 'Timeout');
+    }
+    ctx.steps += cost;
+  }
   return t;
 }
 
@@ -738,6 +789,15 @@ function runStages(stages, ctx) {
         rows = keyed.map((x) => x.r);
         break;
       }
+      case 'join': {
+        const right = runStages(st.sub, ctx);
+        for (const k of st.keys) {
+          if (!columns.includes(k.l)) throw new KqlError(`Failed to resolve column '${k.l}' on the left side of the join.${suggest(k.l, columns)}`);
+          if (!right.columns.includes(k.r)) throw new KqlError(`Failed to resolve column '${k.r}' on the right side of the join.${suggest(k.r, right.columns)}`);
+        }
+        ({ columns, rows } = joinRows(st, columns, rows, right, ctx));
+        break;
+      }
       case 'limit': rows = rows.slice(0, st.n); break;
       case 'top': {
         checkColumns(st.key.expr, columns);
@@ -770,6 +830,43 @@ function runStages(stages, ctx) {
     }
   }
   return { columns, rows, render };
+}
+
+const suggest = (name, cols) => { const s = didYouMean(name, cols); return s ? ` Did you mean '${s}'?` : ''; };
+
+/** Hash join. A right-side column whose name clashes gets a numeric suffix (BehaviorId -> BehaviorId1), as in Kusto. */
+function joinRows(st, lcols, lrows, right, ctx) {
+  const keyOf = (row, names) => JSON.stringify(names.map((n) => { const v = row[n]; return isDate(v) ? v.getTime() : isNil(v) ? null : v; }));
+  const index = new Map();
+  const rKeys = st.keys.map((k) => k.r);
+  for (const r of right.rows) {
+    tick(ctx);
+    const k = keyOf(r, rKeys);
+    const bucket = index.get(k);
+    if (bucket) bucket.push(r); else index.set(k, [r]);
+  }
+  const outCols = [...lcols];
+  const rename = new Map();
+  for (const c of right.columns) {
+    let n = c;
+    for (let i = 1; outCols.includes(n); i++) n = `${c}${i}`;
+    outCols.push(n);
+    rename.set(c, n);
+  }
+  const lKeys = st.keys.map((k) => k.l);
+  const out = [];
+  for (const l of lrows) {
+    tick(ctx);
+    const matches = index.get(keyOf(l, lKeys));
+    if (!matches) { if (st.kind === 'leftouter') out.push({ ...l }); continue; }
+    for (const m of matches) {
+      if (out.length >= LIMITS.maxJoinRows) throw new KqlError(`The join produced more than ${LIMITS.maxJoinRows.toLocaleString('en-US')} rows. Filter both sides first.`, 'Limit');
+      const o = { ...l };
+      for (const [c, n] of rename) o[n] = m[c];
+      out.push(o);
+    }
+  }
+  return { columns: outCols, rows: out };
 }
 
 function summarize(st, columns, rows, ctx) {
@@ -851,12 +948,12 @@ const cell = (v) => (isDate(v) ? v.toISOString() : isNil(v) ? null : v);
  * @param {string} text
  * @param {{tables: Map<string,{columns:{name:string,type:string}[],rows:object[]}>, now?: number, maxResultRows?: number}} opts
  */
-export function runQuery(text, { tables, now = Date.now(), maxResultRows = LIMITS.maxResultRows }) {
+export function runQuery(text, { tables, now = Date.now(), maxResultRows = LIMITS.maxResultRows, noScanCost = false }) {
   if (typeof text !== 'string' || !text.trim()) throw new KqlError('Query is empty', 'Syntax');
   if (text.length > LIMITS.maxQueryLength) throw new KqlError(`Query is too long (limit ${LIMITS.maxQueryLength} characters)`, 'Limit');
   const started = Date.now();
   const stages = new Parser(lex(text)).parseQuery();
-  const ctx = { tables, now, steps: 0, touched: new Set() };
+  const ctx = { tables, now, steps: 0, touched: new Set(), noScanCost };
   const { columns, rows, render } = runStages(stages, ctx);
   const truncated = rows.length > maxResultRows;
   const records = truncated ? rows.slice(0, maxResultRows) : rows;

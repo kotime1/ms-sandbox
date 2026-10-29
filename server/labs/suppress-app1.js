@@ -12,7 +12,7 @@ export default {
   minutes: 10,
   topics: ['Defender for Endpoint', 'Alert tuning', 'Suppression rules'],
   examObjective: '2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint',
-  sourceQuestions: [3, 25],
+  sourceQuestions: { set1: [3, 25], set2: [4] },
   scenarios: ['app1-clears-logs'],
   brief:
     'App1 is an approved maintenance tool that clears the event log on the application server SRV-APP01, and it fires "Security event log was cleared" every night. ' +

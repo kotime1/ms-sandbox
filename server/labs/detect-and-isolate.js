@@ -10,7 +10,7 @@ export default {
   minutes: 20,
   topics: ['Advanced hunting', 'Custom detection rules', 'Response actions', 'KQL'],
   examObjective: '3.1 Detect threats by using Microsoft Defender XDR',
-  sourceQuestions: [16, 40, 41, 42],
+  sourceQuestions: { set1: [16, 40, 41, 42], set2: [17, 40] },
   scenarios: ['bruteforce-device'],
   withholdNotes: ['custom-detection'], // describes the required columns and the arg_max pattern
   brief:

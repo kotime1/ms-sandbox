@@ -1,6 +1,7 @@
 import { h, badge, sev, fmtTime } from '../dom.js';
 import { table } from '../components/table.js';
 import { modal } from '../components/modal.js';
+import { answerBox } from '../components/answer-box.js';
 import { ctx } from '../app.js';
 
 export async function render(host) {
@@ -17,9 +18,13 @@ export async function render(host) {
         { key: 'createdAt', label: 'Created', render: (i) => fmtTime(i.createdAt) },
       ], v.incidents, { rowTarget: (i) => (i === v.incidents[0] ? 'row:incident-first' : `row:incident:${i.id}`), onRowClick: (i) => detail(i, v) })
       : h('div', { class: 'empty' }, 'No incidents in this workspace. Some labs create incidents when they start.'));
+  const answers = ctx.lab?.briefing?.answers;
+  if (answers?.length) answerBox(host, answers);
 }
 
 function detail(inc, v) {
+  // Recorded server-side so investigation labs can tell the incident was actually opened.
+  ctx.act('sentinel.viewIncident', { incidentId: inc.id }, { silentError: true });
   const body = h('div', null,
     h('div', { class: 'chips' }, sev(inc.severity), badge(inc.status), inc.owner ? badge(inc.owner) : badge('Unassigned')),
     h('p', null, inc.description || 'No description.'),

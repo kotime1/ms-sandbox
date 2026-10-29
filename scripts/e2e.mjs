@@ -10,6 +10,9 @@ import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createApp } from '../server/http/app.js';
+import { LABS } from '../server/labs/index.js';
+
+const LAB_COUNT = LABS.length; // derived, so adding a lab never silently breaks this script
 
 const CANDIDATES = [process.env.BROWSER, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].filter(Boolean);
 const browserPath = CANDIDATES.find((p) => existsSync(p));
@@ -65,8 +68,8 @@ const ok = (c, msg) => { if (!c) throw new Error(`FAIL: ${msg}`); passed++; cons
 try {
   await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable');
   await send('Page.navigate', { url: `http://127.0.0.1:${port}/#/home` });
-  await waitFor(`document.querySelectorAll('.card').length === 5`, 'lab cards');
-  ok(true, 'home lists 5 labs');
+  await waitFor(`document.querySelectorAll('.card').length === ${LAB_COUNT}`, 'lab cards');
+  ok(true, `home lists all ${LAB_COUNT} labs`);
 
   // ---- Lab: playbook-permissions, by clicking only ----
   await click('btn:start:playbook-permissions');
@@ -111,7 +114,7 @@ try {
 
   // ---- Lab: KQL, run a query with a chart ----
   await evalJs(`location.hash = '#/home'`);
-  await waitFor(`document.querySelectorAll('.card').length === 5`, 'home again');
+  await waitFor(`document.querySelectorAll('.card').length === ${LAB_COUNT}`, 'home again');
   await click('btn:start:kql-investigation');
   await waitFor(`location.hash === '#/sentinel/logs'`, 'logs page');
   ok(dialogs.some((d) => /resets the simulated environment/.test(d)), 'starting a second lab asks for confirmation before resetting');

@@ -10,8 +10,10 @@ Requires Node.js 22+ (developed on 24). There are **no dependencies to install**
 
 ```bash
 npm start            # http://127.0.0.1:3000
-npm test             # 72 unit/integration/security tests
-node scripts/e2e.mjs # drives the real UI in headless Edge/Chrome (optional)
+npm test                         # 126 unit, integration and security tests
+node scripts/e2e.mjs             # plays iteration-1 labs through the real UI in headless Edge/Chrome (optional)
+node scripts/e2e-labs2.mjs       # plays the iteration-2 labs the same way (optional)
+node scripts/coverage.mjs        # regenerates docs/COVERAGE.md (a test fails if it is stale)
 ```
 
 Open the page, pick a lab, and work through it in the simulated portals. The right-hand **Lab coach** panel shows the brief, your objectives, a gold-pulsing highlight on the next control to use, graded hints, and the assistant.
@@ -26,19 +28,28 @@ Open the page, pick a lab, and work through it in the simulated portals. The rig
 
 They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)); the "Agent activity" drawer in the coach panel shows it.
 
-## Labs (iteration 1)
+## Labs
 
-Inspired by (not copies of) the practice questions in `questions.txt`.
+14 labs, inspired by (not copies of) the practice questions in [question_sets/](question_sets/). The two sets overlap heavily (27 of set 2's 50 questions repeat set 1 word for word), so one lab usually serves several questions. **[docs/COVERAGE.md](docs/COVERAGE.md) maps every question to a lab and lists what is still missing.**
 
-| Lab | Level | Practices | Source Qs |
-|---|---|---|---|
-| Silence App1 without going blind | Beginner | Defender suppression rules, tuning | 3, 25 |
-| Least privilege for the SOC | Beginner | Sentinel roles, RBAC scope | 8, 9 |
-| The containment playbook that will not run | Intermediate | Playbook triggers, managed identity, RBAC, automation rules | 5, 6, 7, 18 |
-| Hunt it, then make it automatic | Intermediate | Advanced hunting, custom detections, isolate action | 16, 40, 41, 42 |
-| Three questions for the logs | Intermediate | KQL: union, AzureActivity, Graph logs | 38, 39, 44, 47, 48 |
+| Lab | Level | Practices |
+|---|---|---|
+| Silence App1 without going blind | Beginner | Defender suppression rules, tuning |
+| Unblock LOB1, keep blocking malware | Beginner | Tenant Allow/Block List, indicators and their targets |
+| The devices that never raise alerts | Beginner | Device approval |
+| Least privilege for the SOC | Beginner | Sentinel roles, RBAC scope |
+| Queries that run when you open Hunting | Beginner | Hunting favorites |
+| The containment playbook that will not run | Intermediate | Playbook trigger, managed identity, RBAC on the target |
+| The playbook that is not in the list | Intermediate | Letting Sentinel itself run a playbook (resource-group scope) |
+| Which incidents can you actually investigate? | Intermediate | Rule types, entity mapping |
+| Hunt it, then make it automatic | Intermediate | Advanced hunting, custom detections, isolate |
+| Three questions for the logs | Intermediate | KQL: union, AzureActivity, Graph logs |
+| Join behaviours to their entities | Intermediate | UEBA behaviours, KQL `join` |
+| Queries that time out | Intermediate | Summary rules for high-volume tables |
+| Triage WS-23 | Intermediate | Device timeline, investigation package, deep analysis, indicators, response restraint |
+| Follow one token through Graph | Advanced | Graph activity logs, sign-in correlation |
 
-Labs are graded on the **outcome** (what changed in the environment), not the click order, so there are many valid paths, and "works but too broad" fails the least-privilege objectives on purpose.
+Labs are graded on the **outcome** (what changed in the environment), not the click order, so there are many valid paths, and "works but too broad" fails the least-privilege objectives on purpose. Investigation labs ask you to *report a finding* (who, how many); the expected value stays on the server.
 
 ## Optional: Claude-powered assistant
 
@@ -53,6 +64,7 @@ The key is read from the environment only. It is never sent to the browser or lo
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how it fits together, fidelity limits
 - [docs/SECURITY.md](docs/SECURITY.md): threat model and every control, with the tests that prove it
+- [docs/COVERAGE.md](docs/COVERAGE.md): which practice question maps to which lab, duplicates between sets, and the backlog (generated)
 - [docs/AUTHORING_LABS.md](docs/AUTHORING_LABS.md): add a lab, scenario, action or page
 - [docs/CHANGELOG.md](docs/CHANGELOG.md): **summary of changes per iteration (updated every iteration)**
 
@@ -66,7 +78,8 @@ Every iteration must update the docs and add an entry to [docs/CHANGELOG.md](doc
 server/  core/ (bus, session, validation)   sim/ (world, actions, KQL engine, RBAC, tables)
          agents/  attacks/  labs/  knowledge/  http/
 web/     index.html  css/  js/ (dom, api, main, pages/, components/)
-test/    kql, labs, http (security), web-static (front-end guardrails)
-scripts/ e2e.mjs
+test/    kql, labs, labs2 (trap paths), http (security), web-static (front-end guardrails)
+scripts/ e2e-lib.mjs  e2e.mjs  e2e-labs2.mjs  coverage.mjs
+question_sets/  set1.txt  set2.txt   (the source practice questions)
 docs/
 ```

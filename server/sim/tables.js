@@ -16,13 +16,23 @@ export const SCHEMAS = {
   AzureActivity: [T('TimeGenerated', 'datetime'), T('OperationNameValue'), T('ActivityStatusValue'), T('Caller'), T('ResourceGroup'), T('CategoryValue'), T('Properties')],
   MicrosoftGraphActivityLogs: [T('TimeGenerated', 'datetime'), T('RequestId'), T('AppId'), T('ServicePrincipalId'), T('UserId'), T('RequestMethod'), T('RequestUri'), T('ResponseStatusCode', 'long'), T('IPAddress')],
   DeviceLogonEvents: [T('Timestamp', 'datetime'), T('ReportId', 'long'), T('DeviceId'), T('DeviceName'), T('ActionType'), T('LogonType'), T('AccountName'), T('RemoteIP'), T('InitiatingProcessCommandLine')],
+  DeviceEvents: [T('Timestamp', 'datetime'), T('ReportId', 'long'), T('DeviceId'), T('DeviceName'), T('OSPlatform'), T('ActionType'), T('InitiatingProcessFileName'), T('InitiatingProcessCommandLine'), T('InitiatingProcessAccountUpn')],
+  BehaviorInfo: [T('Timestamp', 'datetime'), T('BehaviorId'), T('Title'), T('Description'), T('Categories')],
+  BehaviorEntities: [T('Timestamp', 'datetime'), T('BehaviorId'), T('EntityType'), T('AccountUpn'), T('RemoteIP'), T('DeviceName')],
+  NetworkSessions_CL: [T('TimeGenerated', 'datetime'), T('SourceIP'), T('DestinationIP'), T('DestinationPort', 'long'), T('Bytes', 'long'), T('Action')],
 };
 
-/** Which tables each query surface exposes. Using a table from the wrong surface is a teachable error. */
+/**
+ * Which tables each query surface exposes. Using a table from the wrong surface is a teachable error.
+ * The UEBA behaviour tables live in Advanced hunting (the exam question asks about it there).
+ */
 export const SURFACES = {
-  sentinel: ['SigninLogs', 'AuditLogs', 'SecurityAlert', 'SecurityIncident', 'AzureActivity', 'MicrosoftGraphActivityLogs'],
-  defender: ['DeviceLogonEvents'],
+  sentinel: ['SigninLogs', 'AuditLogs', 'SecurityAlert', 'SecurityIncident', 'AzureActivity', 'MicrosoftGraphActivityLogs', 'NetworkSessions_CL'],
+  defender: ['DeviceLogonEvents', 'DeviceEvents', 'BehaviorInfo', 'BehaviorEntities'],
 };
+
+/** Tables a lab must opt into (so the schema browser stays uncluttered). Hidden from `/api/view/schema-*` until enabled. */
+export const OPTIONAL_TABLES = new Set(['NetworkSessions_CL', 'BehaviorInfo', 'BehaviorEntities', 'DeviceEvents']);
 
 export const USERS = [
   'alex.rivera', 'priya.shah', 'jordan.lee', 'sam.okafor', 'mei.tan', 'chris.novak',

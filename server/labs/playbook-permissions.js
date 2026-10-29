@@ -14,7 +14,7 @@ export default {
   minutes: 20,
   topics: ['Sentinel automation', 'Playbooks', 'Managed identity', 'Azure RBAC'],
   examObjective: '1.x / 2.x Configure automation; playbook triggers and permissions',
-  sourceQuestions: [5, 6, 7, 18],
+  sourceQuestions: { set1: [5, 6, 7, 18], set2: [7, 8, 9, 18] },
   scenarios: ['vm-compromise-incident'],
   brief:
     'A High-severity incident was raised for suspicious activity on VM1. Your team built a Logic App named Playbook1 that restarts VM1 to contain the host and adds a comment to the incident. ' +
