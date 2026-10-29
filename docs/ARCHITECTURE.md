@@ -1,0 +1,70 @@
+# Architecture
+
+## Goal
+
+Make the *motions* of a Sentinel/Defender workflow learnable by hand without a subscription. Fidelity is a means, not the goal: where the real product behaviour matters for the exam (a playbook needs the incident trigger; the identity needs a role on the VM) the sandbox reproduces it faithfully, and everywhere else it simplifies.
+
+## Shape
+
+```
+ Browser (vanilla ES modules, no build, no innerHTML)
+   │  pages mimic Azure / Sentinel / Defender portals; every button = one API action
+   ▼
+ HTTP layer  server/http/app.js     host/origin/CSRF checks, rate limits, JSON only, static files
+   │
+   ▼
+ Session     server/core/session.js one isolated bundle per browser session:
+   │            world (state) + bus + lab-agent + attack-agent + assistant-agent
+   ▼
+ perform()   server/sim/actions.js  the ONLY write path: validate → authorize → mutate world
+   ▼
+ World       server/sim/world.js    plain in-memory data + engine functions
+                                    (incidents, automation rules, playbook runs, suppression, detections)
+```
+
+### Why server-side state
+
+The simulated tenant lives on the server, per session. The browser only renders views and sends actions. This means: grading cannot be tampered with from devtools, secrets (solutions, hints not yet unlocked) never reach the page, and the same engine is testable without a browser (the tests solve every lab through `perform()`).
+
+### Actions, not endpoints per feature
+
+Every state change is a named action in `ACTIONS` with a validation spec (`server/core/validate.js`). Adding a feature never adds an HTTP route; it adds an action plus a page that calls `ctx.act(name, params)`. Unknown names are rejected via `Object.hasOwn`.
+
+### Views
+
+`server/http/views.js` converts world state to JSON with an explicit field whitelist. Raw world objects (RNG state, seen-sets, internals) never leave the server.
+
+## The agents
+
+- **lab-agent** (`agents/lab-agent.js`): `start(labId)` builds a fresh World, runs `lab.setup(world)`, tells the attack-agent which scenarios are allowed and seeds the initial ones. `status()` re-evaluates every objective's `check(world)`. `nextStep()` returns the first incomplete step and its `target`, a `data-target` string the UI highlights. `hint()` reveals one tier at a time and records usage.
+- **attack-agent** (`agents/attack-agent.js`): runs scenario functions from `attacks/scenarios.js`. Scenarios only **append synthetic rows/alerts/incidents** to the in-memory world; there is no network, process or file activity. It refuses any scenario the active lab did not allow.
+- **assistant-agent** (`agents/assistant-agent.js`): reads only `lab.context` from the lab-agent. Provider is `local` (keyword-matched notes in `knowledge/concepts.js`) or `claude` (Messages API). See [SECURITY.md](SECURITY.md#assistant-agent).
+
+Agents communicate through `EventBus.request()/handle()` (RPC) and `emit()/on()`; user-visible activity is recorded in a ring buffer (`bus.record`) that the UI shows.
+
+## Mini-KQL (`server/sim/kql/engine.js`)
+
+A hand-written lexer → parser → AST interpreter. Supported: `where/filter`, `project`, `project-away/keep`, `extend`, `summarize` (`count countif dcount count_distinct sum avg min max make_set make_list arg_max arg_min`), `sort/order by`, `take/limit`, `top`, `distinct`, `count`, `union`, `render`; operators `== != =~ !~ < > <= >= contains has startswith endswith in between` (+ `!` forms), `and/or`, arithmetic; functions like `ago bin now strlen tolower toupper tostring toint isempty isnotempty iff coalesce strcat substring round`.
+
+Not supported on purpose (clear error with a hint): `join`, `let`, `mv-expand`, `parse`, `evaluate`, regex. Errors mimic Log Analytics wording and suggest corrections ("Did you mean 'IPAddress'?").
+
+Safety limits: 4000-char queries, nesting depth 40, 3M evaluation steps, 1000 result rows, 50k groups; no `eval`; own-property lookups only.
+
+## Fidelity: what is and is not simulated
+
+| Area | Faithful where it teaches | Simplified |
+|---|---|---|
+| Playbooks | Trigger type decides availability; managed identity required; RBAC on the *target* decides success; `AuthorizationFailed` wording | Playbook actions are a fixed list per lab |
+| RBAC | Built-in role descriptions, scope inheritance, privileged flag | Action model is coarse (`vm.restart`, `playbook.run`...), not the full RBAC action set |
+| Suppression rules | Title + IOC + scope; apply to *future* alerts | Only process IOC; one alert source |
+| Custom detections | Required columns (`Timestamp`, `ReportId`, entity column); isolate needs `DeviceId` | Runs on save/scenario instead of on a schedule |
+| Tables | Real names and the columns labs need | Far fewer columns; synthetic data; RFC 5737 IPs |
+| KQL | Operators above | A subset (see above) |
+
+## Determinism
+
+Baseline data is generated from a seeded PRNG (`core/util.js`), so every learner and every test run sees the same dataset. Timestamps are relative to "now" at lab start.
+
+## Limits (resource bounds)
+
+50 live sessions (LRU eviction), 2h idle expiry, 500 incidents/200 role assignments/etc. per world (`world.js` `MAX`), 500-entry action log, 200-entry agent feed.

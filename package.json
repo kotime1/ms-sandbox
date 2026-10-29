@@ -1,0 +1,16 @@
+{
+  "name": "ms-sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hands-on mock Microsoft Sentinel lab environment for SC-200 study. Mimics the portal workflow; does not replicate Sentinel.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "license": "UNLICENSED"
+}
