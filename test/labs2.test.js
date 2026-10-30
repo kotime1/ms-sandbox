@@ -10,30 +10,62 @@ const fresh = (labId) => { const s = new SessionStore({ env: {} }).create(); s.l
 const met = (s, id) => s.lab.status().objectives.find((o) => o.id === id).met;
 const PB = `${RG}/providers/Microsoft.Logic/workflows/Play1`;
 
-test('unblock-lob1: indicators are inactive without a target; an Allow entry releases the file immediately', () => {
+test('unblock-lob1: the Tenant Allow/Block List is an EMAIL feature and cannot release an endpoint file', () => {
+  // learn.microsoft.com/en-us/defender-office-365/tenant-allow-block-list-files-configure (2026-07-03)
   const s = fresh('unblock-lob1');
-  assert.equal(s.world.defender.files.find((f) => f.sha256 === LOB_HASH).blocked, true);
-  // An indicator alone does not unblock the file, and with no target it is created but inactive.
-  let out = perform(s.ctx, 'defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'allow' });
-  assert.ok(out.ok);
-  assert.equal(out.data.indicator.targets.length, 0);
-  assert.equal(met(s, 'allow'), false);
-  assert.equal(met(s, 'ioc'), false);
-  // An invalid target is rejected; a valid one activates it.
-  out = perform(s.ctx, 'defender.setIndicatorTargets', { id: out.data.indicator.id, targets: ['grp-nope'] });
-  assert.match(out.error.message, /not a valid device group/);
-  assert.ok(perform(s.ctx, 'defender.setIndicatorTargets', { id: s.world.defender.indicators[0].id, targets: ['grp-all'] }).ok);
-  assert.equal(met(s, 'ioc'), true);
+  const out = perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: LOB_HASH, action: 'allow' });
+  assert.equal(out.ok, false);
+  assert.match(out.error.message, /can't create allow entries for files directly/);
+  assert.match(out.error.message, /Submissions/);
+  assert.equal(met(s, 'allow'), false, 'nothing was released');
+  // Block entries are allowed (they are email-attachment blocks) but do not change the endpoint state.
+  assert.ok(perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: MALWARE_HASH, action: 'block' }).ok);
+  assert.match(perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: 'abc', action: 'block' }).error.message, /SHA-256/);
 });
 
-test('unblock-lob1: allowing the malicious hash too fails the scope objective; bad hashes are rejected', () => {
+test('unblock-lob1: a file Allow indicator releases the file only where it is scoped; no scope means it applies nowhere', () => {
   const s = fresh('unblock-lob1');
-  perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: LOB_HASH, action: 'allow' });
+  const f = () => s.world.defender.files.find((x) => x.sha256 === LOB_HASH);
+  assert.equal(f().blocked, true);
+  // Created without a scope: saved but applies to no device, so LOB1 is still blocked.
+  let out = perform(s.ctx, 'defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'allow' });
+  assert.ok(out.ok);
+  assert.equal(f().perDevice['dev-0001'], 'Blocked by remediation');
+  assert.equal(met(s, 'allow'), false);
+  // An unknown scope is rejected.
+  assert.match(perform(s.ctx, 'defender.setIndicatorTargets', { id: out.data.indicator.id, targets: ['grp-nope'] }).error.message, /not a valid device group/);
+  // Scope it to the servers: the workstations are still blocked.
+  perform(s.ctx, 'defender.setIndicatorTargets', { id: out.data.indicator.id, targets: ['grp-servers'] });
+  assert.equal(f().perDevice['dev-0004'], 'Allow');
+  assert.equal(f().perDevice['dev-0001'], 'Blocked by remediation');
+  assert.equal(met(s, 'allow'), false, 'the wrong group does not fix LOB1');
+  // Scope it to the workstations: fixed, and no wider than needed.
+  perform(s.ctx, 'defender.setIndicatorTargets', { id: out.data.indicator.id, targets: ['grp-workstations'] });
+  assert.equal(met(s, 'allow'), true);
+  assert.equal(met(s, 'narrow'), true);
   assert.equal(met(s, 'scope'), true);
-  perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: MALWARE_HASH, action: 'allow' });
+});
+
+test('unblock-lob1: allowing everywhere works but fails the "no wider than needed" objective; releasing the malware fails the guard', () => {
+  const s = fresh('unblock-lob1');
+  perform(s.ctx, 'defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'allow', targets: ['grp-all'] });
+  assert.equal(met(s, 'allow'), true);
+  assert.equal(met(s, 'narrow'), false);
+  perform(s.ctx, 'defender.createIndicator', { type: 'file', value: MALWARE_HASH, action: 'allow', targets: ['grp-all'] });
   assert.equal(met(s, 'scope'), false);
-  assert.match(perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: 'abc', action: 'allow' }).error.message, /SHA-256/);
-  assert.match(perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: LOB_HASH, action: 'allow' }).error.message, /already exists/);
+});
+
+test('file indicators: a group-scoped indicator beats an all-devices one; blocking needs the "Allow or block file" advanced feature', () => {
+  // docs: "if conflicting file IoC policies ... are applied to all devices and to the device's group, the policy in the device group will win"
+  const s = fresh('unblock-lob1');
+  const f = () => s.world.defender.files.find((x) => x.sha256 === LOB_HASH);
+  perform(s.ctx, 'defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'block', targets: ['grp-all'] });
+  assert.equal(f().perDevice['dev-0001'], 'Blocked by remediation', 'a Block indicator does nothing until the advanced feature is on');
+  perform(s.ctx, 'defender.setAdvancedFeature', { feature: 'allowOrBlockFile', enabled: true });
+  assert.equal(f().perDevice['dev-0001'], 'Block');
+  perform(s.ctx, 'defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'allow', targets: ['grp-workstations'] });
+  assert.equal(f().perDevice['dev-0001'], 'Allow', 'the group-scoped Allow wins on the workstations');
+  assert.equal(f().perDevice['dev-0004'], 'Block', 'servers still get the all-devices Block');
 });
 
 test('approve-devices: isolating does not fix it; approving does; approving nothing is an error', () => {
@@ -228,7 +260,7 @@ test('coach: navigation steps are skippable once a later step is done; state-cha
   // Nothing done: the first step is the first nav step.
   assert.equal(s.lab.nextStep().index, 0);
   // The learner reaches the allow/block page by another route and adds the entry: nav steps behind it are skipped.
-  perform(s.ctx, 'defender.addAllowBlock', { kind: 'file', value: LOB_HASH, action: 'allow' });
+  perform(s.ctx, 'defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'allow', targets: ['grp-workstations'] });
   assert.equal(s.lab.nextStep().index, 3, 'all steps are done, so the walkthrough is complete');
   // A state-changing step before a done step is NOT skipped.
   const t = fresh('triage-ws23');
@@ -270,4 +302,26 @@ test('coverage: every lab question number exists in its set (no typos), and the 
     assert.equal((text.match(/^Question \d+ of 50\s*$/gm) ?? []).length, 50, `${k} should have 50 questions`);
     for (const l of LABS) for (const n of l.sourceQuestions[k]) assert.ok(n >= 1 && n <= 50, `${l.id}: ${k} question ${n} out of range`);
   }
+});
+
+test('every lab declares how well it is backed by Microsoft docs, and unverified labs say so honestly', async () => {
+  const { LABS } = await import('../server/labs/index.js');
+  for (const l of LABS) {
+    assert.ok(['docs', 'partial', 'exam'].includes(l.verification?.level), `${l.id}: verification.level`);
+    assert.ok(l.verification.note?.length > 20, `${l.id}: verification.note should explain`);
+    // Nothing here has been checked against a live tenant, so no lab may claim it.
+    assert.notEqual(l.verification.level, 'tenant');
+    assert.doesNotMatch(l.verification.note, /verified in (a|the) tenant|tested in (a|the) tenant/i);
+  }
+  const fav = LABS.find((l) => l.id === 'hunting-favorites');
+  assert.equal(fav.verification.level, 'exam', 'hunting favorites stays labelled unverified until checked in a tenant');
+  assert.match(fav.verification.note, /Unverified/);
+});
+
+test('the lab catalogue and the briefing both expose the verification label (and nothing else secret)', async () => {
+  const s = fresh('hunting-favorites');
+  assert.equal(s.lab.briefing().verification.level, 'exam');
+  const { labSummary, LABS } = await import('../server/labs/index.js');
+  for (const l of LABS) assert.ok(labSummary(l).verification);
+  assert.doesNotMatch(JSON.stringify(labSummary(LABS[0])), /solution|hints|check/);
 });

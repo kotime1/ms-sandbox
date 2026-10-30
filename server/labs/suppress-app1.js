@@ -7,12 +7,14 @@ const goodRule = (r) => r.alertTitle === TITLE && r.ioc?.type === 'process' && S
 
 export default {
   id: 'suppress-app1',
-  title: 'Silence App1 without going blind',
+  title: 'Tune out App1 without going blind',
   level: 'Beginner',
   minutes: 10,
   topics: ['Defender for Endpoint', 'Alert tuning', 'Suppression rules'],
   examObjective: '2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint',
   sourceQuestions: { set1: [3, 25], set2: [4] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "docs", note: "Alert tuning matches the docs (hide/resolve; conditions from alert evidence). The wizard is simplified." },
   scenarios: ['app1-clears-logs'],
   brief:
     'App1 is an approved maintenance tool that clears the event log on the application server SRV-APP01, and it fires "Security event log was cleared" every night. ' +
@@ -21,7 +23,7 @@ export default {
   setup() { return ['app1-clears-logs']; },
 
   objectives: [
-    { id: 'rule', text: 'Create a suppression rule limited to this alert title and the App1.exe process.', check: (w) => w.defender.suppression.some(goodRule) },
+    { id: 'rule', text: 'Create an alert tuning rule limited to this alert title and the App1.exe process.', check: (w) => w.defender.suppression.some(goodRule) },
     {
       id: 'verify', text: 'Replay the simulation: App1\'s alert is suppressed, but wevtutil.exe\'s alert still appears.',
       check: (w) => w.defender.alerts.some((a) => isApp1(a) && a.suppressedBy) && w.defender.alerts.filter(isWevtutil).length > 0 && w.defender.alerts.filter(isWevtutil).every((a) => !a.suppressedBy),
@@ -31,7 +33,7 @@ export default {
   steps: [
     { text: 'Open Incidents & alerts in the Defender portal.', target: 'nav:defender/alerts', done: (w) => visited(w, 'defender/alerts') },
     { text: 'Open the "log was cleared" alert caused by App1.exe.', target: (w) => { const a = w.defender.alerts.find(isApp1); return a ? `row:alert:${a.id}` : 'nav:defender/alerts'; }, done: (w) => w.defender.suppression.some(goodRule) },
-    { text: 'Create a suppression rule for the App1.exe indicator.', target: 'btn:create-suppression', done: (w) => w.defender.suppression.some(goodRule) },
+    { text: 'Tune the alert: add a condition for the App1.exe process and save.', target: 'btn:create-suppression', done: (w) => w.defender.suppression.some(goodRule) },
     { text: 'Replay the simulation from the lab panel.', target: 'btn:run-sim:app1-clears-logs', done: (w) => w.defender.alerts.some((a) => isApp1(a) && a.suppressedBy) },
   ],
 
@@ -39,7 +41,7 @@ export default {
     rule: [
       'You want to dismiss alerts you know are harmless, automatically, in the future.',
       'Start from one of the alerts that App1 caused, and look for a way to create a rule from it.',
-      'Open the alert from App1.exe > Create suppression rule > Triggering IOC: process App1.exe > Scope: Organization > Action: Hide alert.',
+      'Open the alert from App1.exe > Tune alert > condition: process App1.exe > Scope: All devices > Action: Hide alert.',
     ],
     verify: [
       'A rule only affects alerts raised after it exists.',
@@ -49,7 +51,7 @@ export default {
   },
 
   debrief: [
-    'A suppression rule matches on the alert title plus a triggering indicator (IOC) and a scope. Adding the IOC (App1.exe) is what keeps the same alert from other processes visible.',
+    'An alert tuning rule (formerly called alert suppression) matches on conditions built from the evidence behind the alert (here the process) and a scope. Adding the process condition (App1.exe) is what keeps the same alert from other processes visible.',
     'Suppression applies to alerts raised after the rule exists; existing alerts are not rewritten.',
     'Hide vs. Resolve: hide removes it from the queue; resolve keeps a closed record. Both leave other detections untouched.',
     'Compare with the other tools the exam offers: automated investigation and response reduces alert volume by investigating, alert policies cover Microsoft 365 activity, and custom detections create new alerts.',

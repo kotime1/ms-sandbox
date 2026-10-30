@@ -2,6 +2,33 @@
 
 One entry per iteration, newest first. **Every iteration must update the docs and add an entry here.**
 
+## Iteration 3: Rebuild against Microsoft Learn (2026-10-30)
+
+**Summary.** Audited the sandbox against Microsoft Learn (see [FIDELITY.md](FIDELITY.md)) and rebuilt the parts that did not match. The decision logic mostly held; the portal structure and one lab did not. Followed your three decisions: teach the **product** for `unblock-lob1`, keep `hunting-favorites` **labelled unverified**, and **rebuild the shell**. 126 → **130** tests; browser checks 16 + **35**.
+
+### Changed
+- **One Defender portal.** Navigation now uses Microsoft's own section names (Investigation & response, Assets, Microsoft Sentinel > Threat management / Configuration, System > Settings). Azure stays separate for IAM and Logic Apps. Source: the Sentinel-in-Defender navigation table; Sentinel leaves the Azure portal after 31 March 2027.
+- **Advanced hunting is one page** for Defender and Sentinel tables, queryable together (`union SigninLogs, DeviceLogonEvents`). The old per-surface restriction is gone.
+- **Incidents & alerts is one page** with Incidents and Alerts tabs.
+- **"Alert suppression" is now "Alert tuning"** in the UI, with Hide alert / Resolve alert. The docs say the feature was "previously alert suppression".
+- **`unblock-lob1` teaches the product:** a file indicator with the Allow action, scoped to device groups; a group scope beats All devices; Block needs the "Allow or block file" advanced feature. The Tenant Allow/Block List stays but is labelled as an **email** feature and refuses a file Allow with an explanation.
+- **Verification labels** on every lab (*Matches Learn* / *Simplified* / *Unverified*), on the card and in the coach. `hunting-favorites` and `approve-devices` show *Unverified*.
+- Lab and page wording updated to the documented names ("Tune alert", "Add item", "Impacted assets").
+
+### Added
+- `docs/FIDELITY.md`: the audit ledger with a source and date for every finding, what was fixed, and what is still open.
+- Device groups on devices, an "Allow or block file" feature toggle, and an effective-file-state engine (`effectiveFileState`) that applies the documented precedence.
+- `web/js/nav.js`, `web/js/verification.js`, `scripts/screenshot.mjs`.
+- Coach targets can have **aliases**, so a merged menu entry still answers to the old page ids.
+- 4 tests for the indicator model and the email-list behavior; 2 for verification labels.
+
+### Found and fixed along the way
+- A shell-quoting slip left an unescaped apostrophe in a lab string and broke three test files at load. Caught by the suite, fixed by rewording.
+- I misread a screenshot as a coach-highlight bug. Checking the DOM showed the highlight was correct, so no code was changed.
+
+### Still open
+See the end of [FIDELITY.md](FIDELITY.md): the custom-detection, automation-rule and summary-rule wizards are much simpler than the real ones; the device package is not downloaded from the Action center; entity mapping is a toggle; several tables have fewer columns than the real ones; case management, SOC optimization, the data lake and Security Copilot are not built. **Nothing has been checked against a live tenant.**
+
 ## Iteration 2: Question set 2 and nine new labs (2026-10-29)
 
 **Summary.** Added `question_sets/set2.txt` (moved `questions.txt` to `question_sets/set1.txt`). The sets overlap: **27 of set 2's 50 questions are word-for-word repeats of set 1** and 23 are new, so labs are keyed to both sets. Added **9 labs** (14 total), which cover **59 of the 100 questions** (set 1: 29/50, set 2: 30/50). Added `join` to mini-KQL and the simulator features the new labs need.

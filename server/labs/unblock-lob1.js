@@ -1,69 +1,73 @@
 import { LOB_HASH, MALWARE_HASH } from '../attacks/scenarios-extra.js';
 import { visited } from './helpers.js';
 
-const lob = (w) => w.defender.files.find((f) => f.sha256 === LOB_HASH);
-const mal = (w) => w.defender.files.find((f) => f.sha256 === MALWARE_HASH);
-const allowEntry = (w) => w.defender.allowBlock.find((e) => e.kind === 'file' && e.value === LOB_HASH && e.action === 'allow');
-const goodIoc = (w) => w.defender.indicators.find((i) => i.type === 'file' && i.value === LOB_HASH && i.action === 'allow' && i.targets.length > 0);
+const file = (w, sha) => w.defender.files.find((f) => f.sha256 === sha);
+const allowFor = (w) => w.defender.indicators.filter((i) => i.type === 'file' && i.value === LOB_HASH && i.action === 'allow' && i.targets.length > 0);
+// "Released where it is needed": LOB1 runs on the workstations, so the file must be allowed there.
+const releasedOnWorkstations = (w) => ['dev-0001', 'dev-0002', 'dev-0003'].every((id) => file(w, LOB_HASH)?.perDevice?.[id] === 'Allow');
+const allowedEverywhere = (w) => allowFor(w).some((i) => i.targets.includes('grp-all'));
+const malwareStillBlocked = (w) => Object.values(file(w, MALWARE_HASH)?.perDevice ?? {}).every((s) => s === 'Blocked by remediation' || s === 'Block');
 
 export default {
   id: 'unblock-lob1',
   title: 'Unblock LOB1, keep blocking malware',
   level: 'Beginner',
   minutes: 12,
-  topics: ['Defender XDR', 'Tenant Allow/Block List', 'Indicators', 'Automated remediation'],
+  topics: ['Defender for Endpoint', 'File indicators', 'Automated remediation', 'Device groups'],
   examObjective: '2.1 Respond to alerts and incidents in Microsoft Defender XDR',
+  // The practice questions name the "Tenant Allow/Block List". In the product that list filters email; for a file blocked on
+  // endpoints the mechanism is a file indicator with the Allow action. The debrief explains the difference.
   sourceQuestions: { set1: [4], set2: [1, 5] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "docs", note: "Follows the product: a file indicator with the Allow action, scoped to device groups. The exam wording says \"Tenant Allow/Block List\", which the docs describe as an email feature." },
   scenarios: ['lob-file-blocked'],
   withholdNotes: ['allow-block'],
   brief:
-    'Automated remediation blocked a file that your line-of-business application LOB1 needs (lob1-sync.exe). LOB1 is down. ' +
-    'Get the file unblocked immediately and make sure Defender does not block it again, without letting other malicious files through automatically. ' +
-    'Only one of the two blocked files in the file list is safe: check before you act. ' +
-    'As a stretch goal, create a file indicator for it and notice what makes an indicator actually become active.',
+    'Automated remediation blocked a file that your line-of-business application LOB1 needs (lob1-sync.exe). LOB1 runs on the workstations and is down. ' +
+    'Get the file working again and make sure Defender does not block it again, without letting other malicious files through. ' +
+    'Check the two blocked files before you act: only one is safe. Use the tool Microsoft provides for endpoints, not the first list you find.',
 
   setup() { return ['lob-file-blocked']; },
 
   objectives: [
-    { id: 'allow', text: 'The LOB1 file is on the Tenant Allow/Block List as an Allow entry, and is no longer blocked.', check: (w) => Boolean(allowEntry(w)) && lob(w)?.blocked === false },
+    { id: 'allow', text: 'LOB1 works again: the file is allowed on the workstations where it runs.', check: releasedOnWorkstations },
     // A guard objective must not pass by doing nothing, so it only counts once the LOB1 fix is in.
-    { id: 'scope', text: 'The malicious file is still blocked (nothing was released that should not have been).', check: (w) => Boolean(allowEntry(w)) && mal(w)?.blocked === true && !w.defender.allowBlock.some((e) => e.value === MALWARE_HASH && e.action === 'allow') },
-    { id: 'ioc', optional: true, text: 'Bonus: create a file indicator (Allow) for LOB1 and give it a valid target so it becomes Active.', check: (w) => Boolean(goodIoc(w)) },
+    { id: 'scope', text: 'The malicious file is still blocked everywhere (nothing was released that should not have been).', check: (w) => releasedOnWorkstations(w) && malwareStillBlocked(w) },
+    { id: 'narrow', text: 'The exception is no wider than it needs to be (not applied to every device in the tenant).', check: (w) => releasedOnWorkstations(w) && !allowedEverywhere(w) },
   ],
 
   steps: [
-    { text: 'Open Incidents & alerts in the Defender portal.', target: 'nav:defender/alerts', done: (w) => visited(w, 'defender/alerts') },
-    { text: 'Open the Tenant Allow/Block List (under Rules).', target: 'nav:defender/rules', done: (w) => visited(w, 'defender/rules') },
-    { text: 'Add an Allow entry for the LOB1 file hash.', target: 'btn:add-allowblock', done: (w) => Boolean(allowEntry(w)) },
+    { text: 'Open Incidents & alerts, then the file lists under Settings.', target: 'nav:defender/alerts', done: (w) => visited(w, 'defender/alerts') },
+    { text: 'Open Settings > Endpoints > Indicators (Rules & lists in the sandbox).', target: 'nav:defender/rules', done: (w) => visited(w, 'defender/rules') },
+    { text: 'Add a file hash indicator for the LOB1 file with the Allow action.', target: 'btn:add-indicator', done: (w) => allowFor(w).length > 0 },
   ],
 
   hints: {
     allow: [
-      'You need an exception that is narrower than "turn blocking off", and that overrides remediation.',
-      'The Tenant Allow/Block List lets you allow one specific item. Which identifier is stable for a file?',
-      'Rules > Tenant Allow/Block List > Add > Files > the LOB1 SHA-256 hash > Allow. It takes effect immediately.',
+      'Where is the exception made for a file that Defender for Endpoint blocked on devices?',
+      'Not every "allow/block" list is for endpoints. Settings > Endpoints > Indicators is. Which identifier is stable for a file?',
+      'Add a file hash indicator: the SHA-256 of lob1-sync.exe, action Allow, scope = the device group that runs LOB1 (Workstations).',
     ],
     scope: [
       'Be precise about which file you released.',
-      'Check the SHA-256 on each blocked file before adding an entry.',
-      'Allow only the hash for lob1-sync.exe. Leave invoice_viewer.exe blocked.',
+      'Check the SHA-256 on each blocked file before adding an indicator.',
+      'Create an indicator only for lob1-sync.exe. Leave invoice_viewer.exe alone.',
     ],
-    ioc: [
-      'Indicators have an action, but something else decides whether they apply anywhere.',
-      'There is no on/off switch for an indicator. Look at its scope.',
-      'Create the indicator (File, Allow), then edit it and select a device group as its target. Without a target it stays Inactive.',
+    narrow: [
+      'An indicator has a scope. What is the smallest scope that fixes the outage?',
+      'LOB1 runs on workstations, not on servers or everything.',
+      'Scope the Allow indicator to the Workstations device group instead of All devices.',
     ],
   },
 
   debrief: [
-    'The Tenant Allow/Block List is the supported way to allow a specific item (file hash, URL, sender) that was wrongly blocked. An Allow entry takes effect immediately and keeps the item from being blocked again, while everything else is still remediated automatically.',
-    'Custom indicators are for proactive detection and blocking. They are not the tool for exception management, and a custom indicator stays Inactive until it has a valid target.',
-    'There is no "custom quarantine policy" for this, and critical-asset tagging protects sensitive devices and accounts rather than releasing files.',
-    'Before releasing anything, verify it. Deep analysis and the file page tell you whether it is the file you think it is.',
+    'For a file that Microsoft Defender for Endpoint (or automated remediation) blocked on devices, you make the exception with a file indicator whose action is Allow: Settings > Endpoints > Indicators > File hashes > Add item, with an Indicator (the hash), an Action and a Scope (device groups). Per the docs an Allow indicator takes precedence over Microsoft Defender Antivirus blocking.',
+    'The Tenant Allow/Block List is a different feature: a Defender for Office 365 / Exchange Online Protection list that filters email. Its file entries apply to email attachments, and you cannot even create a file Allow entry there directly (allows come from the Submissions page). The practice questions use the phrase "Tenant Allow/Block List" for this scenario; know the exam wording, and know that the endpoint mechanism is the file indicator.',
+    'Scope matters: an indicator scoped to a device group wins over one scoped to all devices, and a narrower exception is a smaller risk. Block indicators only enforce when the "Allow or block file" advanced feature is on.',
+    'Precedence to remember: a certificate Block indicator overrides a file Allow indicator, and a more secure hash (SHA-256) wins over SHA-1 over MD5 when indicators conflict.',
   ],
 
   solution: () => [
-    ['defender.addAllowBlock', { kind: 'file', value: LOB_HASH, action: 'allow' }],
-    ['defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'allow', targets: ['grp-all'] }],
+    ['defender.createIndicator', { type: 'file', value: LOB_HASH, action: 'allow', targets: ['grp-workstations'] }],
   ],
 };

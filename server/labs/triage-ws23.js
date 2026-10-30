@@ -15,6 +15,8 @@ export default {
   topics: ['Defender for Endpoint', 'Device timeline', 'Investigation package', 'Deep analysis', 'Response actions'],
   examObjective: '2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint',
   sourceQuestions: { set1: [30, 31, 32, 33, 34, 35, 43], set2: [28, 29, 30, 31, 32, 41, 42] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "docs", note: "Device page actions, the package contents and timeline flagging match Learn. Package download from the Action center is simplified." },
   scenarios: ['device-investigation'],
   withholdNotes: ['device-investigation'],
   brief:

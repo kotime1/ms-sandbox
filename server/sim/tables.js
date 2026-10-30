@@ -31,6 +31,15 @@ export const SURFACES = {
   defender: ['DeviceLogonEvents', 'DeviceEvents', 'BehaviorInfo', 'BehaviorEntities'],
 };
 
+/**
+ * In the Defender portal, Advanced hunting is ONE page that queries Defender XDR tables and Sentinel workspace
+ * tables together (https://learn.microsoft.com/en-us/azure/sentinel/microsoft-sentinel-defender-portal:
+ * "Unified advanced hunting for SIEM, Defender, and the data lake"). So every table is queryable from one place.
+ * `SURFACES` is kept only to group the schema browser into "Microsoft Sentinel" and "Microsoft Defender XDR".
+ */
+export const ALL_QUERYABLE = [...SURFACES.sentinel, ...SURFACES.defender];
+export const tableSource = (name) => (SURFACES.defender.includes(name) ? 'Microsoft Defender XDR' : 'Microsoft Sentinel');
+
 /** Tables a lab must opt into (so the schema browser stays uncluttered). Hidden from `/api/view/schema-*` until enabled. */
 export const OPTIONAL_TABLES = new Set(['NetworkSessions_CL', 'BehaviorInfo', 'BehaviorEntities', 'DeviceEvents']);
 

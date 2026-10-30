@@ -113,11 +113,19 @@ test('detect lab: detection validation explains missing columns', () => {
   assert.match(out.error.message, /identifies a device, user or mailbox/);
 });
 
-test('kql lab: surfaces are separate (Sentinel tables are not queryable from Advanced hunting)', () => {
+test('advanced hunting is one unified page: Sentinel and Defender tables are queryable together, whatever legacy surface is passed', () => {
+  // Real portal: "Unified advanced hunting for SIEM, Defender, and the data lake"
+  // (learn.microsoft.com/azure/sentinel/microsoft-sentinel-defender-portal).
   const s = fresh();
   s.lab.start('kql-investigation');
-  const out = perform(s.ctx, 'query.run', { surface: 'defender', text: 'SigninLogs | take 1' });
-  assert.equal(out.ok, false);
+  assert.ok(perform(s.ctx, 'query.run', { surface: 'defender', text: 'SigninLogs | take 1' }).ok);
+  assert.ok(perform(s.ctx, 'query.run', { surface: 'sentinel', text: 'DeviceLogonEvents | take 1' }).ok);
+  assert.ok(perform(s.ctx, 'query.run', { text: 'SigninLogs | take 1' }).ok, 'surface is optional');
+  const both = perform(s.ctx, 'query.run', { text: 'union SigninLogs, DeviceLogonEvents | summarize n=count()' });
+  assert.ok(both.ok, both.error?.message);
+  assert.deepEqual(both.data.result.meta.tables.sort(), ['DeviceLogonEvents', 'SigninLogs']);
+  // Lab-gated tables are still hidden until a lab enables them.
+  assert.match(perform(s.ctx, 'query.run', { text: 'BehaviorInfo | take 1' }).error.message, /Failed to resolve/);
 });
 
 test('sentinel-rbac: also assigning Contributor to the Tier 1 analyst fails the least-privilege objective', () => {

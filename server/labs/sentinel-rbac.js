@@ -13,6 +13,8 @@ export default {
   topics: ['Sentinel roles', 'Azure RBAC', 'Least privilege'],
   examObjective: '1.x Configure and manage Microsoft Sentinel permissions',
   sourceQuestions: { set1: [8, 9], set2: [] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "docs", note: "Role descriptions match Microsoft Learn." },
   scenarios: [],
   withholdNotes: ['sentinel-roles'], // this note names the exact roles; the assistant shows it after the lab
   brief:

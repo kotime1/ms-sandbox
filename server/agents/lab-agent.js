@@ -51,6 +51,7 @@ export class LabAgent {
     return {
       ...labSummary(l),
       brief: l.brief,
+      verification: l.verification,
       objectives: l.objectives.map((o) => ({ id: o.id, text: o.text, optional: Boolean(o.optional) })),
       // Fields the learner types findings into. Labels only: the expected values never leave the server.
       answers: (l.answers ?? []).map((a) => ({ id: a.id, label: a.label, placeholder: a.placeholder ?? null })),

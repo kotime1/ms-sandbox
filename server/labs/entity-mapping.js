@@ -10,6 +10,8 @@ export default {
   topics: ['Analytics rule types', 'Entity mapping', 'Investigation graph'],
   examObjective: '1.4 Configure detections',
   sourceQuestions: { set1: [19, 20], set2: [19, 20, 21] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "partial", note: "Entity mapping on scheduled rules matches Learn. \"Only scheduled and NRT\" is from the practice question; the Learn page covers scheduled rules." },
   scenarios: ['rule-types-incidents'],
   withholdNotes: ['entity-mapping'],
   answers: [{ id: 'answer', label: 'Which rule types produce investigable incidents?', placeholder: 'e.g. Fusion, ML' }],

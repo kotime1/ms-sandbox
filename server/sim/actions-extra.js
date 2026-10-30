@@ -2,7 +2,7 @@
 // learner-facing mistakes, mutate the world only through here.
 
 import { idSpec } from '../core/validate.js';
-import { SimError, capCheck, device, resource, tablesFor } from './world.js';
+import { SimError, capCheck, device, resource, tablesFor, refreshFileStates } from './world.js';
 
 const text = (max, extra = {}) => ({ type: 'string', min: 1, max, pattern: /^[\w .:()@/\\-]+$/, ...extra });
 const HASH = /^[a-f0-9]{64}$/i;
@@ -15,8 +15,9 @@ export const EXTRA_ACTIONS = {
     spec: {
       type: { type: 'enum', values: ['file', 'ip', 'url'] },
       value: text(300),
-      action: { type: 'enum', values: ['allow', 'alert', 'block'] },
-      // Targets are device-group ids; an indicator with none is created but stays inactive.
+      // Documented file-indicator actions: Allow, Audit, Warn, Block execution, Block and remediate.
+      action: { type: 'enum', values: ['allow', 'audit', 'warn', 'block', 'blockRemediate'] },
+      // Targets are device-group ids (the indicator's Scope); an indicator with none applies to no device.
       targets: { type: 'array', of: idSpec(), max: 10, optional: true, default: [] },
     },
     run({ w }, p) {
@@ -26,6 +27,7 @@ export const EXTRA_ACTIONS = {
       for (const t of p.targets) if (!groups.some((g) => g.id === t)) throw new SimError(`Target '${t}' is not a valid device group.`);
       const ind = { id: `ioc-${w.counters.rule++}`, type: p.type, value: p.type === 'file' ? p.value.toLowerCase() : p.value, action: p.action, targets: [...p.targets] };
       w.defender.indicators.push(ind);
+      refreshFileStates(w);
       return { indicator: ind };
     },
   },
@@ -37,6 +39,16 @@ export const EXTRA_ACTIONS = {
       const groups = w.defender.deviceGroups ?? [];
       for (const t of p.targets) if (!groups.some((g) => g.id === t)) throw new SimError(`Target '${t}' is not a valid device group.`);
       ind.targets = [...p.targets];
+      refreshFileStates(w);
+      return {};
+    },
+  },
+  'defender.setAdvancedFeature': {
+    // Settings > Endpoints > General > Advanced features. Only the toggles this sandbox models.
+    spec: { feature: { type: 'enum', values: ['allowOrBlockFile'] }, enabled: { type: 'boolean' } },
+    run({ w }, p) {
+      w.defender.advancedFeatures[p.feature] = p.enabled;
+      refreshFileStates(w);
       return {};
     },
   },
@@ -46,28 +58,32 @@ export const EXTRA_ACTIONS = {
       const i = w.defender.indicators.findIndex((x) => x.id === p.id);
       if (i < 0) throw new SimError('Indicator not found', 'NotFound');
       w.defender.indicators.splice(i, 1);
+      refreshFileStates(w);
       return {};
     },
   },
+  // Tenant Allow/Block List: a Defender for Office 365 / Exchange Online Protection feature that filters EMAIL.
+  // learn.microsoft.com/en-us/defender-office-365/tenant-allow-block-list-files-configure (2026-07-03):
+  //  - you cannot create file ALLOW entries directly; allows come from Submissions ("I've confirmed it's clean" > Allow this file)
+  //  - BLOCK entries can be added directly; hashes are SHA-256; a file entry applies to email attachments
+  // It has no effect on files blocked on endpoints. That is the point of the unblock-lob1 lab.
   'defender.addAllowBlock': {
     spec: {
       kind: { type: 'enum', values: ['file', 'url', 'sender'] },
       value: text(300),
       action: { type: 'enum', values: ['allow', 'block'] },
-      expiry: { type: 'enum', values: ['30days', 'never', 'removeAfterInactive'], optional: true, default: '30days' },
+      expiry: { type: 'enum', values: ['1day', '7days', '30days', 'never'], optional: true, default: '30days' },
     },
     run({ w }, p) {
       capCheck(w.defender.allowBlock, 'indicators');
       if (p.kind === 'file' && !HASH.test(p.value)) throw new SimError('A file entry needs a SHA-256 hash (64 hex characters).');
+      if (p.action === 'allow' && p.kind === 'file') {
+        throw new SimError("You can't create allow entries for files directly in the Tenant Allow/Block List. Submit the blocked email attachment from the Submissions page as \"I've confirmed it's clean\" and choose \"Allow this file\". (This list filters email; it does not release a file that Defender for Endpoint blocked on a device.)");
+      }
       const value = p.kind === 'file' ? p.value.toLowerCase() : p.value;
-      if (w.defender.allowBlock.some((e) => e.kind === p.kind && e.value === value)) throw new SimError('That entry already exists in the Tenant Allow/Block List.');
+      if (w.defender.allowBlock.some((x) => x.kind === p.kind && x.value === value)) throw new SimError('That entry already exists in the Tenant Allow/Block List.');
       const entry = { id: `tabl-${w.counters.rule++}`, kind: p.kind, value, action: p.action, expiry: p.expiry };
       w.defender.allowBlock.push(entry);
-      // An allow entry for a file that is currently blocked releases it immediately.
-      if (p.kind === 'file' && p.action === 'allow') {
-        const f = file(w, value);
-        if (f?.blocked) { f.blocked = false; f.releasedBy = entry.id; }
-      }
       return { entry };
     },
   },

@@ -8,7 +8,7 @@ Make the *motions* of a Sentinel/Defender workflow learnable by hand without a s
 
 ```
  Browser (vanilla ES modules, no build, no innerHTML)
-   │  pages mimic Azure / Sentinel / Defender portals; every button = one API action
+   │  pages follow the Microsoft Defender portal (Sentinel lives there) plus the Azure portal for IAM/Logic Apps; every button = one API action
    ▼
  HTTP layer  server/http/app.js     host/origin/CSRF checks, rate limits, JSON only, static files
    │
@@ -58,9 +58,9 @@ Safety limits: 4000-char queries, nesting depth 40, 3M evaluation steps, 1000 re
 
 **Scan cost.** A table can carry a `scanCost`. Reading it charges `rows × scanCost` evaluation steps up front, so aggregating a huge raw table "times out" exactly as it does on a real high-volume custom table, while a small summary table does not. This is what makes the summary-rule lab teach something. Backend jobs (a summary rule's own query) run with `noScanCost`.
 
-## Tables: surfaces, optional tables, runtime tables
+## Tables: one hunting page, optional tables, runtime tables
 
-`server/sim/tables.js` declares schemas and which **surface** exposes each table: `sentinel` (the Logs blade) or `defender` (Advanced hunting). Using a table from the wrong surface is a teachable error, as in the real portals.
+`server/sim/tables.js` declares the schemas. **Advanced hunting is one page** that queries Defender XDR tables and Sentinel workspace tables together (the docs call it "unified advanced hunting for SIEM, Defender, and the data lake"). `SURFACES` survives only to group the schema pane by source ("Microsoft Sentinel" / "Microsoft Defender XDR"); the `surface` argument on `query.run` is accepted for backward compatibility and ignored.
 
 Some tables are **optional** (`OPTIONAL_TABLES`): hidden from the schema browser and from queries until a lab's scenario calls `enableTables(w, ...)`. This keeps labs from giving away their answer through the schema (a lab about "which table has behaviour titles" would otherwise list it up front) and keeps unrelated labs uncluttered. **Runtime tables** (a summary rule's destination) are created by the learner and become visible through `visibleTables()`.
 

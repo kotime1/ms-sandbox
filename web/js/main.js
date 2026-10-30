@@ -1,21 +1,20 @@
 import { h, clear, safeContainer } from './dom.js';
 import * as api from './api.js';
 import { ctx } from './app.js';
+import { SECTIONS, AZURE, isAzure, matches } from './nav.js';
 import { renderLabPanel, noteFeed, feedCursor, resetFeed, applyGlow } from './components/lab-panel.js';
 
 // ---- routing -------------------------------------------------------------------------------
 // Hash routes: #/home, #/azure/resources, #/azure/logicapp/<slug>, #/sentinel/incidents ...
+// Two top-level places, as in real life: the Defender portal (where Sentinel now lives) and the Azure portal
+// (where IAM and Logic Apps live). Navigation labels come from nav.js.
 const PORTALS = {
-  home: { label: 'Labs', cls: 'p-home' },
+  home: { label: 'Labs', cls: 'p-home', start: 'home' },
+  defender: { label: 'Microsoft Defender portal', cls: 'p-defender', start: 'defender/alerts' },
   azure: { label: 'Azure portal', cls: 'p-azure', start: 'azure/resources' },
-  sentinel: { label: 'Microsoft Sentinel', cls: 'p-sentinel', start: 'sentinel/incidents' },
-  defender: { label: 'Defender portal', cls: 'p-defender', start: 'defender/alerts' },
 };
-const NAV = {
-  azure: [['azure/resources', 'Resources'], ['azure/iam', 'Access control (IAM)']],
-  sentinel: [['sentinel/incidents', 'Incidents'], ['sentinel/logs', 'Logs'], ['sentinel/hunting', 'Hunting'], ['sentinel/analytics', 'Analytics'], ['sentinel/automation', 'Automation'], ['sentinel/summary', 'Summary rules']],
-  defender: [['defender/alerts', 'Incidents & alerts'], ['defender/hunting', 'Advanced hunting'], ['defender/devices', 'Devices'], ['defender/rules', 'Rules & lists']],
-};
+const portalOf = (key) => (key === 'home' ? 'home' : isAzure(key) ? 'azure' : 'defender');
+
 const PAGES = {
   home: () => import('./pages/home.js'),
   'azure/resources': () => import('./pages/azure-resources.js'),
@@ -48,7 +47,7 @@ let renderToken = 0;
 async function renderPage() {
   const token = ++renderToken;
   const { key, param, path } = parseRoute();
-  const portal = key === 'home' ? 'home' : key.split('/')[0];
+  const portal = portalOf(key);
   ctx.route = path;
   document.body.className = PORTALS[portal].cls;
   renderChrome(portal, path);
@@ -73,17 +72,28 @@ function renderChrome(portal, path) {
   clear(shell.top).append(
     h('a', { class: 'brand', href: '#/home', 'data-target': 'nav:home' }, 'SC-200 Sandbox'),
     h('span', { class: 'sim-badge', title: 'This is a simulation that mimics portal workflows. It is not the real product and nothing here touches a real tenant.' }, 'SIMULATION'),
-    h('nav', { class: 'portal-tabs', 'aria-label': 'Portals' }, ['home', 'azure', 'sentinel', 'defender'].map((p) => h('a', {
-      href: `#/${PORTALS[p].start ?? 'home'}`, class: p === portal ? 'active' : '', 'aria-current': p === portal ? 'page' : undefined,
+    h('nav', { class: 'portal-tabs', 'aria-label': 'Portals' }, ['home', 'defender', 'azure'].map((p) => h('a', {
+      href: `#/${PORTALS[p].start}`, class: p === portal ? 'active' : '', 'aria-current': p === portal ? 'page' : undefined,
     }, PORTALS[p].label))),
     h('span', { class: 'who' }, 'admin1@contoso.com'),
   );
   clear(shell.nav);
   shell.nav.hidden = portal === 'home';
-  if (portal !== 'home') {
-    shell.nav.append(h('div', { class: 'nav-title' }, PORTALS[portal].label), ...NAV[portal].map(([r, label]) => h('a', {
-      href: `#/${r}`, class: path.startsWith(r) ? 'active' : '', 'data-target': `nav:${r}`, 'aria-current': path.startsWith(r) ? 'page' : undefined,
-    }, label)));
+  if (portal === 'home') return;
+  const sections = portal === 'azure' ? [AZURE] : SECTIONS;
+  for (const sec of sections) {
+    shell.nav.append(h('div', { class: 'nav-title' }, sec.title));
+    for (const it of sec.items) {
+      const active = matches(it, path);
+      shell.nav.append(h('a', {
+        href: `#/${it.id}`, class: active ? 'active' : '',
+        // The coach targets the internal id of the page; alias ids resolve to this same menu entry.
+        'data-target': `nav:${it.id}`,
+        // A merged menu entry answers to every page id that now lives under it (e.g. nav:sentinel/logs -> Advanced hunting).
+        'data-target-aliases': (it.aliases ?? []).map((a) => `nav:${a}`).join(' ') || undefined,
+        'aria-current': active ? 'page' : undefined,
+      }, it.label));
+    }
   }
 }
 

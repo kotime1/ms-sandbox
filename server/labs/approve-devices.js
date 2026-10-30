@@ -10,6 +10,8 @@ export default {
   topics: ['Defender for Endpoint', 'Device onboarding', 'Configuration management'],
   examObjective: '2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint',
   sourceQuestions: { set1: [], set2: [6] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "exam", note: "The device approval flow comes from the practice question. No Microsoft Learn page confirming it was found." },
   scenarios: ['devices-pending-approval'],
   brief:
     'Three new Windows 11 laptops show up in the Defender portal, but they never produce alerts. The analyst who onboarded them says "they are in the list, so they must be working". ' +

@@ -2,7 +2,7 @@
 // functions. Nothing here touches the network, the filesystem or child processes: the
 // "environment" is entirely in memory, which is what makes the sandbox safe to run.
 
-import { newTables, seedBaseline, SURFACES, OPTIONAL_TABLES, SCHEMAS } from './tables.js';
+import { newTables, seedBaseline, ALL_QUERYABLE, OPTIONAL_TABLES, SCHEMAS } from './tables.js';
 import { getRole, roleAllows } from './rbac.js';
 import { runQuery, KqlError } from './kql/engine.js';
 import { rng, guid, randomToken } from '../core/util.js';
@@ -69,15 +69,17 @@ export function createWorld() {
     },
     defender: {
       devices: [
-        { id: 'dev-0001', name: 'Device1', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
-        { id: 'dev-0002', name: 'Device2', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
-        { id: 'dev-0003', name: 'Device3', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
-        { id: 'dev-0004', name: 'SRV-APP01', os: 'Windows Server 2022', isolated: false, riskScore: 'Low', onboarding: 'Approved' },
+        { id: 'dev-0001', name: 'Device1', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved', groups: ['grp-workstations'] },
+        { id: 'dev-0002', name: 'Device2', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved', groups: ['grp-workstations'] },
+        { id: 'dev-0003', name: 'Device3', os: 'Windows 11', isolated: false, riskScore: 'Low', onboarding: 'Approved', groups: ['grp-workstations'] },
+        { id: 'dev-0004', name: 'SRV-APP01', os: 'Windows Server 2022', isolated: false, riskScore: 'Low', onboarding: 'Approved', groups: ['grp-servers'] },
       ],
       alerts: [],
       suppression: [],
       detections: [],
-      deviceGroups: [{ id: 'grp-all', name: 'All devices' }, { id: 'grp-servers', name: 'Servers' }],
+      deviceGroups: [{ id: 'grp-all', name: 'All devices' }, { id: 'grp-servers', name: 'Servers' }, { id: 'grp-workstations', name: 'Workstations' }],
+      // Settings > Endpoints > General > Advanced features. "Allow or block file" must be on for file indicators to block.
+      advancedFeatures: { allowOrBlockFile: false },
       timelines: Object.create(null), // deviceId -> events[] (seeded by labs)
       indicators: [], // custom indicators: { id, type, value, action, targets[], active }
       allowBlock: [], // tenant allow/block list: { id, kind, value, action, expires }
@@ -131,13 +133,14 @@ export class SimError extends Error {
 
 // ------------------------------------------------------------------ querying
 
-/** Table names visible on a surface: the always-on ones plus any optional table the active lab enabled. */
-export function visibleTables(w, surface) {
-  const allowed = SURFACES[surface];
-  if (!allowed) throw new SimError('Unknown query surface');
-  const base = allowed.filter((n) => !OPTIONAL_TABLES.has(n) || w.enabledTables.has(n));
-  // Summary-rule destination tables are created at runtime and live in the Sentinel workspace only.
-  const dynamic = surface === 'sentinel' ? w.sentinel.summaryRules.map((r) => r.destination) : [];
+/**
+ * Table names the learner can query: the always-on ones plus any optional table the active lab enabled, plus
+ * runtime tables (summary-rule output). Advanced hunting is one page in the real portal, so there is no per-surface
+ * restriction; the `surface` argument is accepted for backward compatibility and ignored.
+ */
+export function visibleTables(w, _surface) {
+  const base = ALL_QUERYABLE.filter((n) => !OPTIONAL_TABLES.has(n) || w.enabledTables.has(n));
+  const dynamic = w.sentinel.summaryRules.map((r) => r.destination);
   return [...base, ...dynamic];
 }
 
@@ -310,4 +313,47 @@ export function runDetections(w) {
     }
   }
   return fired;
+}
+
+// ------------------------------------------------------------------ File indicators (Defender for Endpoint)
+// Documented behaviour (learn.microsoft.com/en-us/defender-endpoint/indicator-file, 2026-07-03):
+//  - Indicators are created at Settings > Endpoints > Indicators > File hashes, with an Indicator, an Action and a Scope.
+//  - Actions: Allow, Audit, Warn, Block execution, Block and remediate.
+//  - Blocking needs Settings > Endpoints > General > Advanced features > "Allow or block file" turned on.
+//  - A file Allow indicator beats Microsoft Defender Antivirus blocking (the docs' component table: AV Block + Allow = Allow).
+//  - Conflicts: a more secure hash wins (SHA-256 over SHA-1 over MD5); an indicator scoped to a device's group wins over
+//    one scoped to all devices.
+// Not modelled: certificate indicators, SmartScreen, WDAC/AppLocker, the 15 min to 2 h enforcement delay.
+
+/** Does this indicator apply to the device? An indicator with no scope applies nowhere (it is inactive). */
+export function indicatorAppliesTo(w, ind, dev) {
+  if (!ind.targets.length) return false;
+  if (ind.targets.includes('grp-all')) return true;
+  return (dev.groups ?? []).some((g) => ind.targets.includes(g));
+}
+
+/**
+ * The effective verdict for a file on a device: 'Allow' | 'Block' | 'Blocked by remediation' | 'Not blocked'.
+ * Follows the documented precedence for the pieces this sandbox models.
+ */
+export function effectiveFileState(w, sha256, dev) {
+  const file = w.defender.files.find((f) => f.sha256 === sha256);
+  if (!file) return 'Not blocked';
+  const hits = w.defender.indicators.filter((i) => i.type === 'file' && i.value === sha256 && indicatorAppliesTo(w, i, dev));
+  // Group-scoped beats all-devices scope.
+  const scoped = hits.filter((i) => !i.targets.includes('grp-all'));
+  const decisive = scoped.length ? scoped : hits;
+  const feature = w.defender.advancedFeatures.allowOrBlockFile;
+  if (feature && decisive.some((i) => i.action === 'block' || i.action === 'blockRemediate')) return 'Block';
+  if (decisive.some((i) => i.action === 'allow')) return 'Allow';
+  return file.blockedByRemediation ? 'Blocked by remediation' : 'Not blocked';
+}
+
+/** Recompute every file's blocked flag from the indicators that apply to the fleet. A file is "blocked" while any device is blocked. */
+export function refreshFileStates(w) {
+  for (const f of w.defender.files) {
+    const states = w.defender.devices.filter((d) => d.onboarding === 'Approved').map((d) => ({ d, s: effectiveFileState(w, f.sha256, d) }));
+    f.perDevice = Object.fromEntries(states.map(({ d, s }) => [d.id, s]));
+    f.blocked = states.some(({ s }) => s === 'Block' || s === 'Blocked by remediation');
+  }
 }

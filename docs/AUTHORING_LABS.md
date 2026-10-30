@@ -8,6 +8,7 @@
 |---|---|
 | `id, title, level, minutes, topics, examObjective` | Catalogue card |
 | `sourceQuestions` | `{ set1: [n...], set2: [n...] }`. Numbers are per question set (the sets overlap, so a bare number would be ambiguous). `node scripts/coverage.mjs` turns these into `docs/COVERAGE.md`; a test fails if you forget |
+| `verification` | **Required.** `{ level: 'docs' | 'partial' | 'exam', note }`. Be honest: `docs` = checked against Microsoft Learn, `partial` = right idea but simplified, `exam` = only from a practice question (shown as *Unverified*). Never claim a live-tenant check. A test enforces this |
 | `answers` | Optional `[{ id, label, placeholder }]`: fields the learner types a finding into (see *Investigation labs*) |
 | `brief` | Scenario text. State the *requirements*, not the answer |
 | `scenarios` | Attack scenarios the learner may replay (allowlist) |
@@ -46,7 +47,7 @@ Declare `answers`, check with `foundEquals(w, 'id', expected)` from `labs/helper
 
 ### Adding a data table
 
-In `server/sim/tables.js`: add the schema to `SCHEMAS`, seed rows in `seedBaseline` (or in a scenario), and list the table under a surface in `SURFACES` (`sentinel` = Logs blade, `defender` = Advanced hunting). Using a table from the wrong surface fails, as in the real portals.
+In `server/sim/tables.js`: add the schema to `SCHEMAS`, seed rows in `seedBaseline` (or in a scenario), and list it in `SURFACES` so the schema pane groups it under the right source. Every table is queryable from the one Advanced hunting page.
 
 If the table would give away a lab's answer or clutter other labs, make it **optional**: add it to `OPTIONAL_TABLES` and have the lab's scenario call `enableTables(w, 'Name')`. To make a table expensive to aggregate (a "too big to query" lab), set `scanCost` on it in the scenario. Tables created at runtime, such as summary-rule outputs, need nothing here.
 

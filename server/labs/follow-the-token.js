@@ -11,6 +11,8 @@ export default {
   topics: ['Microsoft Graph activity logs', 'Sign-in correlation', 'KQL'],
   examObjective: '2.3 Investigate Microsoft 365 activities to identify threats',
   sourceQuestions: { set1: [38, 39], set2: [37, 38] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "docs", note: "SignInActivityId joins to UniqueTokenIdentifier in sign-in logs, as in the Learn example." },
   scenarios: ['token-trail'],
   withholdNotes: ['graph-correlation'],
   answers: [

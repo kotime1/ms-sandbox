@@ -11,6 +11,8 @@ export default {
   topics: ['Advanced hunting', 'Custom detection rules', 'Response actions', 'KQL'],
   examObjective: '3.1 Detect threats by using Microsoft Defender XDR',
   sourceQuestions: { set1: [16, 40, 41, 42], set2: [17, 40] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "partial", note: "Create-from-hunting and the isolate action match Learn. The real wizard has six steps, frequency options and many more actions; the \"must return\" column rule is only \"recommended\" in current docs." },
   scenarios: ['bruteforce-device'],
   withholdNotes: ['custom-detection'], // describes the required columns and the arg_max pattern
   brief:

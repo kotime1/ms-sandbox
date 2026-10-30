@@ -1,6 +1,7 @@
 import { h, clear, badge } from '../dom.js';
 import * as api from '../api.js';
 import { ctx } from '../app.js';
+import { levelOf } from '../verification.js';
 
 // The coach: objectives, hints, the highlighted "next click", scenario replay and the
 // agent activity feed, plus the assistant chat. Everything it shows comes from /api/state.
@@ -28,6 +29,7 @@ export function renderLabPanel(host) {
   host.append(
     h('div', { class: 'lp-section' },
       h('h3', null, b.title), h('div', { class: 'chips' }, badge(b.level), badge(`${b.minutes} min`), badge(`${done}/${req} done`, st.complete ? 'ok' : '')),
+      h('details', { class: 'fidelity' }, h('summary', null, badge(levelOf(b.verification).label, levelOf(b.verification).kind)), h('p', { class: 'small' }, levelOf(b.verification).help), b.verification?.note ? h('p', { class: 'small muted' }, b.verification.note) : null),
       h('p', { class: 'brief' }, b.brief)),
     h('div', { class: 'lp-section' }, h('h4', null, 'Objectives'),
       h('ul', { class: 'objectives' }, st.objectives.map((o) => h('li', { class: o.met ? 'met' : '' },
@@ -112,6 +114,6 @@ export function resetFeed() { ctx.feed = []; feedAfter = 0; }
 export function applyGlow(target) {
   document.querySelectorAll('.coach-glow').forEach((el) => el.classList.remove('coach-glow'));
   if (!target || ctx.showGuide === false) return;
-  const el = [...document.querySelectorAll('[data-target]')].find((e) => e.getAttribute('data-target') === target);
+  const el = [...document.querySelectorAll('[data-target]')].find((e) => e.getAttribute('data-target') === target || (e.getAttribute('data-target-aliases') ?? '').split(' ').includes(target));
   if (el) { el.classList.add('coach-glow'); if (glowed !== target) { el.scrollIntoView?.({ block: 'nearest' }); glowed = target; } }
 }

@@ -43,7 +43,7 @@
 | Lab | Level | Set 1 | Set 2 | Practises |
 |---|---|---|---|---|
 | `suppress-app1` | Beginner | 3, 25 | 4 | Defender for Endpoint, Alert tuning, Suppression rules |
-| `unblock-lob1` | Beginner | 4 | 1, 5 | Defender XDR, Tenant Allow/Block List, Indicators, Automated remediation |
+| `unblock-lob1` | Beginner | 4 | 1, 5 | Defender for Endpoint, File indicators, Automated remediation, Device groups |
 | `approve-devices` | Beginner | — | 6 | Defender for Endpoint, Device onboarding, Configuration management |
 | `sentinel-rbac` | Beginner | 8, 9 | — | Sentinel roles, Azure RBAC, Least privilege |
 | `hunting-favorites` | Beginner | — | 46 | Hunting, Favorites, Analytics rules vs hunting queries |

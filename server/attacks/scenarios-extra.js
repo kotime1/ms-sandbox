@@ -1,7 +1,7 @@
 // Iteration 2 scenarios. Same rules as scenarios.js: synthetic records only, no I/O,
 // RFC 5737 addresses, contoso.com. Data is deterministic because labs check it for exact answers.
 
-import { raiseSentinelIncident, enableTables, device } from '../sim/world.js';
+import { raiseSentinelIncident, enableTables, device, refreshFileStates } from '../sim/world.js';
 import { guid } from '../core/util.js';
 
 const MIN = 60_000;
@@ -20,9 +20,10 @@ export const EXTRA_SCENARIOS = {
     mitre: ['DefenseEvasion'],
     run(w) {
       w.defender.files.push(
-        { sha256: LOB_HASH, name: 'lob1-sync.exe', blocked: true, blockedBy: 'Automated remediation', verdict: 'Clean', behaviors: ['Reads LOB1 config', 'Connects to internal ERP'] },
-        { sha256: MALWARE_HASH, name: 'invoice_viewer.exe', blocked: true, blockedBy: 'Automated remediation', verdict: 'Malicious', behaviors: ['Drops payload to %TEMP%', 'Disables Defender'] },
+        { sha256: LOB_HASH, name: 'lob1-sync.exe', blockedByRemediation: true, blockedBy: 'Automated remediation', verdict: 'Clean', behaviors: ['Reads LOB1 config', 'Connects to internal ERP'] },
+        { sha256: MALWARE_HASH, name: 'invoice_viewer.exe', blockedByRemediation: true, blockedBy: 'Automated remediation', verdict: 'Malicious', behaviors: ['Drops payload to %TEMP%', 'Disables Defender'] },
       );
+      refreshFileStates(w);
       return 'LOB1 file and a malicious file were blocked by automated remediation';
     },
   },

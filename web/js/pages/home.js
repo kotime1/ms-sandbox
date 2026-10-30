@@ -1,5 +1,6 @@
 import { h, badge } from '../dom.js';
 import { ctx } from '../app.js';
+import { levelOf } from '../verification.js';
 
 const START = {
   'suppress-app1': 'defender/alerts', 'sentinel-rbac': 'azure/iam', 'playbook-permissions': 'azure/resources', 'detect-and-isolate': 'defender/hunting', 'kql-investigation': 'sentinel/logs',
@@ -14,10 +15,11 @@ export async function render(host) {
   const active = ctx.lab?.briefing?.id;
   host.append(
     h('h1', null, 'Hands-on SC-200 labs'),
-    h('p', { class: 'lede' }, 'Click through a simulated Microsoft Sentinel and Defender environment. Each lab sets a scenario, lets an attack-agent generate activity, and grades what you actually changed. The portals here mimic the real workflow so your hands learn the route; they do not replicate the products.'),
+    h('p', { class: 'lede' }, 'Click through a simulated Microsoft Defender portal (where Microsoft Sentinel now lives) and the Azure portal. Each lab sets a scenario, lets an attack-agent generate activity, and grades what you actually changed. Menu names follow Microsoft Learn; the screens are simplified and nothing here has been checked against a live tenant. Each lab says how well it is backed by the docs.'),
     h('div', { class: 'cards' }, ctx.labs.map((l) => h('article', { class: `card ${active === l.id ? 'current' : ''}` },
       h('h2', null, l.title),
-      h('div', { class: 'chips' }, badge(l.level), badge(`${l.minutes} min`), ...l.topics.slice(0, 3).map((t) => badge(t, 'topic'))),
+      h('div', { class: 'chips' }, badge(l.level), badge(`${l.minutes} min`), badge(levelOf(l.verification).label, levelOf(l.verification).kind), ...l.topics.slice(0, 3).map((t) => badge(t, 'topic'))),
+      l.verification?.level === 'exam' ? h('p', { class: 'note small' }, l.verification.note) : null,
       h('p', { class: 'muted small' }, `Exam area: ${l.examObjective}`),
       h('p', { class: 'muted small' }, `Inspired by practice questions — ${fmtQuestions(l.sourceQuestions)}`),
       h('button', { class: 'btn primary', type: 'button', 'data-target': `btn:start:${l.id}`, onclick: async () => {

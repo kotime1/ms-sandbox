@@ -6,6 +6,8 @@ export default {
   topics: ['Advanced hunting', 'UEBA behaviours', 'KQL join'],
   examObjective: '3.1 Detect threats by using Microsoft Defender XDR',
   sourceQuestions: { set1: [45], set2: [44] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "partial", note: "BehaviorInfo and BehaviorEntities exist and join on BehaviorId (preview tables). Columns are simplified; the real tables have more." },
   scenarios: ['ueba-behaviors'],
   withholdNotes: ['ueba'],
   answers: [{ id: 'top', label: 'Which user has the most behaviours? (UPN)', placeholder: 'user@contoso.com' }],

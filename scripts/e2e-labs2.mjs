@@ -17,25 +17,44 @@ const startLab = async (id, landing) => {
 try {
   await b.open('#/home');
 
-  // ---------------------------------------------------------------- unblock-lob1
+  // ---------------------------------------------------------------- unblock-lob1 (file indicator, the product's mechanism)
   await startLab('unblock-lob1', 'defender/rules');
-  await waitFor(`document.querySelector('[data-target="btn:add-allowblock"]')`, 'allow/block section');
-  ok((await b.evalJs(`document.querySelectorAll('table.grid code.hash').length`)) >= 2, 'both blocked files are listed with their hashes');
+  await waitFor(`document.querySelector('[data-target="btn:add-indicator"]')`, 'indicators section');
+  ok((await evalJs(`document.querySelectorAll('table.grid code.hash').length`)) >= 2, 'both blocked files are listed with their hashes');
   ok(!(await evalJs(`document.body.textContent.includes('Malicious')`)), 'the verdict is NOT shown before deep analysis');
-  // The coach follows the lab's walkthrough: we are on Rules, so it has moved past "open Rules" to "add the entry".
-  await waitFor(`document.querySelector('.coach-glow')?.getAttribute('data-target') === 'btn:add-allowblock'`, 'coach highlights Add');
-  ok(true, 'coach highlights "Add" on the Tenant Allow/Block List');
+  ok(await evalJs(`document.body.textContent.includes('This is an email feature')`), 'the Tenant Allow/Block List is labelled as an email feature');
+  ok(await evalJs(`document.body.textContent.includes('Workstations: ')`), 'file state is shown per device group');
+
+  // Trap first: the Tenant Allow/Block List cannot release an endpoint file.
   await click('btn:add-allowblock');
   await waitFor(`document.querySelector('.modal')`, 'allow/block dialog');
-  await setValue('.modal input[type=text]', 'not-a-hash');
+  await evalJs(`(() => { const sel = document.querySelectorAll('.modal select'); sel[0].value = 'file'; sel[1].value = 'allow'; })()`);
+  await setValue('.modal input[type=text]', 'a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1');
   await click('btn:save-allowblock');
-  await waitFor(`document.querySelector('.modal .form-error:not([hidden])')?.textContent.includes('SHA-256')`, 'hash validation error');
-  ok(await evalJs(`!document.querySelector('[data-target="btn:save-allowblock"]').disabled`), 'invalid input is explained and the dialog stays usable');
-  await setValue('.modal input[type=text]', LOB_HASH);
-  await click('btn:save-allowblock');
-  await waitFor(`!document.querySelector('.modal')`, 'dialog closed');
-  await allMet(2);
-  ok((await b.met()).slice(0, 2).every(Boolean), 'LOB1 is allowed and the malware stays blocked');
+  await waitFor(`document.querySelector('.modal .form-error:not([hidden])')?.textContent.includes("can't create allow entries for files directly")`, 'allow/block explained');
+  ok(await evalJs(`!document.querySelector('[data-target="btn:save-allowblock"]').disabled`), 'the email list refuses a file Allow and explains why; the dialog stays usable');
+  await evalJs(`document.querySelector('.modal-head .icon-btn').click()`);
+
+  // The product's mechanism: a file hash indicator, action Allow, scoped to the device group that runs LOB1.
+  await waitFor(`document.querySelector('.coach-glow')?.getAttribute('data-target') === 'btn:add-indicator'`, 'coach highlights Add item');
+  ok(true, 'coach highlights "Add item" under Indicators');
+  await click('btn:add-indicator');
+  await waitFor(`document.querySelector('.modal')`, 'indicator dialog');
+  await setValue('.modal input[type=text]', 'a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1');
+  await evalJs(`(() => { document.querySelector('.modal select:not([multiple])').value = 'allow'; const t = document.querySelector('.modal select[multiple]'); for (const o of t.options) o.selected = o.textContent === 'All devices'; })()`);
+  await click('btn:save-indicator');
+  await waitFor(`!document.querySelector('.modal')`, 'indicator saved (all devices)');
+  await waitFor(`document.querySelectorAll('.objectives li.met').length >= 2`, 'allow + guard met');
+  ok(!(await b.met())[2], 'allowing on ALL devices works but is not "no wider than needed"');
+  await click('btn:add-indicator'); // reopen to narrow the scope via Edit scope instead
+  await evalJs(`document.querySelector('.modal-head .icon-btn').click()`);
+  await evalJs(`[...document.querySelectorAll('button')].find((x) => x.textContent === 'Edit scope').click()`);
+  await waitFor(`document.querySelector('.modal select[multiple]')`, 'edit scope');
+  await evalJs(`(() => { const t = document.querySelector('.modal select[multiple]'); for (const o of t.options) o.selected = o.textContent === 'Workstations'; })()`);
+  await clickText('.modal .btn', 'Save');
+  await waitFor(`!document.querySelector('.modal')`, 'scope narrowed');
+  await allMet(3);
+  ok((await b.met()).every(Boolean), 'LOB1 allowed on the workstations only, and the malware stays blocked');
 
   // ---------------------------------------------------------------- approve-devices
   await startLab('approve-devices', 'defender/devices');

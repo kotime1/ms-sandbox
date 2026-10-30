@@ -15,6 +15,8 @@ export default {
   topics: ['Sentinel automation', 'Playbooks', 'Managed identity', 'Azure RBAC'],
   examObjective: '1.x / 2.x Configure automation; playbook triggers and permissions',
   sourceQuestions: { set1: [5, 6, 7, 18], set2: [7, 8, 9, 18] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "docs", note: "Trigger types and the managed-identity requirement follow the docs and the practice question. The exact error text is paraphrased." },
   scenarios: ['vm-compromise-incident'],
   brief:
     'A High-severity incident was raised for suspicious activity on VM1. Your team built a Logic App named Playbook1 that restarts VM1 to contain the host and adds a comment to the incident. ' +

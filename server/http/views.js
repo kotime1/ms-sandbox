@@ -4,6 +4,7 @@
 
 import { listScopes, listPrincipals, ROLE_CATALOG } from '../sim/actions.js';
 import { LEARNER, visibleTables, tableColumns } from '../sim/world.js';
+import { tableSource } from '../sim/tables.js';
 
 const iso = (ms) => new Date(ms).toISOString();
 
@@ -50,7 +51,7 @@ const sentinelConfig = (w) => ({
 
 const defender = (w) => ({
   alerts: w.defender.alerts.map((a) => ({ id: a.id, title: a.title, severity: a.severity, status: a.status, device: a.deviceName, process: a.evidence?.process ?? null, source: a.source, createdAt: iso(a.createdAt), suppressed: Boolean(a.suppressedBy), action: a.actionTaken ?? null })),
-  devices: w.defender.devices.map((d) => ({ id: d.id, name: d.name, os: d.os, isolated: d.isolated, risk: d.riskScore, onboarding: d.onboarding })),
+  devices: w.defender.devices.map((d) => ({ id: d.id, name: d.name, os: d.os, isolated: d.isolated, risk: d.riskScore, onboarding: d.onboarding, groups: d.groups ?? [] })),
   suppression: w.defender.suppression.map((s) => ({ id: s.id, alertTitle: s.alertTitle, ioc: s.ioc, scope: s.scope, device: s.deviceId, action: s.action })),
   detections: w.defender.detections.map((d) => ({ id: d.id, name: d.name, alertTitle: d.alertTitle, severity: d.severity, query: d.query, actions: d.actions, enabled: d.enabled })),
 });
@@ -60,6 +61,8 @@ const indicatorStatus = (i) => (i.targets.length ? 'Active' : 'Inactive');
 
 const fileView = (f) => ({
   sha256: f.sha256, name: f.name, blocked: f.blocked, blockedBy: f.blocked ? f.blockedBy ?? null : null,
+  // Where it is blocked, by device. The verdict (clean / malicious) is NOT here: deep analysis reveals that.
+  perDevice: f.perDevice ?? {},
   // The verdict and sandbox behaviours are what deep analysis REVEALS, so they are only sent once it has run.
   analysis: f.deepAnalysis ? { status: f.deepAnalysis.status, verdict: f.deepAnalysis.verdict, behaviors: f.deepAnalysis.behaviors } : null,
 });
@@ -69,6 +72,7 @@ const defenderFiles = (w) => ({
   allowBlock: w.defender.allowBlock.map((e) => ({ id: e.id, kind: e.kind, value: e.value, action: e.action, expiry: e.expiry })),
   indicators: w.defender.indicators.map((i) => ({ id: i.id, type: i.type, value: i.value, action: i.action, targets: i.targets, status: indicatorStatus(i) })),
   deviceGroups: w.defender.deviceGroups,
+  advancedFeatures: { ...w.defender.advancedFeatures },
 });
 
 const deviceDetail = (w, id) => {
@@ -94,8 +98,13 @@ const sentinelSummary = (w) => ({
   sources: [...w.enabledTables].filter((n) => w.tables.has(n) && !w.sentinel.summaryRules.some((r) => r.destination === n)),
 });
 
-const schema = (w, surface) => ({
-  tables: visibleTables(w, surface).map((n) => ({ name: n, columns: tableColumns(w, n).map((c) => ({ name: c.name, type: c.type })) })),
+// One schema for the single Advanced hunting page, grouped by where the table comes from.
+const schema = (w) => ({
+  tables: visibleTables(w).map((n) => ({
+    name: n,
+    source: tableSource(n),
+    columns: tableColumns(w, n).map((c) => ({ name: c.name, type: c.type })),
+  })),
 });
 
 export const VIEWS = {
@@ -107,8 +116,9 @@ export const VIEWS = {
   'defender-files': defenderFiles,
   'sentinel-hunting': sentinelHunting,
   'sentinel-summary': sentinelSummary,
-  'schema-sentinel': (w) => schema(w, 'sentinel'),
-  'schema-defender': (w) => schema(w, 'defender'),
+  'schema-sentinel': (w) => schema(w),
+  'schema-defender': (w) => schema(w),
+  schema: (w) => schema(w),
 };
 
 export function getView(w, name) {

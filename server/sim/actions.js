@@ -159,7 +159,8 @@ export const ACTIONS = {
 
   // --- Queries (Logs blade / Advanced hunting)
   'query.run': {
-    spec: { surface: { type: 'enum', values: ['sentinel', 'defender'] }, text: { type: 'string', max: 4000, min: 1 } },
+    // `surface` is legacy: Advanced hunting is one page covering every table. Optional and ignored for access.
+    spec: { surface: { type: 'enum', values: ['sentinel', 'defender'], optional: true, default: 'sentinel' }, text: { type: 'string', max: 4000, min: 1 } },
     run({ w }, p) {
       const res = query(w, p.surface, p.text);
       w.queries.push({ surface: p.surface, text: p.text, columns: res.columns.map((c) => c.name), records: res.records.slice(0, 200), tables: res.meta.tables, ops: res.meta.ops, render: res.meta.render });

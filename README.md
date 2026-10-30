@@ -2,7 +2,7 @@
 
 A mock lab environment for studying the Microsoft SC-200 (Security Operations Analyst) exam and similar ones, with no Azure subscription needed.
 
-> **This is not a replica of Microsoft Sentinel.** It mimics the *environment*: the portals, the menus, the buttons, the error messages, the order you click things in. The aim is kinesthetic learning. Your hands learn the route, and the grading checks that you understood *why*. Schemas, KQL and RBAC are deliberately simplified; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#fidelity-what-is-and-is-not-simulated).
+> **This is not a replica of Microsoft Sentinel.** It mimics the *environment* (a single Microsoft Defender portal, where Sentinel now lives, plus the Azure portal for IAM and Logic Apps): the portals, the menus, the buttons, the error messages, the order you click things in. The aim is kinesthetic learning. Your hands learn the route, and the grading checks that you understood *why*. Schemas, KQL and RBAC are deliberately simplified; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#fidelity-what-is-and-is-not-simulated).
 
 ## Quick start
 
@@ -10,10 +10,11 @@ Requires Node.js 22+ (developed on 24). There are **no dependencies to install**
 
 ```bash
 npm start            # http://127.0.0.1:3000
-npm test                         # 126 unit, integration and security tests
+npm test                         # 130 unit, integration and security tests
 node scripts/e2e.mjs             # plays iteration-1 labs through the real UI in headless Edge/Chrome (optional)
 node scripts/e2e-labs2.mjs       # plays the iteration-2 labs the same way (optional)
 node scripts/coverage.mjs        # regenerates docs/COVERAGE.md (a test fails if it is stale)
+node scripts/screenshot.mjs      # saves PNGs of key pages to ./screenshots (optional)
 ```
 
 Open the page, pick a lab, and work through it in the simulated portals. The right-hand **Lab coach** panel shows the brief, your objectives, a gold-pulsing highlight on the next control to use, graded hints, and the assistant.
@@ -49,6 +50,8 @@ They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)
 | Triage WS-23 | Intermediate | Device timeline, investigation package, deep analysis, indicators, response restraint |
 | Follow one token through Graph | Advanced | Graph activity logs, sign-in correlation |
 
+Each lab shows a **verification level**: *Matches Microsoft Learn*, *Simplified vs Learn*, or *Unverified* (comes from a practice question only). Nothing has been checked against a live tenant; see [docs/FIDELITY.md](docs/FIDELITY.md).
+
 Labs are graded on the **outcome** (what changed in the environment), not the click order, so there are many valid paths, and "works but too broad" fails the least-privilege objectives on purpose. Investigation labs ask you to *report a finding* (who, how many); the expected value stays on the server.
 
 ## Optional: Claude-powered assistant
@@ -64,6 +67,7 @@ The key is read from the environment only. It is never sent to the browser or lo
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how it fits together, fidelity limits
 - [docs/SECURITY.md](docs/SECURITY.md): threat model and every control, with the tests that prove it
+- [docs/FIDELITY.md](docs/FIDELITY.md): **how closely each behavior matches Microsoft Learn**, what was wrong, and what is still simplified
 - [docs/COVERAGE.md](docs/COVERAGE.md): which practice question maps to which lab, duplicates between sets, and the backlog (generated)
 - [docs/AUTHORING_LABS.md](docs/AUTHORING_LABS.md): add a lab, scenario, action or page
 - [docs/CHANGELOG.md](docs/CHANGELOG.md): **summary of changes per iteration (updated every iteration)**

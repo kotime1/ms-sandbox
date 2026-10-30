@@ -59,7 +59,7 @@ const waitFor = async (expr, label, ms = 6000) => { const t = Date.now(); while 
 
 // The coach tells us what to click next; the test follows it like a learner would.
 const glowTarget = () => evalJs(`document.querySelector('.coach-glow')?.getAttribute('data-target') ?? null`);
-const click = (target) => evalJs(`(() => { const e = [...document.querySelectorAll('[data-target]')].find((x) => x.getAttribute('data-target') === ${JSON.stringify(target)}); if (!e) return false; e.click(); return true; })()`);
+const click = (target) => evalJs(`(() => { const e = [...document.querySelectorAll('[data-target]')].find((x) => x.getAttribute('data-target') === ${JSON.stringify(target)} || (x.getAttribute('data-target-aliases') ?? '').split(' ').includes(${JSON.stringify(target)})); if (!e) return false; e.click(); return true; })()`);
 const clickText = (sel, text) => evalJs(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)})); if (!e) return false; e.click(); return true; })()`);
 const objectivesMet = () => evalJs(`[...document.querySelectorAll('.objectives li')].map((l) => l.classList.contains('met'))`);
 let passed = 0;

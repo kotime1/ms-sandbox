@@ -70,7 +70,7 @@ export async function launch() {
   const api = {
     port, errors, dialogs, send, evalJs, sleep, waitFor,
     glowTarget: () => evalJs(`document.querySelector('.coach-glow')?.getAttribute('data-target') ?? null`),
-    click: (target) => evalJs(`(() => { const e = [...document.querySelectorAll('[data-target]')].find((x) => x.getAttribute('data-target') === ${JSON.stringify(target)}); if (!e) return false; e.click(); return true; })()`),
+    click: (target) => evalJs(`(() => { const e = [...document.querySelectorAll('[data-target]')].find((x) => x.getAttribute('data-target') === ${JSON.stringify(target)} || (x.getAttribute('data-target-aliases') ?? '').split(' ').includes(${JSON.stringify(target)})); if (!e) return false; e.click(); return true; })()`),
     clickText: (sel, text) => evalJs(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)})); if (!e) return false; e.click(); return true; })()`),
     setValue: (selector, value) => evalJs(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); e.value = ${JSON.stringify(value)}; e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); })()`),
     go: (hash) => evalJs(`location.hash = ${JSON.stringify(hash)}`),

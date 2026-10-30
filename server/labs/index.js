@@ -24,5 +24,5 @@ export const getLab = (id) => (typeof id === 'string' ? BY_ID.get(id) ?? null : 
 
 /** Fields safe to show before the lab starts. Never includes hints, steps, checks or solutions. */
 export function labSummary(l) {
-  return { id: l.id, title: l.title, level: l.level, minutes: l.minutes, topics: l.topics, examObjective: l.examObjective, sourceQuestions: l.sourceQuestions };
+  return { id: l.id, title: l.title, level: l.level, minutes: l.minutes, topics: l.topics, examObjective: l.examObjective, sourceQuestions: l.sourceQuestions, verification: l.verification };
 }

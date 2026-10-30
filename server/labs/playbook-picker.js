@@ -14,6 +14,8 @@ export default {
   topics: ['Sentinel automation', 'Azure RBAC', 'Azure Security Insights', 'Least privilege'],
   examObjective: '1.x Configure automation (playbook permissions for Sentinel)',
   sourceQuestions: { set1: [5, 18], set2: [10, 18] },
+  // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
+  verification: { level: "docs", note: "Matches Learn: Sentinel runs playbooks from automation rules as its own service account, needing the Automation Contributor role on the resource group." },
   scenarios: ['playbook-picker'],
   withholdNotes: ['asi-role', 'sentinel-roles'], // sentinel-roles also names the Automation Contributor role
   brief:

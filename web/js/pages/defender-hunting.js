@@ -6,7 +6,7 @@ import { ctx } from '../app.js';
 export async function render(host) {
   host.append(
     h('h1', null, 'Advanced hunting'),
-    h('p', { class: 'muted' }, 'Defender XDR tables only (here: DeviceLogonEvents). Sentinel tables such as SigninLogs live in the Sentinel Logs blade.'));
+    h('p', { class: 'muted' }, 'Query Microsoft Defender XDR tables and Microsoft Sentinel workspace tables together, in one place (KQL, a supported subset). Real path: Investigation & response > Hunting > Advanced hunting.'));
   await queryEditor(host, 'defender', {
     extra: (getQuery) => h('button', { class: 'btn', type: 'button', 'data-target': 'btn:create-detection', onclick: () => detectionDialog(getQuery()) }, 'Create detection rule'),
   });

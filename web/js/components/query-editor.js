@@ -41,10 +41,13 @@ export async function queryEditor(host, surface, { extra } = {}) {
   };
   area.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); } });
 
-  const tables = h('div', { class: 'schema' }, h('h3', null, 'Tables'),
-    schema.tables.map((t) => h('details', null, h('summary', null, t.name),
-      h('ul', null, t.columns.map((c) => h('li', null, h('span', null, c.name), ' ', h('em', null, c.type)))),
-      h('button', { class: 'btn small', type: 'button', onclick: () => { area.value = `${t.name}\n| take 10`; drafts[surface] = area.value; area.focus(); } }, 'Query this table'))));
+  // Grouped by where the table comes from, as in the unified Advanced hunting schema pane.
+  const tableNode = (t) => h('details', null, h('summary', null, t.name),
+    h('ul', null, t.columns.map((c) => h('li', null, h('span', null, c.name), ' ', h('em', null, c.type)))),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { area.value = `${t.name}\n| take 10`; drafts[surface] = area.value; area.focus(); } }, 'Query this table'));
+  const groups = [...new Set(schema.tables.map((t) => t.source ?? 'Tables'))];
+  const tables = h('div', { class: 'schema' }, h('h3', null, 'Schema'),
+    groups.map((g) => h('div', { class: 'schema-group' }, h('h4', null, g), schema.tables.filter((t) => (t.source ?? 'Tables') === g).map(tableNode))));
 
   host.append(h('div', { class: 'qlayout' }, tables, h('div', { class: 'qmain' },
     area,
