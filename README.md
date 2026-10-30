@@ -10,9 +10,10 @@ Requires Node.js 22+ (developed on 24). There are **no dependencies to install**
 
 ```bash
 npm start            # http://127.0.0.1:3000
-npm test                         # 130 unit, integration and security tests
+npm test                         # 162 unit, integration and security tests
 node scripts/e2e.mjs             # plays iteration-1 labs through the real UI in headless Edge/Chrome (optional)
 node scripts/e2e-labs2.mjs       # plays the iteration-2 labs the same way (optional)
+node scripts/e2e-wizards.mjs     # drives the custom detection wizard and the automation rule panel (optional)
 node scripts/coverage.mjs        # regenerates docs/COVERAGE.md (a test fails if it is stale)
 node scripts/screenshot.mjs      # saves PNGs of key pages to ./screenshots (optional)
 ```
@@ -83,7 +84,7 @@ server/  core/ (bus, session, validation)   sim/ (world, actions, KQL engine, RB
          agents/  attacks/  labs/  knowledge/  http/
 web/     index.html  css/  js/ (dom, api, main, pages/, components/)
 test/    kql, labs, labs2 (trap paths), http (security), web-static (front-end guardrails)
-scripts/ e2e-lib.mjs  e2e.mjs  e2e-labs2.mjs  coverage.mjs
+scripts/ e2e-lib.mjs  e2e.mjs  e2e-labs2.mjs  e2e-wizards.mjs  coverage.mjs  screenshot.mjs
 question_sets/  set1.txt  set2.txt   (the source practice questions)
 docs/
 ```

@@ -3,7 +3,7 @@
 How closely the sandbox matches the real products, checked against Microsoft Learn. Nothing here was checked against a live tenant.
 
 - **Audited:** 2026-10-30, against pages dated June to October 2026 (page dates are in each row).
-- **Updated:** 2026-10-30, after the iteration-3 rebuild. Rows marked **Fixed** were wrong when first audited and have since been changed; the original finding is kept so you can see what was wrong.
+- **Updated:** 2026-10-30 (iteration 4: custom detection and automation rule wizards rebuilt), and earlier the same day after the iteration-3 rebuild. Rows marked **Fixed** were wrong when first audited and have since been changed; the original finding is kept so you can see what was wrong.
 - **Method:** each simulated behavior was compared with the cited page. "Match" means the page says the same thing. It does not mean the UI looks the same.
 - **Not audited yet:** KQL schemas, error message wording, and the Purview, Entra, Defender for Identity and Cloud Apps areas (not built).
 
@@ -146,8 +146,7 @@ The decision logic (which role, which trigger, which scope) is mostly right. The
 
 | Item | Notes |
 |---|---|
-| Custom detection wizard has one dialog; the real one has six steps, frequencies (24h, 12h, 3h, hourly, Continuous NRT, Custom), alert enrichment, scope and many actions | Not rebuilt |
-| Automation rule wizard: one trigger, one condition, one action; real one has three triggers, conditions on tags and entities, tasks/status/severity/owner/tag actions, order, expiry | Not rebuilt |
+| Custom detection wizard and automation rule panel | **Rebuilt in iteration 4**, see section 7 |
 | Summary rule wizard: no scheduling, preview or existing-table option | Not rebuilt |
 | Device page: package is shown instantly; real flow downloads it from the Action center | Not rebuilt |
 | Analytics rules page is read-only; entity mapping is a toggle, not the real "Alert enhancement > Entity mapping" editor (up to 10 mappings, 3 identifiers each) | Not rebuilt |
@@ -155,3 +154,49 @@ The decision logic (which role, which trigger, which scope) is mostly right. The
 | MicrosoftGraphActivityLogs: many real columns are missing (`UniqueTokenId`, `Roles`, `Scopes`, `ClientAuthMethod`, ...) | Simplified |
 | Case management, SOC optimization, data lake tiers, Security Copilot, Sentinel graph | Not built |
 | Anything checked against a live tenant | Nothing yet |
+
+## 7. Iteration 4: custom detection wizard and automation rule panel
+
+Built against [custom-detection-rules](https://learn.microsoft.com/en-us/defender-xdr/custom-detection-rules) (page 2026-09-02, updated 2026-10-04), [create-manage-use-automation-rules](https://learn.microsoft.com/en-us/azure/sentinel/create-manage-use-automation-rules) (2026-07-01), [automate-incident-handling-with-automation-rules](https://learn.microsoft.com/en-us/azure/sentinel/automate-incident-handling-with-automation-rules) (updated 2026-06-30) and [investigate-cases](https://learn.microsoft.com/en-us/azure/sentinel/investigate-cases) (2026-07-02, for closing reasons).
+
+### Custom detection rules
+
+| Behavior | Status | Notes |
+|---|---|---|
+| Six steps: prepare query, alert details, alert enrichment, actions, scope, review and turn on | **Match** | Two entry points as documented: Advanced hunting > Create detection rule, and Custom detection rules > + Create detection rule |
+| Frequencies and the fixed lookback for Defender data: 24h = 30 days, 12h = 48 hours, 3h = 12 hours, hourly = 4 hours; Continuous (NRT) | **Match** | |
+| Continuous (NRT) only for a single supported table, no join / union / externaldata, no comment lines | **Match** | The wizard greys NRT out and says which rule blocks it |
+| Recommended columns (Timestamp; DeviceId + ReportId for endpoint tables; an entity column) are **warnings**, not errors | **Match the docs** | This reverses an earlier behaviour taken from the practice questions, which say "must". The lab explains both |
+| Device actions: isolate, collect investigation package, run antivirus scan, initiate investigation, restrict app execution (need DeviceId) | **Match** | |
+| File actions (Allow/Block, Quarantine: need a hash column), user actions (Mark compromised, Disable user, Reset authentication: need an account object id / SID), email actions (Move to folder, Delete email: need NetworkMessageId + RecipientEmailAddress) | **Match** | An action is greyed out with the exact missing column named |
+| Dynamic alert title/description with `{{Column}}`, at most 3 columns per field; custom details, at most 20 pairs | **Match** | |
+| Impacted-asset entity mapping, one column per entity type | **Partial** | Assets only (Account, Device, Mailbox). Related evidence and cloud-resource entities are not modelled |
+| Scope: all devices, or specific device groups; the rule only acts on devices in scope | **Match** | |
+| At most 150 alerts per run; events with the same entities and details collapse into one alert | **Match** | The cap is recorded and shown on the rule |
+| The rule runs immediately on save and then on its schedule | **Partial** | Runs on save and when a scenario asks. There is no timer, and no 30-day backfill |
+| Sentinel "Custom" frequency (5 minutes to 14 days), SaaS governance actions, Sentinel scoping columns | **Not modelled** | Stated in the wizard |
+
+### Automation rules
+
+| Behavior | Status | Notes |
+|---|---|---|
+| Triggers: When incident is created / updated, When alert is created | **Match** | |
+| Condition properties and operators per trigger (the docs' tables): Title, Description, Tag, Severity, Status, Analytic rule name, Tactics; update-only: Owner, Updated by, and the state-change operators Changed, Changed from, Changed to, Added | **Match** | |
+| Alert trigger: only the Analytic rule name condition, only the Run playbook action | **Match** | |
+| Matching is case insensitive; AND across conditions | **Match** | |
+| Several values on one condition | **My reading** | The docs mention a dice icon to add several values but do not say how they combine. I treat them as OR, and as "all must be absent" for a "does not contain" condition |
+| Actions: assign owner, change status, change severity, add tags, run playbook; actions run in the listed order and can be reordered | **Match** | |
+| Closing an incident needs a classification (the five documented reasons) and a comment | **Match** | |
+| Incident vs alert playbooks: only incident-trigger playbooks for incident triggers, only alert-trigger playbooks for the alert trigger | **Match** | |
+| Unavailable playbooks are greyed out; **Manage playbook permissions** grants Sentinel the role and needs Owner on the resource group | **Match** | The panel stays open and keeps what you typed |
+| Each trigger type has its own order queue; rules run sequentially in order; a later rule sees an earlier rule's changes | **Match** | The docs' "First Automation Rule / Second Automation Rule" example is a test |
+| Update-trigger rules run after create-trigger rules; changes made by a rule fire the update trigger (Updated by: Automation rule) | **Partial** | The cascade is capped at 5 levels in the sandbox so a loop cannot run away. The real service's limit is not documented in the pages I read |
+| Rule expiration; order defaults to the next number for the trigger type | **Match** | |
+| OR condition groups, custom-details conditions, entity-property conditions, Tag "collection of all tags" operators, incident tasks, Simple Flows / case triggers, the 2-minute playbook wait | **Not modelled** | Stated in the panel |
+
+### Things I could not confirm from the docs
+
+- How multiple values on one condition combine (above).
+- The cap on cascading automation updates (above).
+- Alert tuning rules do not apply to alerts raised by custom detection rules (stated in the docs, now enforced and tested). The docs also say Hide alert is for Defender for Endpoint alerts only; every alert the sandbox raises other than custom detections is an endpoint alert, so this is not visible yet.
+- None of this has been checked against a live tenant.

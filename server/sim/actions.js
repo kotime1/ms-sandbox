@@ -15,6 +15,8 @@ import { runQuery } from './kql/engine.js';
 import { tablesFor } from './world.js';
 import { runScenario } from '../attacks/scenarios.js';
 import { EXTRA_ACTIONS } from './actions-extra.js';
+import { AUTOMATION_ACTIONS } from './actions-automation.js';
+import { DETECTION_ACTIONS } from './actions-detections.js';
 
 const LEARNER_ID = 'u-admin1';
 const name = (extra = {}) => ({ type: 'string', min: 1, max: 80, pattern: /^[\w .:()-]+$/, ...extra });
@@ -116,37 +118,6 @@ export const ACTIONS = {
       return { run: runPlaybook(w, { playbookId: p.playbookId, incident: inc, by: LEARNER }) };
     },
   },
-  'sentinel.setIncidentStatus': {
-    spec: { incidentId: idSpec(), status: { type: 'enum', values: ['New', 'Active', 'Closed'] } },
-    run({ w }, p) {
-      incident(w, p.incidentId).status = p.status;
-      return {};
-    },
-  },
-  'sentinel.createAutomationRule': {
-    spec: {
-      name: name(),
-      ruleIds: { type: 'array', of: idSpec(), max: 20, optional: true, default: [] },
-      playbookId: { type: 'string', max: 300 },
-    },
-    run({ w }, p) {
-      capCheck(w.sentinel.automationRules, 'automationRules');
-      for (const id of p.ruleIds) {
-        if (!w.sentinel.analyticsRules.some((r) => r.id === id)) throw new SimError(`Analytics rule '${id}' not found`, 'NotFound');
-      }
-      const pb = resource(w, p.playbookId);
-      if (!pb?.playbook) throw new SimError('Playbook not found', 'NotFound');
-      if (pb.playbook.trigger !== 'incident') {
-        throw new SimError('Only playbooks with the Microsoft Sentinel incident trigger can be added to an automation rule. Playbooks with the alert trigger run from analytics rule "Alert automation (classic)" or manually from an alert.');
-      }
-      const rule = {
-        id: `auto-${w.counters.rule++}`, name: p.name, order: w.sentinel.automationRules.length + 1, enabled: true,
-        trigger: 'incidentCreated', ruleIds: p.ruleIds, actions: [{ type: 'runPlaybook', playbookId: p.playbookId }],
-      };
-      w.sentinel.automationRules.push(rule);
-      return { rule };
-    },
-  },
   'sentinel.deleteAutomationRule': {
     spec: { id: idSpec() },
     run({ w }, p) {
@@ -210,38 +181,6 @@ export const ACTIONS = {
       return {};
     },
   },
-  'defender.createDetection': {
-    spec: {
-      name: name(),
-      alertTitle: name({ max: 120 }),
-      severity: { type: 'enum', values: ['Low', 'Medium', 'High'] },
-      query: { type: 'string', max: 4000, min: 1 },
-      isolateDevice: { type: 'boolean', optional: true, default: false },
-    },
-    run({ w }, p) {
-      capCheck(w.defender.detections, 'detections');
-      let res;
-      try { res = runQuery(p.query, { tables: tablesFor(w, 'defender'), now: Date.now() }); } catch (e) { throw new SimError(`The query is not valid: ${e.message}`); }
-      const cols = res.columns.map((c) => c.name);
-      const missing = REQUIRED_DETECTION_COLUMNS.filter((c) => !cols.includes(c));
-      if (missing.length) {
-        throw new SimError(`The query must return the columns ${REQUIRED_DETECTION_COLUMNS.join(' and ')}. Missing: ${missing.join(', ')}. Tip: after summarize, use arg_max(Timestamp, *) to keep them.`);
-      }
-      if (!cols.some((c) => ENTITY_COLUMNS.includes(c))) {
-        throw new SimError('The query must return a column that identifies a device, user or mailbox (for example DeviceId, AccountUpn or RecipientEmailAddress) so the rule knows what to act on.');
-      }
-      if (p.isolateDevice && !cols.includes('DeviceId')) {
-        throw new SimError('To isolate devices the query must return the DeviceId column.');
-      }
-      const det = {
-        id: `det-${w.counters.rule++}`, name: p.name, alertTitle: p.alertTitle, severity: p.severity, query: p.query, enabled: true,
-        actions: p.isolateDevice ? ['isolateDevice'] : [],
-      };
-      w.defender.detections.push(det);
-      runDetections(w);
-      return { detection: { id: det.id, name: det.name, actions: det.actions } };
-    },
-  },
   'defender.deleteDetection': {
     spec: { id: idSpec() },
     run({ w }, p) {
@@ -268,7 +207,7 @@ export const ACTIONS = {
   },
 };
 
-Object.assign(ACTIONS, EXTRA_ACTIONS);
+Object.assign(ACTIONS, EXTRA_ACTIONS, AUTOMATION_ACTIONS, DETECTION_ACTIONS);
 
 export const ROLE_CATALOG = ROLES.map(({ name: n, description, privileged }) => ({ name: n, description, privileged }));
 

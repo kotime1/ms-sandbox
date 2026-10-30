@@ -5,8 +5,22 @@
 import { listScopes, listPrincipals, ROLE_CATALOG } from '../sim/actions.js';
 import { LEARNER, visibleTables, tableColumns } from '../sim/world.js';
 import { tableSource } from '../sim/tables.js';
+import { FREQUENCIES } from '../sim/detections.js';
+import { TRIGGERS, PROPERTIES, OPERATOR_LABELS, conditionsFor, nextOrder } from '../sim/automation.js';
+import { asiCanRun } from '../sim/world.js';
 
 const iso = (ms) => new Date(ms).toISOString();
+
+function actionSummary(x, w) {
+  switch (x.type) {
+    case 'assignOwner': return `Assign owner: ${x.owner}`;
+    case 'changeStatus': return x.status === 'Closed' ? `Change status: Closed (${x.classification})` : `Change status: ${x.status}`;
+    case 'changeSeverity': return `Change severity: ${x.severity}`;
+    case 'addTags': return `Add tags: ${(x.tags ?? []).join(', ')}`;
+    case 'runPlaybook': return `Run playbook: ${w.azure.resources.find((r) => r.id === x.playbookId)?.name ?? x.playbookId}`;
+    default: return x.type;
+  }
+}
 
 const resources = (w) => ({
   resources: w.azure.resources.map((r) => ({
@@ -41,11 +55,24 @@ const runView = (r) => ({ id: r.id, playbook: r.playbookName, by: r.by, at: iso(
 const sentinelConfig = (w) => ({
   connectors: w.sentinel.connectors,
   analyticsRules: w.sentinel.analyticsRules.map((r) => ({ id: r.id, name: r.name, kind: r.kind, severity: r.severity, enabled: r.enabled, tactics: r.tactics, query: r.query })),
-  automationRules: w.sentinel.automationRules.map((a) => ({
-    id: a.id, name: a.name, order: a.order, enabled: a.enabled, trigger: a.trigger,
-    rules: a.ruleIds.map((id) => w.sentinel.analyticsRules.find((r) => r.id === id)?.name ?? id),
-    actions: a.actions.map((x) => ({ type: x.type, playbook: w.azure.resources.find((r) => r.id === x.playbookId)?.name ?? null })),
+  automationRules: [...w.sentinel.automationRules].sort((a, b) => a.trigger.localeCompare(b.trigger) || a.order - b.order).map((a) => ({
+    id: a.id, name: a.name, order: a.order, enabled: a.enabled && !(a.expiresAt && Date.now() >= a.expiresAt), expired: Boolean(a.expiresAt && Date.now() >= a.expiresAt),
+    trigger: a.trigger, triggerLabel: TRIGGERS[a.trigger],
+    conditions: a.conditions, actions: a.actions.map((x) => ({ ...x })), expiresAt: a.expiresAt ?? null,
+    lastRun: a.lastRun ? iso(a.lastRun) : null,
+    summary: {
+      conditions: a.conditions.map((c) => `${PROPERTIES[c.property]?.label ?? c.property} ${(OPERATOR_LABELS[c.operator] ?? c.operator).toLowerCase()}${c.values.length ? ` ${c.values.join(' / ')}` : ''}`),
+      actions: a.actions.map((x) => actionSummary(x, w)),
+    },
   })),
+  // What the Create/Edit panel needs: valid conditions per trigger, playbooks (and whether Sentinel may run them), owners, next order.
+  automationMeta: {
+    conditions: Object.fromEntries(Object.keys(TRIGGERS).map((t) => [t, conditionsFor(t)])),
+    analyticsRules: w.sentinel.analyticsRules.filter((r) => r.kind === 'Scheduled' || r.kind === 'NRT' || true).map((r) => ({ id: r.id, name: r.name })),
+    playbooks: w.azure.resources.filter((r) => r.playbook).map((r) => ({ id: r.id, name: r.name, rg: r.rg, trigger: r.playbook.trigger, sentinelCanRun: asiCanRun(w, r) })),
+    owners: ['soc.analyst1@contoso.com', 'soc.analyst2@contoso.com', 'admin1@contoso.com'],
+    nextOrder: Object.fromEntries(Object.keys(TRIGGERS).map((t) => [t, nextOrder(w.sentinel.automationRules, t)])),
+  },
   playbooks: w.azure.resources.filter((r) => r.playbook).map((r) => ({ id: r.id, name: r.name, trigger: r.playbook.trigger })),
 });
 
@@ -53,7 +80,14 @@ const defender = (w) => ({
   alerts: w.defender.alerts.map((a) => ({ id: a.id, title: a.title, severity: a.severity, status: a.status, device: a.deviceName, process: a.evidence?.process ?? null, source: a.source, createdAt: iso(a.createdAt), suppressed: Boolean(a.suppressedBy), action: a.actionTaken ?? null })),
   devices: w.defender.devices.map((d) => ({ id: d.id, name: d.name, os: d.os, isolated: d.isolated, risk: d.riskScore, onboarding: d.onboarding, groups: d.groups ?? [] })),
   suppression: w.defender.suppression.map((s) => ({ id: s.id, alertTitle: s.alertTitle, ioc: s.ioc, scope: s.scope, device: s.deviceId, action: s.action })),
-  detections: w.defender.detections.map((d) => ({ id: d.id, name: d.name, alertTitle: d.alertTitle, severity: d.severity, query: d.query, actions: d.actions, enabled: d.enabled })),
+  detections: w.defender.detections.map((d) => ({
+    id: d.id, name: d.name, alertTitle: d.alertTitle, severity: d.severity, query: d.query, enabled: d.enabled,
+    actions: d.actions.map((a) => a.type), // type strings for list views; the wizard reads the full definition below
+    frequency: d.frequency, frequencyLabel: FREQUENCIES[d.frequency]?.label ?? d.frequency, lookback: FREQUENCIES[d.frequency]?.lookback ?? '',
+    category: d.category, tactic: d.tactic, techniques: d.techniques, description: d.description, recommendedActions: d.recommendedActions,
+    customDetails: d.customDetails, entities: d.entities, actionDefs: d.actions, scope: d.scope,
+    lastRun: d.lastRun ? iso(d.lastRun) : null, lastAlerts: d.lastAlerts ?? 0, truncated: (d.truncatedRuns ?? 0) > 0,
+  })),
 });
 
 // Indicator state is derived, never stored: an indicator with no valid target is Inactive.

@@ -68,6 +68,15 @@ In `server/sim/actions.js` add an entry to `ACTIONS`:
 
 Throw `SimError` for things a learner can get wrong (shown verbatim). Any other exception is logged and shown as a generic message.
 
+## Add a feature with its own rules (an engine)
+
+When a feature has a documented rule set (automation rules, custom detections), do not put the rules inline in an action:
+
+1. Put the **pure rules** in `server/sim/<feature>.js`: constants copied from the docs (with the page and date in a comment), a `validate…()` that throws `SimError` with portal-style wording, and matching/ordering functions.
+2. Put the **run-time effect** that mutates the world next to `world.js` helpers, and the **actions** in `server/sim/actions-<feature>.js` using nested validator specs (`{ type: 'object', shape }`).
+3. Expose what the UI needs (valid options, availability, "why not") from a **preview** or view, so the browser never re-implements the rules.
+4. Test each documented behavior and each "plausible but wrong" path, and record the source and status in `docs/FIDELITY.md`.
+
 ## Add a page
 
 1. `web/js/pages/<name>.js` exporting `async render(host, param)`; build DOM with `h()` only.

@@ -18,6 +18,8 @@ export function h(tag, props, ...kids) {
     else el.setAttribute(k, v === true ? '' : String(v));
   }
   append(el, kids);
+  // Every element built here is null-safe: a later `el.append(cond ? node : null)` must not print the text "null".
+  el.append = (...more) => { append(el, more); };
   if (value !== undefined) el.value = value;
   return el;
 }
@@ -34,14 +36,10 @@ export function append(el, kids) {
 }
 
 /**
- * A container whose .append() skips null/undefined/false and flattens arrays, exactly like h().
- * Pages receive one of these, so `cond ? node : null` is safe. The native Element.append would
- * render a literal "null" into the page.
+ * Kept for pages and the lab panel. Every element from h() is now null-safe on its own.
  */
 export function safeContainer(tag, props) {
-  const el = h(tag, props);
-  el.append = (...kids) => { append(el, kids); };
-  return el;
+  return h(tag, props); // h() already makes append null-safe; kept as a named entry point for pages
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';

@@ -2,6 +2,42 @@
 
 One entry per iteration, newest first. **Every iteration must update the docs and add an entry here.**
 
+## Iteration 4: Custom detection wizard and automation rules (2026-10-30)
+
+**Summary.** Rebuilt the two most-used SC-200 screens against Microsoft Learn. Both had been a single small dialog. 130 → **162** unit tests; browser checks 16 + 37 + **33**.
+
+### Custom detection rules (six-step wizard)
+- Steps as documented: prepare query, alert details, alert enrichment, actions, scope, review. Reached from **Advanced hunting > Create detection rule** (query carried in) or **Custom detection rules > + Create detection rule**.
+- Frequencies with their fixed lookback (24h/30 days, 12h/48 h, 3h/12 h, hourly/4 h), and **Continuous (NRT)** only for a single supported table with no join, union or comments. The wizard greys it out and says why.
+- **Actions are gated on the output columns they need** and say exactly which is missing: device (DeviceId), file (a hash), user (account object id / SID), email (NetworkMessageId + RecipientEmailAddress).
+- Dynamic `{{Column}}` alert titles (max 3 columns), up to 20 custom details, impacted-asset mapping, device-group scope, the 150-alert cap, and de-duplication of identical events.
+- **Behaviour change:** Timestamp / ReportId / an entity column are now **warnings**, not errors, because current Learn says "recommend". The practice questions say "must"; the lab explains both.
+
+### Automation rules (single panel)
+- Three triggers, the documented condition and operator tables per trigger, AND conditions (case insensitive), five actions (assign owner, change status, change severity, add tags, run playbook), reorderable, with **rule expiration** and **order** (each trigger type is its own queue; later rules see earlier changes).
+- **Closing an incident needs a classification** (five documented reasons). The alert trigger allows only Run playbook and only the analytic-rule-name condition.
+- Playbooks Sentinel cannot run are **greyed out**, with a **Manage playbook permissions** link that grants the role in place (needs Owner on the resource group) and keeps what you typed.
+- Incident changes by an analyst fire the **update trigger**; changes made by a rule fire it too ("Updated by: Automation rule"), with the cascade capped at 5 so rules cannot loop forever.
+- The old `createAutomationRule` call still works (builds a normal rule), so earlier labs are unchanged.
+
+### Supporting changes
+- Validator: nested `object` specs (depth-limited), array `min`, still null-prototype at every level.
+- `SimError` moved to its own module; `h()` makes every element null-safe.
+- Alert tuning rules no longer apply to alerts raised by custom detections (docs), with a test that fails without the fix.
+- Labs updated to the real wording; `playbook-permissions` downgraded from "Matches Learn" to "Simplified" because its managed-identity claim comes only from the practice question. `detect-and-isolate` is now "Matches Learn".
+- New: `scripts/e2e-wizards.mjs`, a stray-text check ("null"/"undefined" on screen) in the shared harness, and evalJs errors that name the failing script.
+
+### Bugs found and fixed
+- **Stray "null" printed on the automation panel.** Not caught by any assertion; found by looking at a screenshot. Fixed at the root in `h()`, plus a permanent check.
+- **A regex lost its backslash** when written through a shell (`[w.()-]` instead of `[\w.()-]`), so every resource group with a hyphen was rejected. Caught by the browser suite; added a unit test and scanned the code for the same mistake.
+- **Scope preview in the wizard never updated** (the checkbox changed state but did not repaint).
+- **Grant-permission discarded the user's input** by reopening the panel; now it refreshes in place.
+- A test's rejected setup call masqueraded as an engine failure; setup helpers now assert.
+- Rule names with `+`, `#`, `&`, `|` or `=` were refused; widened (still no markup characters).
+
+### Still simplified
+OR condition groups, custom-details and entity-property conditions, tags "collection" operators, incident tasks and Simple Flows; Sentinel custom frequency and SaaS governance actions; scheduled execution (rules run on save and when a scenario asks). Details and sources: [FIDELITY.md](FIDELITY.md) section 7. **Nothing has been checked against a live tenant.**
+
 ## Iteration 3: Rebuild against Microsoft Learn (2026-10-30)
 
 **Summary.** Audited the sandbox against Microsoft Learn (see [FIDELITY.md](FIDELITY.md)) and rebuilt the parts that did not match. The decision logic mostly held; the portal structure and one lab did not. Followed your three decisions: teach the **product** for `unblock-lob1`, keep `hunting-favorites` **labelled unverified**, and **rebuild the shell**. 126 → **130** tests; browser checks 16 + **35**.

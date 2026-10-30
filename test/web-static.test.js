@@ -51,3 +51,11 @@ test('the front-end does not set inline styles (CSP style-src self)', () => {
   const hits = js.filter((f) => /\.style\.|setAttribute\(\s*['"]style['"]|\bstyle:/.test(readFileSync(f, 'utf8'))).map((f) => path.relative(WEB, f));
   assert.deepEqual(hits, []);
 });
+
+test('every element built by h() ignores null/undefined/false in later append() calls (no literal "null" on screen)', () => {
+  // The DOM builder is the only way UI is made, so the guarantee lives there. We check the source states it,
+  // and the browser suites (scripts/e2e*.mjs) check the rendered result (a stray "null" was seen on the automation panel).
+  const src = readFileSync(path.join(WEB, 'js/dom.js'), 'utf8');
+  assert.match(src, /el\.append = \(\.\.\.more\) => \{ append\(el, more\); \};/);
+  assert.match(src, /Element\.prototype\.append/);
+});

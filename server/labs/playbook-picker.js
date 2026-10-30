@@ -15,7 +15,7 @@ export default {
   examObjective: '1.x Configure automation (playbook permissions for Sentinel)',
   sourceQuestions: { set1: [5, 18], set2: [10, 18] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
-  verification: { level: "docs", note: "Matches Learn: Sentinel runs playbooks from automation rules as its own service account, needing the Automation Contributor role on the resource group." },
+  verification: { level: "docs", note: "Matches Learn: Sentinel runs playbooks from automation rules as its own service account, needing the Automation Contributor role on the resource group; unavailable playbooks are greyed out with a Manage playbook permissions link (Owner needed). That a role on the playbook itself, or Logic App Contributor, does not help comes from the practice question; the docs only state the resource-group grant." },
   scenarios: ['playbook-picker'],
   withholdNotes: ['asi-role', 'sentinel-roles'], // sentinel-roles also names the Automation Contributor role
   brief:
@@ -51,7 +51,7 @@ export default {
     role: [
       'Who actually runs a playbook from an automation rule: you, the Logic App, or Sentinel?',
       'Sentinel uses its own service identity (Azure Security Insights). It needs a role where the playbook lives.',
-      'IAM > rg-sentinel > Add role assignment > "Microsoft Sentinel Automation Contributor" > member: Azure Security Insights. Scope matters: a role on Play1 itself is not enough.',
+      'Two routes: in the automation rule panel, the greyed-out playbook has a "Manage playbook permissions" link (needs Owner on the resource group); or IAM > rg-sentinel > Add role assignment > "Microsoft Sentinel Automation Contributor" > member: Azure Security Insights. Scope matters: a role on Play1 itself is not enough.',
     ],
     least: [
       'One role at one scope is the whole answer.',
@@ -60,8 +60,8 @@ export default {
     ],
     rule: [
       'Automation rules are created from the Automation blade.',
-      'Pick the incident-creation trigger and add a "Run playbook" action.',
-      'Automation > Create > Automation rule > Run playbook: Play1.',
+      'Pick the trigger "When incident is created" and add a "Run playbook" action.',
+      'Automation > Create > Automation rule: name it, trigger "When incident is created", action Run playbook: Play1, then Apply. Conditions are optional.',
     ],
     run: [
       'The rule only fires for incidents created after it exists.',
@@ -71,7 +71,7 @@ export default {
   },
 
   debrief: [
-    'To run an incident-trigger playbook (manually or from an automation rule), Microsoft Sentinel needs explicit permission: delegate Microsoft Sentinel Automation Contributor to the Azure Security Insights service principal on the resource group that holds the playbook.',
+    'To run an incident-trigger playbook (manually or from an automation rule), Microsoft Sentinel needs explicit permission: delegate Microsoft Sentinel Automation Contributor to the Azure Security Insights service principal on the resource group that holds the playbook. In the automation rule panel, playbooks Sentinel cannot run are greyed out ("unavailable") and the Manage playbook permissions link grants it for you; doing that needs the Owner role on the resource group.',
     'Granting the role on the playbook resource itself, or granting Logic App Contributor, leaves the playbook unavailable in the picker. Granting Owner or Contributor would work but violates least privilege.',
     'Contrast with the other playbook permission trap: when the playbook acts on an Azure resource (restarting a VM) it uses its own managed identity, which needs a role on that resource. Different identity, different role, different scope.',
   ],

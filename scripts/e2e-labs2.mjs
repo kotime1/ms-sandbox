@@ -165,33 +165,30 @@ try {
   await allMet(6);
   ok((await b.met()).every(Boolean), 'the optional bonus objective is met too');
 
-  // ---------------------------------------------------------------- playbook-picker (role on the RESOURCE GROUP, then automation rule + replay)
+  // ---------------------------------------------------------------- playbook-picker (greyed-out playbook -> Manage playbook permissions -> rule runs)
   await startLab('playbook-picker', 'sentinel/automation');
   await waitFor(`document.querySelector('[data-target="btn:create-automation"]')`, 'automation page');
   await click('btn:create-automation');
-  await waitFor(`document.querySelector('.modal')`, 'automation dialog');
-  await evalJs(`(() => { const s = document.querySelectorAll('.modal select')[1]; s.value = [...s.options].find((o) => o.textContent.startsWith('Play1')).value; })()`);
+  await waitFor(`document.querySelector('.modal')`, 'automation panel');
+  // add a "Run playbook" action and look at the list
+  await click('btn:add-action');
+  await evalJs(`(() => { const s = [...document.querySelectorAll('.modal select[aria-label="Action"]')].pop(); s.value = 'runPlaybook'; s.dispatchEvent(new Event('change')); })()`);
+  await waitFor(`document.querySelector('.modal select[aria-label="Playbook"]')`, 'playbook list');
+  ok(await evalJs(`[...document.querySelectorAll('.modal select[aria-label="Playbook"] option')].some((o) => o.textContent === 'Play1 (unavailable)' && o.disabled)`), 'Play1 is listed but greyed out (unavailable), as in the portal');
+  ok(await evalJs(`document.body.textContent.includes('Microsoft Sentinel does not have permission')`), 'the panel explains why, with a Manage playbook permissions link');
+  // type a name BEFORE granting, to prove the panel keeps what the user entered
+  await evalJs(`(() => { const n = document.querySelector('.modal input[placeholder="Automation rule name"]'); n.value = 'Run Play1 on new incidents'; n.dispatchEvent(new Event('input')); })()`);
+  // the portal's one-step fix: Manage playbook permissions (needs Owner on the resource group); the panel stays open
+  await click('link:manage-playbook-permissions');
+  await waitFor(`[...document.querySelectorAll('.modal select[aria-label="Playbook"] option')].some((o) => o.textContent === 'Play1' && !o.disabled)`, 'Play1 becomes selectable in the same panel');
+  ok(await evalJs(`document.querySelector('.modal input[placeholder="Automation rule name"]').value === 'Run Play1 on new incidents'`), 'granting permission keeps the panel open and keeps what was typed');
+  await evalJs(`(() => { const s = document.querySelector('.modal select[aria-label="Playbook"]'); s.value = [...s.options].find((o) => o.textContent === 'Play1').value; s.dispatchEvent(new Event('change')); })()`);
   await click('btn:apply-automation');
-  await waitFor(`!document.querySelector('.modal')`, 'rule created');
-  ok(true, 'the rule can be created, but Sentinel is not yet permitted to run it');
-  await click('btn:run-sim:playbook-picker');
-  await waitFor(`document.querySelectorAll('.toast').length > 0`, 'replay toast');
-  await go('#/sentinel/incidents'); await waitFor(`document.querySelector('[data-target="row:incident-first"]')`, 'incidents');
-  await click('row:incident-first');
-  await waitFor(`document.querySelector('.modal .run.failed')`, 'failed run');
-  ok(await evalJs(`document.querySelector('.modal .run.failed').textContent.includes('does not have permission')`), 'the automation run fails with the Sentinel-permission error');
-  await evalJs(`document.querySelector('.modal-head .icon-btn').click()`);
-  await go('#/azure/iam'); await waitFor(`document.querySelector('[data-target="btn:add-role"]')`, 'iam');
-  await click('btn:add-role');
-  await waitFor(`document.querySelector('.modal')`, 'role dialog');
-  await evalJs(`(() => { const [scope, member] = document.querySelectorAll('.modal select'); scope.value = [...scope.options].find((o) => o.textContent === 'Resource group: rg-sentinel').value; member.value = [...member.options].find((o) => o.textContent.startsWith('Azure Security Insights')).value; })()`);
-  await clickText('.role-item', 'Microsoft Sentinel Automation Contributor');
-  await click('btn:review-assign');
-  await waitFor(`!document.querySelector('.modal')`, 'assigned');
-  await go('#/sentinel/automation'); await waitFor(`document.querySelector('[data-target="btn:create-automation"]')`, 'automation again');
+  await waitFor(`!document.querySelector('.modal')`, 'rule saved');
+  ok(await evalJs(`document.body.textContent.includes('Run playbook: Play1')`), 'the saved rule is listed with its action');
   await click('btn:run-sim:playbook-picker');
   await allMet(4);
-  ok((await b.met()).every(Boolean), 'with the role on the resource group the playbook runs from the automation rule');
+  ok((await b.met()).every(Boolean), 'the playbook runs from the automation rule once Sentinel has permission');
 
   // ---------------------------------------------------------------- entity-mapping (open every incident, answer, toggle)
   await startLab('entity-mapping', 'sentinel/incidents');

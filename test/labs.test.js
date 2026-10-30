@@ -104,13 +104,16 @@ test('detect lab: a detection that isolates every device with a failure is not g
   assert.equal(s.lab.status().objectives.find((o) => o.id === 'isolated').met, false);
 });
 
-test('detect lab: detection validation explains missing columns', () => {
+test('detect lab: missing recommended columns are warnings; an action that needs a column still blocks', () => {
+  // custom-detection-rules (2026-09-02) says "we recommend" Timestamp / DeviceId / ReportId, and entity columns map assets.
+  // An action is different: isolate acts on DeviceId, so it cannot work without it.
   const s = fresh();
   s.lab.start('detect-and-isolate');
-  let out = perform(s.ctx, 'defender.createDetection', { name: 'a', alertTitle: 'x', severity: 'Low', query: 'DeviceLogonEvents | summarize n=count() by DeviceName' });
-  assert.match(out.error.message, /Timestamp and ReportId/);
-  out = perform(s.ctx, 'defender.createDetection', { name: 'a', alertTitle: 'x', severity: 'Low', query: 'DeviceLogonEvents | project Timestamp, ReportId, LogonType' });
-  assert.match(out.error.message, /identifies a device, user or mailbox/);
+  const ok = perform(s.ctx, 'defender.createDetection', { name: 'a', alertTitle: 'x', severity: 'Low', query: 'DeviceLogonEvents | summarize n=count() by DeviceName' });
+  assert.ok(ok.ok, 'a query without Timestamp/ReportId is allowed (recommended, not required)');
+  const blocked = perform(s.ctx, 'defender.createDetection', { name: 'b', alertTitle: 'x', severity: 'Low', isolateDevice: true, query: 'DeviceLogonEvents | summarize n=count() by DeviceName' });
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.error.message, /Isolate device needs the query to return DeviceId/);
 });
 
 test('advanced hunting is one unified page: Sentinel and Defender tables are queryable together, whatever legacy surface is passed', () => {

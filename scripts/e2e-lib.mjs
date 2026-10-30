@@ -56,7 +56,11 @@ export async function launch() {
 
   const evalJs = async (expr) => {
     const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
-    if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? 'eval failed');
+    if (r.result.exceptionDetails) {
+      // Name the script that failed: the browser's own stack is just "<anonymous>".
+      const where = String(expr).split(/\s+/).join(' ').slice(0, 160);
+      throw new Error(`${r.result.exceptionDetails.exception?.description ?? 'eval failed'}\n  in: ${where}`);
+    }
     return r.result.result.value;
   };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -76,6 +80,8 @@ export async function launch() {
     go: (hash) => evalJs(`location.hash = ${JSON.stringify(hash)}`),
     met: () => evalJs(`[...document.querySelectorAll('.objectives li')].map((l) => l.classList.contains('met'))`),
     ok: (c, msg) => { if (!c) throw new Error(`FAIL: ${msg}`); passed++; console.log(`  ok  ${msg}`); },
+    /** Count text nodes that are literally "null", "undefined" or "false" (a classic rendering bug the usual assertions miss). */
+    strayText: (rootSelector = 'body') => evalJs(`(() => { const r = document.querySelector(${JSON.stringify(rootSelector)}); if (!r) return -1; const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT); let n = 0, t; while ((t = w.nextNode())) { if (/^\s*(null|undefined|false|NaN)\s*$/.test(t.textContent)) n++; } return n; })()`),
     get passed() { return passed; },
     async open(hash = '#/home') {
       await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable');

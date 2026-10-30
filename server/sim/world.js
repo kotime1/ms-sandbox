@@ -4,6 +4,9 @@
 
 import { newTables, seedBaseline, ALL_QUERYABLE, OPTIONAL_TABLES, SCHEMAS } from './tables.js';
 import { getRole, roleAllows } from './rbac.js';
+import { SimError } from './world-errors.js';
+import { queueFor, ruleMatches, CLASSIFICATIONS } from './automation.js';
+import { MAX_ALERTS_PER_RUN, dedupeKey, fill, inScope } from './detections.js';
 import { runQuery, KqlError } from './kql/engine.js';
 import { rng, guid, randomToken } from '../core/util.js';
 
@@ -123,13 +126,7 @@ export function capCheck(arr, key) {
   if (arr.length >= MAX[key]) throw new SimError(`Sandbox limit reached (${MAX[key]} ${key}). Delete some first.`);
 }
 
-export class SimError extends Error {
-  constructor(message, code = 'BadRequest') {
-    super(message);
-    this.name = 'SimError';
-    this.code = code;
-  }
-}
+export { SimError };
 
 // ------------------------------------------------------------------ querying
 
@@ -196,27 +193,9 @@ export function raiseSentinelIncident(w, { title, severity, ruleId, entities = [
   w.tables.get('SecurityIncident').rows.push({ TimeGenerated: new Date(), IncidentNumber: inc.number, Title: title, Severity: severity, Status: 'New', Owner: '' });
   // Incidents from rules without entity mapping have nothing to investigate (no investigation graph).
   inc.investigable = (rule?.entityMapping ?? true) && entities.length > 0;
-  // Automation rules: evaluated in order; conditions are ANDed.
-  for (const ar of [...w.sentinel.automationRules].filter((x) => x.enabled).sort((a, b) => a.order - b.order)) {
-    if (ar.trigger !== 'incidentCreated') continue;
-    if (ar.ruleIds.length && !ar.ruleIds.includes(inc.ruleId)) continue;
-    for (const act of ar.actions) {
-      if (act.type === 'runPlaybook') {
-        // Automation rules run playbooks as Sentinel's own identity, which needs permission on the playbook's resource group.
-        const pb = resource(w, act.playbookId);
-        if (!pb || !asiCanRun(w, pb)) {
-          capCheck(w.sentinel.runs, 'runs');
-          const run = { id: `run-${w.counters.run++}`, playbookId: act.playbookId, playbookName: pb?.name ?? act.playbookId, incidentId: inc.id, by: `automation:${ar.name}`, at: Date.now(), status: 'Failed', steps: [{ name: 'Trigger', detail: 'Automation rule', status: 'Failed', message: 'Microsoft Sentinel does not have permission to run this playbook. Grant the Azure Security Insights identity the Microsoft Sentinel Automation Contributor role on the playbook\'s resource group.' }], error: 'Microsoft Sentinel does not have permission to run this playbook.' };
-          w.sentinel.runs.unshift(run);
-          inc.runs.unshift(run.id);
-          continue;
-        }
-        runPlaybook(w, { playbookId: act.playbookId, incident: inc, by: `automation:${ar.name}` });
-      }
-      if (act.type === 'changeSeverity') inc.severity = act.value;
-      if (act.type === 'assignOwner') inc.owner = act.value;
-    }
-  }
+  inc.tags = inc.tags ?? [];
+  inc.tactics = rule?.tactics ? [...rule.tactics] : [];
+  runAutomation(w, 'incidentCreated', inc);
   return inc;
 }
 
@@ -269,6 +248,9 @@ export function runPlaybook(w, { playbookId, incident, by }) {
 // ------------------------------------------------------------------ Defender engine
 
 export const matchesSuppression = (rule, alert) => {
+  // Docs (investigate-alerts, updated 2026-10-19): the Hide alert action is for Defender for Endpoint alerts only, and alert
+  // tuning rules do not apply to alerts from custom detection rules.
+  if (alert.source === 'Custom detection') return false;
   if (rule.alertTitle && rule.alertTitle !== alert.title) return false;
   if (rule.ioc && alert.evidence?.[rule.ioc.type] !== rule.ioc.value) return false;
   if (rule.scope === 'device' && rule.deviceId !== alert.deviceId) return false;
@@ -291,28 +273,60 @@ export function raiseDefenderAlert(w, { title, severity = 'Medium', deviceId, ev
 export const REQUIRED_DETECTION_COLUMNS = ['Timestamp', 'ReportId'];
 export const ENTITY_COLUMNS = ['DeviceId', 'DeviceName', 'RemoteDeviceName', 'RecipientEmailAddress', 'SenderFromAddress', 'SenderMailFromAddress', 'RecipientObjectId', 'AccountObjectId', 'AccountSid', 'AccountUpn', 'InitiatingProcessAccountSid', 'InitiatingProcessAccountUpn', 'InitiatingProcessAccountObjectId'];
 
-/** Run every custom detection now (the real service runs them on a schedule; see docs/ARCHITECTURE.md). */
-export function runDetections(w) {
+/**
+ * Run custom detections. The real service runs them on a schedule (24h, 12h, 3h, hourly, or continuously); the sandbox runs
+ * them when a rule is saved and when an attack scenario asks, so the learner sees the result without waiting.
+ * Per run: at most 150 alerts; duplicate events with the same entities and details collapse into one alert; only devices
+ * in the rule's scope are queried.
+ */
+export function runDetections(w, { only = null } = {}) {
   const fired = [];
-  for (const d of w.defender.detections.filter((x) => x.enabled)) {
+  for (const d of w.defender.detections.filter((x) => x.enabled && (!only || x.id === only))) {
     let res;
     try { res = runQuery(d.query, { tables: tablesFor(w, 'defender'), now: Date.now() }); } catch { continue; }
     const seen = d.seen ?? (d.seen = new Set());
+    let produced = 0;
     for (const rec of res.records) {
-      const key = `${rec.ReportId}`;
+      if (!inScope(d, rec, (id) => device(w, id))) continue;
+      const key = dedupeKey(d, rec);
       if (seen.has(key)) continue;
       seen.add(key);
+      if (produced >= MAX_ALERTS_PER_RUN) { d.truncatedRuns = (d.truncatedRuns ?? 0) + 1; break; }
+      produced++;
       const devId = rec.DeviceId ?? w.defender.devices.find((x) => x.name === rec.DeviceName)?.id;
-      const alert = raiseDefenderAlert(w, { title: d.alertTitle, severity: d.severity, deviceId: devId, source: 'Custom detection', evidence: { rule: d.name } });
+      const alert = raiseDefenderAlert(w, { title: fill(d.alertTitle, rec), severity: d.severity, deviceId: devId, source: 'Custom detection', evidence: { rule: d.name } });
+      alert.description = fill(d.description, rec);
+      alert.category = d.category;
+      alert.customDetails = d.customDetails.map((c) => ({ key: c.key, value: String(rec[c.column] ?? '') }));
+      alert.entities = d.entities.map((en) => ({ type: en.type, value: String(rec[en.column] ?? '') }));
       fired.push(alert);
-      if (d.actions.includes('isolateDevice') && devId && device(w, devId)) {
-        device(w, devId).isolated = true;
-        device(w, devId).riskScore = 'High';
-        alert.actionTaken = 'Device isolated (full)';
-      }
+      const taken = performDetectionActions(w, d, rec, devId);
+      if (taken.length) alert.actionTaken = taken.join('; ');
     }
+    d.lastRun = Date.now();
+    d.lastAlerts = produced;
   }
   return fired;
+}
+
+/** Apply a rule's response actions to the entities in one result row. Returns human-readable results. */
+function performDetectionActions(w, d, rec, devId) {
+  const out = [];
+  const dev = devId ? device(w, devId) : null;
+  for (const a of d.actions) {
+    if (a.type === 'isolateDevice' && dev) { dev.isolated = true; dev.riskScore = 'High'; out.push('Device isolated (full)'); }
+    else if (a.type === 'collectPackage' && dev) { w.defender.packages.push({ id: `pkg-${w.counters.rule++}`, deviceId: dev.id, deviceName: dev.name, at: Date.now(), contents: ['Collected by custom detection'] }); out.push('Investigation package collected'); }
+    else if (a.type === 'runAvScan' && dev) out.push('Antivirus scan started');
+    else if (a.type === 'initiateInvestigation' && dev) out.push('Automated investigation started');
+    else if (a.type === 'restrictAppExecution' && dev) out.push('App execution restricted');
+    else if (a.type === 'blockFile' || a.type === 'quarantineFile') out.push(a.type === 'blockFile' ? 'File blocked' : 'File quarantined');
+    else if (a.type === 'markCompromised') out.push('User marked as compromised');
+    else if (a.type === 'disableUser') out.push('User disabled');
+    else if (a.type === 'resetUserAuth') out.push('User authentication reset');
+    else if (a.type === 'moveToFolder') out.push(`Email moved to ${a.folder}`);
+    else if (a.type === 'deleteEmail') out.push(`Email ${a.mode}-deleted`);
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ File indicators (Defender for Endpoint)
@@ -356,4 +370,93 @@ export function refreshFileStates(w) {
     f.perDevice = Object.fromEntries(states.map(({ d, s }) => [d.id, s]));
     f.blocked = states.some(({ s }) => s === 'Block' || s === 'Blocked by remediation');
   }
+}
+
+// ------------------------------------------------------------------ Automation engine (rules and their validation: automation.js)
+
+const MAX_CASCADE = 5; // an update made by a rule can trigger update rules; bound it so a loop cannot run away
+
+function playbookRunFailure(w, inc, ar, act, pb) {
+  capCheck(w.sentinel.runs, 'runs');
+  const msg = "Microsoft Sentinel does not have permission to run this playbook. Grant the Azure Security Insights identity the Microsoft Sentinel Automation Contributor role on the playbook's resource group.";
+  const run = { id: `run-${w.counters.run++}`, playbookId: act.playbookId, playbookName: pb?.name ?? act.playbookId, incidentId: inc?.id ?? null, by: `automation:${ar.name}`, at: Date.now(), status: 'Failed', steps: [{ name: 'Trigger', detail: 'Automation rule', status: 'Failed', message: msg }], error: 'Microsoft Sentinel does not have permission to run this playbook.' };
+  w.sentinel.runs.unshift(run);
+  inc?.runs.unshift(run.id);
+}
+
+/** Apply one rule's actions to an incident, in the order listed. Returns the changes made (they fire the update trigger). */
+function applyActions(w, ar, inc) {
+  const changes = [];
+  for (const act of ar.actions) {
+    if (act.type === 'runPlaybook') {
+      // Automation rules run playbooks as Sentinel's own identity, which needs permission on the playbook's resource group.
+      const pb = resource(w, act.playbookId);
+      if (!pb || !asiCanRun(w, pb)) { playbookRunFailure(w, inc, ar, act, pb); continue; }
+      runPlaybook(w, { playbookId: act.playbookId, incident: inc, by: `automation:${ar.name}` });
+    } else if (act.type === 'changeSeverity' && inc.severity !== act.severity) {
+      changes.push({ property: 'severity', from: inc.severity, to: act.severity });
+      inc.severity = act.severity;
+    } else if (act.type === 'changeStatus' && inc.status !== act.status) {
+      changes.push({ property: 'status', from: inc.status, to: act.status });
+      inc.status = act.status;
+      if (act.status === 'Closed') { inc.classification = act.classification; inc.closedComment = act.comment ?? ''; }
+    } else if (act.type === 'assignOwner' && inc.owner !== act.owner) {
+      changes.push({ property: 'owner', from: inc.owner, to: act.owner });
+      inc.owner = act.owner;
+    } else if (act.type === 'addTags') {
+      for (const t of act.tags) {
+        if (!inc.tags.some((x) => x.toLowerCase() === t.toLowerCase())) { inc.tags.push(t); changes.push({ property: 'tag', added: t }); }
+      }
+    }
+  }
+  return changes;
+}
+
+/**
+ * Run the automation rules for one trigger, in order; each trigger type is its own queue and rules run sequentially.
+ * Changes a rule makes then fire "When incident is updated" (updated by: Automation rule), after the create queue.
+ * Returns the names of the rules that ran.
+ */
+export function runAutomation(w, trigger, inc, { change = null, updatedBy = 'Other', depth = 0 } = {}) {
+  const ran = [];
+  const pending = [];
+  for (const ar of queueFor(w.sentinel.automationRules, trigger)) {
+    if (!ruleMatches(ar, inc, change, updatedBy)) continue;
+    ran.push(ar.name);
+    ar.lastRun = Date.now();
+    pending.push(...applyActions(w, ar, inc));
+  }
+  if (depth < MAX_CASCADE) {
+    for (const c of pending) runAutomation(w, 'incidentUpdated', inc, { change: c, updatedBy: 'Automation rule', depth: depth + 1 });
+  }
+  return ran;
+}
+
+/**
+ * Change an incident the way an analyst does (status, severity, owner, tags). Fires "When incident is updated".
+ * Closing needs a classification, as in the portal: "This step is mandatory."
+ */
+export function updateIncident(w, inc, patch, { by = 'User' } = {}) {
+  const changes = [];
+  if (patch.status && patch.status !== inc.status) {
+    if (patch.status === 'Closed' && !CLASSIFICATIONS.includes(patch.classification)) throw new SimError('Select a classification: closing an incident needs a closing reason.');
+    changes.push({ property: 'status', from: inc.status, to: patch.status });
+    inc.status = patch.status;
+    if (patch.status === 'Closed') { inc.classification = patch.classification; inc.closedComment = patch.comment ?? ''; } else { inc.classification = null; }
+  }
+  if (patch.severity && patch.severity !== inc.severity) { changes.push({ property: 'severity', from: inc.severity, to: patch.severity }); inc.severity = patch.severity; }
+  if (patch.owner !== undefined && (patch.owner || null) !== inc.owner) { changes.push({ property: 'owner', from: inc.owner, to: patch.owner || null }); inc.owner = patch.owner || null; }
+  for (const t of patch.addTags ?? []) {
+    if (!inc.tags.some((x) => x.toLowerCase() === t.toLowerCase())) { inc.tags.push(t); changes.push({ property: 'tag', added: t }); }
+  }
+  const row = w.tables.get('SecurityIncident').rows.find((r) => r.IncidentNumber === inc.number);
+  if (row) { row.Status = inc.status; row.Severity = inc.severity; row.Owner = inc.owner ?? ''; }
+  for (const c of changes) runAutomation(w, 'incidentUpdated', inc, { change: c, updatedBy: by });
+  return changes;
+}
+
+/** An alert was created by a Scheduled or NRT analytics rule: run the "When alert is created" queue (Run playbook only). */
+export function alertCreated(w, analyticRuleName, inc = null) {
+  const probe = inc ?? { title: '', severity: 'Medium', status: 'New', ruleName: analyticRuleName, tags: [], runs: [] };
+  return runAutomation(w, 'alertCreated', probe);
 }

@@ -4,13 +4,15 @@
 //   Custom detection rules         : Investigation & response > Hunting > Custom detection rules
 //   Tenant Allow/Block Lists       : Email & collaboration > Policies & rules > Threat policies > Tenant Allow/Block Lists
 //                                    (a Defender for Office 365 / EOP email feature)
-import { h, badge, sev } from '../dom.js';
+import { h, badge, sev, fmtTime } from '../dom.js';
+import { openDetectionWizard } from '../components/detection-wizard.js';
 import { table } from '../components/table.js';
 import { modal, field } from '../components/modal.js';
 import { ctx } from '../app.js';
 
 const ACTIONS = [['allow', 'Allow'], ['audit', 'Audit'], ['warn', 'Warn'], ['block', 'Block execution'], ['blockRemediate', 'Block and remediate']];
 const actionLabel = (a) => ACTIONS.find(([v]) => v === a)?.[1] ?? a;
+const ACTION_LABELS = { isolateDevice: 'Isolate device', collectPackage: 'Collect package', runAvScan: 'AV scan', initiateInvestigation: 'Investigate', restrictAppExecution: 'Restrict apps', blockFile: 'Block file', quarantineFile: 'Quarantine', markCompromised: 'Mark compromised', disableUser: 'Disable user', resetUserAuth: 'Reset auth', moveToFolder: 'Move email', deleteEmail: 'Delete email' };
 
 export async function render(host) {
   const [v, f] = await Promise.all([ctx.view('defender'), ctx.view('defender-files')]);
@@ -56,14 +58,20 @@ export async function render(host) {
     h('section', { class: 'blade' },
       h('h2', null, 'Custom detection rules'),
       h('p', { class: 'muted small' }, 'Real path: Investigation & response > Hunting > Custom detection rules.'),
+      h('div', { class: 'toolbar' }, h('button', { class: 'btn primary', type: 'button', 'data-target': 'btn:create-detection-rule', onclick: () => openDetectionWizard({ devices: v.devices, groups: f.deviceGroups }) }, '+ Create detection rule')),
       table([
-        { key: 'name', label: 'Name' },
+        { key: 'name', label: 'Name', render: (d) => h('span', null, d.name, d.truncated ? [' ', badge('150-alert cap hit', 'warn')] : null) },
         { key: 'severity', label: 'Severity', render: (d) => sev(d.severity) },
-        { key: 'actions', label: 'Actions', render: (d) => (d.actions.includes('isolateDevice') ? badge('Isolate device', 'warn') : 'None') },
+        { key: 'frequencyLabel', label: 'Frequency', render: (d) => h('span', null, d.frequencyLabel, h('div', { class: 'muted small' }, `lookback: ${d.lookback}`)) },
+        { key: 'scope', label: 'Scope', render: (d) => (d.scope.type === 'all' ? 'All devices' : d.scope.groups.map(groupName).join(', ')) },
+        { key: 'actions', label: 'Actions', render: (d) => (d.actions.length ? d.actions.map((a) => badge(ACTION_LABELS[a] ?? a, a === 'isolateDevice' ? 'warn' : '')) : 'None') },
+        { key: 'lastRun', label: 'Last run', render: (d) => (d.lastRun ? h('span', null, fmtTime(d.lastRun), h('div', { class: 'muted small' }, `${d.lastAlerts} alert(s)`)) : '') },
         { key: 'enabled', label: 'Status', render: (d) => badge(d.enabled ? 'On' : 'Off', d.enabled ? 'ok' : '') },
-        { key: 'query', label: 'Query', render: (d) => h('code', { class: 'inline-q' }, d.query) },
-        { key: 'id', label: '', render: (d) => h('button', { class: 'btn small danger', type: 'button', 'aria-label': `Delete ${d.name}`, onclick: async () => { if (confirm(`Delete detection "${d.name}"?`)) { const o = await ctx.act('defender.deleteDetection', { id: d.id }); if (o.ok) await ctx.reloadPage(); } } }, 'Delete') },
-      ], v.detections, { empty: 'No custom detection rules. Create one from Advanced hunting.' }),
+        { key: 'id', label: '', render: (d) => h('span', { class: 'row' },
+          h('button', { class: 'btn small', type: 'button', onclick: () => openDetectionWizard({ existing: d, devices: v.devices, groups: f.deviceGroups }) }, 'Edit'),
+          h('button', { class: 'btn small', type: 'button', onclick: async () => { const o = await ctx.act('defender.setDetectionEnabled', { id: d.id, enabled: !d.enabled }); if (o.ok) await ctx.reloadPage(); } }, d.enabled ? 'Turn off' : 'Turn on'),
+          h('button', { class: 'btn small danger', type: 'button', 'aria-label': `Delete ${d.name}`, onclick: async () => { if (confirm(`Delete detection "${d.name}"?`)) { const o = await ctx.act('defender.deleteDetection', { id: d.id }); if (o.ok) await ctx.reloadPage(); } } }, 'Delete')) },
+      ], v.detections, { empty: 'No custom detection rules. Create one here, or from Advanced hunting.' }),
       v.alerts.some((a) => a.source === 'Custom detection')
         ? h('div', null, h('h3', null, 'Alerts raised by detections'),
           table([{ key: 'title', label: 'Alert' }, { key: 'device', label: 'Device' }, { key: 'severity', label: 'Severity', render: (a) => sev(a.severity) }, { key: 'action', label: 'Automatic action', render: (a) => a.action ?? '' }], v.alerts.filter((a) => a.source === 'Custom detection')))

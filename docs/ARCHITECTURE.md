@@ -26,9 +26,19 @@ Make the *motions* of a Sentinel/Defender workflow learnable by hand without a s
 
 The simulated tenant lives on the server, per session. The browser only renders views and sends actions. This means: grading cannot be tampered with from devtools, secrets (solutions, hints not yet unlocked) never reach the page, and the same engine is testable without a browser (the tests solve every lab through `perform()`).
 
+### Rule engines
+
+Two feature areas have their own engine modules, separate from `world.js`, because each has real logic and a documented rule set:
+
+- `sim/automation.js`: triggers, the per-trigger condition and operator tables, validation, ordering, expiry and matching (pure functions). The run-time part (`runAutomation`, `updateIncident`) lives in `world.js` because it mutates incidents and runs playbooks. Incident changes made through `sentinel.updateIncident` fire the update trigger, as in the real service.
+- `sim/detections.js`: frequencies and lookback, Continuous (NRT) eligibility, the output-column rules for each action, dynamic `{{Column}}` text, scope, de-duplication and the 150-alert cap (pure functions). `runDetections` in `world.js` executes them.
+- `sim/world-errors.js` holds `SimError` so engine modules can throw it without a circular import of `world.js`.
+
+The UI mirrors them: `components/wizard.js` is a generic stepper, `detection-wizard.js` is the six-step wizard, `automation-panel.js` is the single-panel rule editor. The wizard asks the server to **preview** the query (`defender.previewDetection`) so which actions and frequencies are available is decided by the server's rules, not duplicated in the browser.
+
 ### Splitting by iteration
 
-Actions and scenarios added after iteration 1 live in `server/sim/actions-extra.js` and `server/attacks/scenarios-extra.js` and are merged in (`Object.assign`) by the original modules. This keeps each file reviewable. Nothing depends on the split; fold them together if you prefer.
+Actions and scenarios added after iteration 1 live in `server/sim/actions-extra.js`, `actions-automation.js`, `actions-detections.js` and `server/attacks/scenarios-extra.js` and are merged in (`Object.assign`) by the original modules. This keeps each file reviewable. Nothing depends on the split; fold them together if you prefer.
 
 ### Actions, not endpoints per feature
 

@@ -7,6 +7,7 @@
 //   { type: 'boolean' }  { type: 'int', min, max }
 //   { type: 'enum', values: [...] }
 //   { type: 'array', of: <spec>, max: 20 }
+//   { type: 'object', shape: { key: <spec>, ... } }   nested; same rules, depth-limited
 
 export class ValidationError extends Error {
   constructor(message) {
@@ -17,7 +18,9 @@ export class ValidationError extends Error {
 
 const hasControl = (s) => /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(s);
 
-export function validateValue(spec, value, path) {
+const MAX_DEPTH = 4;
+
+export function validateValue(spec, value, path, depth = 0) {
   if (value === undefined || value === null) {
     if (spec.optional) return spec.default;
     throw new ValidationError(`${path} is required`);
@@ -45,19 +48,24 @@ export function validateValue(spec, value, path) {
     case 'array': {
       if (!Array.isArray(value)) throw new ValidationError(`${path} must be a list`);
       if (value.length > (spec.max ?? 50)) throw new ValidationError(`${path} has too many items`);
-      return value.map((v, i) => validateValue(spec.of, v, `${path}[${i}]`));
+      if (value.length < (spec.min ?? 0)) throw new ValidationError(`${path} needs at least ${spec.min} item(s)`);
+      return value.map((v, i) => validateValue(spec.of, v, `${path}[${i}]`, depth + 1));
+    }
+    case 'object': {
+      if (depth > MAX_DEPTH) throw new ValidationError(`${path} is nested too deeply`);
+      return validateObject(spec.shape, value, path, depth + 1);
     }
     default:
       throw new Error(`bad spec type ${spec.type}`);
   }
 }
 
-export function validateObject(shape, input, path = 'params') {
+export function validateObject(shape, input, path = 'params', depth = 0) {
   if (input === undefined || input === null) input = {};
   if (typeof input !== 'object' || Array.isArray(input)) throw new ValidationError(`${path} must be an object`);
   const out = Object.create(null);
   for (const key of Object.keys(shape)) {
-    const v = validateValue(shape[key], Object.hasOwn(input, key) ? input[key] : undefined, `${path}.${key}`);
+    const v = validateValue(shape[key], Object.hasOwn(input, key) ? input[key] : undefined, `${path}.${key}`, depth);
     if (v !== undefined) out[key] = v;
   }
   return out;
