@@ -3,6 +3,7 @@ import * as api from './api.js';
 import { ctx } from './app.js';
 import { SECTIONS, AZURE, isAzure, matches } from './nav.js';
 import { renderLabPanel, noteFeed, feedCursor, resetFeed, applyGlow } from './components/lab-panel.js';
+import { answerBox } from './components/answer-box.js';
 
 // ---- routing -------------------------------------------------------------------------------
 // Hash routes: #/home, #/azure/resources, #/azure/logicapp/<slug>, #/sentinel/incidents ...
@@ -24,6 +25,9 @@ const PAGES = {
   'sentinel/logs': () => import('./pages/sentinel-logs.js'),
   'sentinel/hunting': () => import('./pages/sentinel-hunting.js'),
   'sentinel/summary': () => import('./pages/sentinel-summary.js'),
+  'sentinel/workbooks': () => import('./pages/sentinel-workbooks.js'),
+  'sentinel/connectors': () => import('./pages/sentinel-connectors.js'),
+  'purview/audit': () => import('./pages/purview-audit.js'),
   'sentinel/analytics': () => import('./pages/sentinel-analytics.js'),
   'sentinel/automation': () => import('./pages/sentinel-automation.js'),
   'defender/alerts': () => import('./pages/defender-alerts.js'),
@@ -59,6 +63,10 @@ async function renderPage() {
     const page = safeContainer('div', { class: 'page' });
     await mod.render(page, param);
     if (token !== renderToken) return;
+    // A lab that asks for a finding gets its answer box on whatever page the learner is on. Pages that render their own
+    // (the query editor, Incidents & alerts) keep it where it fits; any other page gets it here, so no objective is unreachable.
+    const answers = ctx.lab?.briefing?.answers;
+    if (answers?.length && portal !== 'home' && !page.querySelector('[data-target="btn:submit-answer"]')) answerBox(page, answers);
     clear(shell.main).append(page);
     if (ctx.lab && portal !== 'home') api.post('/api/action', { type: 'ui.visit', params: { page: path } }).then(() => ctx.refresh());
   } catch (e) {

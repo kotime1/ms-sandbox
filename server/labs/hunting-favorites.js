@@ -10,7 +10,7 @@ export default {
   minutes: 8,
   topics: ['Hunting', 'Favorites', 'Analytics rules vs hunting queries'],
   examObjective: '3.2 Detect threats by using the Microsoft Sentinel platform',
-  sourceQuestions: { set1: [], set2: [46] },
+  sourceQuestions: { set1: [], set2: [46], set3: [] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "exam", note: "Unverified. The practice question says favorite queries run when the Hunting page opens. The current Learn page describes Run all queries / Run selected queries buttons and does not mention it. Check in a tenant before relying on this." },
   scenarios: ['hunting-queries'],

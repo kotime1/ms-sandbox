@@ -2,6 +2,7 @@
 // learner-facing mistakes, mutate the world only through here.
 
 import { idSpec } from '../core/validate.js';
+import { buildRule, KINDS, SEVERITIES } from './analytics.js';
 import { SimError, capCheck, device, resource, tablesFor, refreshFileStates } from './world.js';
 
 const text = (max, extra = {}) => ({ type: 'string', min: 1, max, pattern: /^[\w .:()@/\\-]+$/, ...extra });
@@ -144,18 +145,6 @@ export const EXTRA_ACTIONS = {
   },
 
   // ---------------------------------------------------------------- Sentinel: workbooks, hunting, summary rules, analytics
-  'sentinel.createWorkbook': {
-    spec: { name: text(80), template: idSpec({ optional: true }) },
-    run({ w }, p) {
-      capCheck(w.sentinel.workbooks, 'workbooks');
-      const tpl = p.template ? (w.sentinel.workbookTemplates ?? []).find((t) => t.id === p.template) : null;
-      if (p.template && !tpl) throw new SimError('Template not found', 'NotFound');
-      // Templates are read-only: the learner always works on a copy ("Save as" / Clone), as in the portal.
-      const wb = { id: `wb-${w.counters.rule++}`, name: p.name, template: tpl?.id ?? null, metrics: tpl ? [...tpl.metrics] : [] };
-      w.sentinel.workbooks.push(wb);
-      return { workbook: wb };
-    },
-  },
   'sentinel.toggleFavorite': {
     spec: { queryId: idSpec(), favorite: { type: 'boolean' } },
     run({ w }, p) {
@@ -235,6 +224,32 @@ export const EXTRA_ACTIONS = {
       if (!['Scheduled', 'NRT'].includes(r.kind)) throw new SimError('Entity mapping is available only in scheduled and NRT analytics rules.');
       r.entityMapping = p.enabled;
       return {};
+    },
+  },
+
+  // Analytics > + Create > Scheduled query rule / NRT query rule. Scheduling is validated by sim/analytics.js.
+  'sentinel.createAnalyticsRule': {
+    spec: {
+      kind: { type: 'enum', values: KINDS },
+      name: text(100),
+      severity: { type: 'enum', values: SEVERITIES },
+      query: { type: 'string', min: 1, max: 2000 },
+      frequencyMinutes: { type: 'int', min: 0, max: 100000, optional: true },
+      lookbackMinutes: { type: 'int', min: 0, max: 100000, optional: true },
+      entityMapping: { type: 'boolean', optional: true, default: true },
+    },
+    run({ w }, p) {
+      capCheck(w.sentinel.analyticsRules, 'analyticsRules');
+      const schedule = buildRule(p, w.sentinel.analyticsRules);
+      try {
+        // Validate the query the way the wizard does on every edit, against the workspace tables.
+        runQueryOn(w, 'sentinel', p.query, { noScanCost: true });
+      } catch (e) {
+        throw new SimError(`The rule query is not valid: ${e.message}`);
+      }
+      const rule = { id: `rule-${w.counters.rule++}`, name: p.name, kind: p.kind, severity: p.severity, enabled: true, tactics: [], query: p.query, entityMapping: p.entityMapping, schedule, createdByLearner: true };
+      w.sentinel.analyticsRules.push(rule);
+      return { rule: { id: rule.id, kind: rule.kind, schedule } };
     },
   },
 

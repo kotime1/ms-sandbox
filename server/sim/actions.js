@@ -16,6 +16,11 @@ import { tablesFor } from './world.js';
 import { runScenario } from '../attacks/scenarios.js';
 import { EXTRA_ACTIONS } from './actions-extra.js';
 import { AUTOMATION_ACTIONS } from './actions-automation.js';
+import { NOTIFICATION_ACTIONS } from './actions-notifications.js';
+import { SECURITY_POLICY_ACTIONS } from './actions-security-policies.js';
+import { WORKBOOK_ACTIONS } from './actions-workbooks.js';
+import { INGESTION_ACTIONS } from './actions-ingestion.js';
+import { AUDIT_ACTIONS } from './actions-audit.js';
 import { DETECTION_ACTIONS } from './actions-detections.js';
 
 const LEARNER_ID = 'u-admin1';
@@ -35,6 +40,8 @@ export function listPrincipals(w) {
   const users = Array.from(new Set(w.tables.get('SigninLogs').rows.map((r) => r.UserPrincipalName)))
     .map((u) => ({ id: `u-${u.split('@')[0]}`, name: u, type: 'User' }));
   if (!users.some((u) => u.id === LEARNER_ID)) users.push({ id: LEARNER_ID, name: LEARNER, type: 'User' });
+  // People a lab put in the directory (they need not have signed in). Names must not repeat a sign-in user.
+  for (const u of w.directory.users) if (u.upn && !users.some((x) => x.id === u.id || x.name === u.upn)) users.push({ id: u.id, name: u.upn, type: 'User' });
   const idents = w.azure.resources.filter((r) => r.identity?.systemAssigned).map((r) => ({ id: r.identity.principalId, name: r.name, type: 'Managed identity' }));
   const apps = [{ id: ASI_PRINCIPAL, name: 'Azure Security Insights', type: 'Service principal' }];
   return [...users, ...idents, ...apps].sort((a, b) => a.name.localeCompare(b.name));
@@ -207,7 +214,7 @@ export const ACTIONS = {
   },
 };
 
-Object.assign(ACTIONS, EXTRA_ACTIONS, AUTOMATION_ACTIONS, DETECTION_ACTIONS);
+Object.assign(ACTIONS, EXTRA_ACTIONS, AUTOMATION_ACTIONS, DETECTION_ACTIONS, NOTIFICATION_ACTIONS, SECURITY_POLICY_ACTIONS, WORKBOOK_ACTIONS, INGESTION_ACTIONS, AUDIT_ACTIONS);
 
 export const ROLE_CATALOG = ROLES.map(({ name: n, description, privileged }) => ({ name: n, description, privileged }));
 

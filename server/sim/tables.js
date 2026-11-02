@@ -16,9 +16,11 @@ export const SCHEMAS = {
   AzureActivity: [T('TimeGenerated', 'datetime'), T('OperationNameValue'), T('ActivityStatusValue'), T('Caller'), T('ResourceGroup'), T('CategoryValue'), T('Properties')],
   MicrosoftGraphActivityLogs: [T('TimeGenerated', 'datetime'), T('RequestId'), T('AppId'), T('ServicePrincipalId'), T('UserId'), T('RequestMethod'), T('RequestUri'), T('ResponseStatusCode', 'long'), T('IPAddress')],
   DeviceLogonEvents: [T('Timestamp', 'datetime'), T('ReportId', 'long'), T('DeviceId'), T('DeviceName'), T('ActionType'), T('LogonType'), T('AccountName'), T('RemoteIP'), T('InitiatingProcessCommandLine')],
-  DeviceEvents: [T('Timestamp', 'datetime'), T('ReportId', 'long'), T('DeviceId'), T('DeviceName'), T('OSPlatform'), T('ActionType'), T('InitiatingProcessFileName'), T('InitiatingProcessCommandLine'), T('InitiatingProcessAccountUpn')],
+  DeviceEvents: [T('Timestamp', 'datetime'), T('ReportId', 'long'), T('DeviceId'), T('DeviceName'), T('OSPlatform'), T('ActionType'), T('InitiatingProcessFileName'), T('InitiatingProcessCommandLine'), T('InitiatingProcessAccountUpn'), T('AdditionalFields', 'dynamic')],
   BehaviorInfo: [T('Timestamp', 'datetime'), T('BehaviorId'), T('Title'), T('Description'), T('Categories')],
   BehaviorEntities: [T('Timestamp', 'datetime'), T('BehaviorId'), T('EntityType'), T('AccountUpn'), T('RemoteIP'), T('DeviceName')],
+  OfficeActivity: [T('TimeGenerated', 'datetime'), T('OfficeWorkload'), T('Operation'), T('UserId'), T('ClientIP'), T('OfficeObjectId'), T('SiteUrl')],
+  EmailEvents: [T('Timestamp', 'datetime'), T('NetworkMessageId'), T('SenderFromAddress'), T('RecipientEmailAddress'), T('Subject'), T('ThreatTypes'), T('DeliveryAction')],
   NetworkSessions_CL: [T('TimeGenerated', 'datetime'), T('SourceIP'), T('DestinationIP'), T('DestinationPort', 'long'), T('Bytes', 'long'), T('Action')],
 };
 
@@ -27,8 +29,8 @@ export const SCHEMAS = {
  * The UEBA behaviour tables live in Advanced hunting (the exam question asks about it there).
  */
 export const SURFACES = {
-  sentinel: ['SigninLogs', 'AuditLogs', 'SecurityAlert', 'SecurityIncident', 'AzureActivity', 'MicrosoftGraphActivityLogs', 'NetworkSessions_CL'],
-  defender: ['DeviceLogonEvents', 'DeviceEvents', 'BehaviorInfo', 'BehaviorEntities'],
+  sentinel: ['SigninLogs', 'AuditLogs', 'SecurityAlert', 'SecurityIncident', 'AzureActivity', 'MicrosoftGraphActivityLogs', 'NetworkSessions_CL', 'OfficeActivity'],
+  defender: ['DeviceLogonEvents', 'DeviceEvents', 'BehaviorInfo', 'BehaviorEntities', 'EmailEvents'],
 };
 
 /**
@@ -41,7 +43,7 @@ export const ALL_QUERYABLE = [...SURFACES.sentinel, ...SURFACES.defender];
 export const tableSource = (name) => (SURFACES.defender.includes(name) ? 'Microsoft Defender XDR' : 'Microsoft Sentinel');
 
 /** Tables a lab must opt into (so the schema browser stays uncluttered). Hidden from `/api/view/schema-*` until enabled. */
-export const OPTIONAL_TABLES = new Set(['NetworkSessions_CL', 'BehaviorInfo', 'BehaviorEntities', 'DeviceEvents']);
+export const OPTIONAL_TABLES = new Set(['NetworkSessions_CL', 'BehaviorInfo', 'BehaviorEntities', 'DeviceEvents', 'OfficeActivity', 'EmailEvents']);
 
 export const USERS = [
   'alex.rivera', 'priya.shah', 'jordan.lee', 'sam.okafor', 'mei.tan', 'chris.novak',

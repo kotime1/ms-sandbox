@@ -200,3 +200,18 @@ Built against [custom-detection-rules](https://learn.microsoft.com/en-us/defende
 - The cap on cascading automation updates (above).
 - Alert tuning rules do not apply to alerts raised by custom detection rules (stated in the docs, now enforced and tested). The docs also say Hide alert is for Defender for Endpoint alerts only; every alert the sandbox raises other than custom detections is an endpoint alert, so this is not visible yet.
 - None of this has been checked against a live tenant.
+
+## 8. Iteration 5: set 3 labs (2026-11-02)
+
+| Area | Status | Source / note |
+|---|---|---|
+| NRT vs scheduled rules (frequency, lookback, ingestion time, 50-rule cap) | **Matches Learn** | near-real-time-rules, create-analytics-rules. The sandbox does not run rules on a timer |
+| Email notification rules (fields, path, permissions) | **Matches Learn** | defender-xdr/configure-email-notifications. Role-group equivalence is from the practice question |
+| ASR capabilities, rule names, Warn limits, platform table | **Matches Learn** | attack-surface-reduction-overview and rules-reference. Per-rule exclusions not modelled |
+| Workbook flow, Security operations efficiency metrics, Workbook Reader/Contributor | **Matches Learn** | monitor-your-data, manage-soc-with-incident-metrics. The rule "Sentinel role + Workbook Contributor" is from the question; other template metric lists are summaries |
+| Microsoft 365 connector -> OfficeActivity; table before DCR; `_CL` suffix | **Matches Learn** | sentinel-tables-connectors-reference, logs-ingestion-api-overview. App registration, DCE and Monitoring Metrics Publisher not modelled |
+| Audit retention (180 days / one year), 180-day search range | **Matches Learn** | audit-solutions-overview, audit-search |
+| `AirInvestigation` record type; Entra roles that may search | **Unverified** | practice question only; the Learn pages I could read did not confirm them. The Learn role requirement is Audit Logs / View-Only Audit Logs |
+| macOS troubleshooting-mode event fields | **Simplified** | ActionType and TroubleshootingStateChangeReason come from the question; other fields are invented |
+
+**Open:** study-guide section 2.9 puts notification rules under "Microsoft Defender XDR" settings; the current docs say Endpoints > General > Email notifications. **Not built:** Defender for Identity actions (Q26), ASIM parser pinning (Q35), blast radius / data lake (Q48).

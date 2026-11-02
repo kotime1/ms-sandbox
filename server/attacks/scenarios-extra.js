@@ -1,7 +1,7 @@
 // Iteration 2 scenarios. Same rules as scenarios.js: synthetic records only, no I/O,
 // RFC 5737 addresses, contoso.com. Data is deterministic because labs check it for exact answers.
 
-import { raiseSentinelIncident, enableTables, device, refreshFileStates } from '../sim/world.js';
+import { raiseSentinelIncident, raiseDefenderAlert, enableTables, device, refreshFileStates } from '../sim/world.js';
 import { guid } from '../core/util.js';
 
 const MIN = 60_000;
@@ -153,6 +153,43 @@ export const EXTRA_SCENARIOS = {
       // The Android phone is onboarded (it shows in the device list) but contributes nothing to DeviceEvents.
       if (!device(w, 'dev-0303')) w.defender.devices.push({ id: 'dev-0303', name: 'PHONE-ANDROID', os: 'Android', isolated: false, riskScore: 'Low', onboarding: 'Approved' });
       return 'Seeded WS-23 with a timeline, an unfamiliar file and a mixed fleet in DeviceEvents';
+    },
+  },
+
+  // Set 3 Q3: brute-force alerts on a server (what the SOC cares about), on a workstation (not their scope) and a noisy
+  // informational alert on the server. Replayable: run it after creating the notification rule to see who gets mail.
+  'bruteforce-alerts': {
+    title: 'Brute-force alerts on servers and workstations',
+    mitre: ['CredentialAccess'],
+    run(w) {
+      raiseDefenderAlert(w, { title: 'Brute force attack detected', severity: 'High', deviceId: 'dev-0004', evidence: { process: 'lsass.exe' } });
+      raiseDefenderAlert(w, { title: 'Brute force attack detected', severity: 'High', deviceId: 'dev-0001', evidence: { process: 'lsass.exe' } });
+      raiseDefenderAlert(w, { title: 'Failed logon attempts below the alert threshold', severity: 'Informational', deviceId: 'dev-0004', evidence: { process: 'lsass.exe' } });
+      return 'Raised brute-force alerts on SRV-APP01 and Device1, plus an informational alert on SRV-APP01';
+    },
+  },
+
+  // Set 3 Q46: macOS devices whose troubleshooting mode changed state. AdditionalFields is a JSON string, as in the real table.
+  // Four devices share the ActionType but only two STARTED troubleshooting mode inside the last three hours:
+  // one started five hours ago (outside the window) and one only ENDED it, so a missing filter gives a wrong answer.
+  'macos-troubleshooting': {
+    title: 'macOS devices change troubleshooting mode',
+    mitre: ['DefenseEvasion'],
+    run(w) {
+      enableTables(w, 'DeviceEvents');
+      const E = w.tables.get('DeviceEvents').rows;
+      const ev = (id, name, mins, type, reason, extra = {}) => E.push({
+        Timestamp: ago(mins), ReportId: 9500 + E.length, DeviceId: id, DeviceName: name, OSPlatform: 'macOS', ActionType: type,
+        InitiatingProcessFileName: 'wdavdaemon', InitiatingProcessCommandLine: '', InitiatingProcessAccountUpn: '',
+        AdditionalFields: JSON.stringify(reason ? { TroubleshootingStateChangeReason: reason, ...extra } : extra),
+      });
+      ev('dev-0401', 'MAC-FIN01', 40, 'AntivirusTroubleshootModeEvent', 'Troubleshooting mode started by an administrator command');
+      ev('dev-0401', 'MAC-FIN01', 75, 'AntivirusTroubleshootModeEvent', 'Troubleshooting mode started by an administrator command'); // the same device twice
+      ev('dev-0402', 'MAC-DEV02', 150, 'AntivirusTroubleshootModeEvent', 'Troubleshooting mode started by an administrator command');
+      ev('dev-0403', 'MAC-HR03', 300, 'AntivirusTroubleshootModeEvent', 'Troubleshooting mode started by an administrator command'); // outside the window
+      ev('dev-0404', 'MAC-DES04', 20, 'AntivirusTroubleshootModeEvent', 'Troubleshooting mode ended: the time limit was reached'); // ended, not started
+      ev('dev-0405', 'MAC-OPS05', 30, 'AntivirusScanCompleted', null, { ScanType: 'quick' }); // a different ActionType, no reason field
+      return 'Seeded macOS troubleshooting-mode events in DeviceEvents';
     },
   },
 

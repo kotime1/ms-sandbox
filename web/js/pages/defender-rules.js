@@ -1,11 +1,15 @@
 // Settings-style page. Real locations (learn.microsoft.com):
 //   Endpoints > Indicators         : Settings > Endpoints > Rules > Indicators         (defender-endpoint/indicator-file)
 //   Advanced features              : Settings > Endpoints > General > Advanced features
+//   Attack surface reduction       : Endpoints > Configuration management > Endpoint security policies (defender-endpoint/attack-surface-reduction-overview)
+//   Email notifications            : Settings > Endpoints > General > Email notifications  (defender-xdr/configure-email-notifications)
 //   Custom detection rules         : Investigation & response > Hunting > Custom detection rules
 //   Tenant Allow/Block Lists       : Email & collaboration > Policies & rules > Threat policies > Tenant Allow/Block Lists
 //                                    (a Defender for Office 365 / EOP email feature)
 import { h, badge, sev, fmtTime } from '../dom.js';
 import { openDetectionWizard } from '../components/detection-wizard.js';
+import { notificationSection } from '../components/notification-rules.js';
+import { securityPolicySection } from '../components/security-policies.js';
 import { table } from '../components/table.js';
 import { modal, field } from '../components/modal.js';
 import { ctx } from '../app.js';
@@ -15,7 +19,7 @@ const actionLabel = (a) => ACTIONS.find(([v]) => v === a)?.[1] ?? a;
 const ACTION_LABELS = { isolateDevice: 'Isolate device', collectPackage: 'Collect package', runAvScan: 'AV scan', initiateInvestigation: 'Investigate', restrictAppExecution: 'Restrict apps', blockFile: 'Block file', quarantineFile: 'Quarantine', markCompromised: 'Mark compromised', disableUser: 'Disable user', resetUserAuth: 'Reset auth', moveToFolder: 'Move email', deleteEmail: 'Delete email' };
 
 export async function render(host) {
-  const [v, f] = await Promise.all([ctx.view('defender'), ctx.view('defender-files')]);
+  const [v, f, n, sp] = await Promise.all([ctx.view('defender'), ctx.view('defender-files'), ctx.view('notifications'), ctx.view('security-policies')]);
   const groupName = (id) => f.deviceGroups.find((g) => g.id === id)?.name ?? id;
 
   host.append(
@@ -53,6 +57,12 @@ export async function render(host) {
           { key: 'id', label: '', render: (x) => h('button', { class: 'btn small', type: 'button', 'data-target': `btn:open-file:${x.name}`, onclick: () => fileDialog(x, f) }, 'Open') },
         ], f.files, { rowTarget: (x) => `row:file:${x.name}` })
         : h('div', { class: 'empty' }, 'No files are known to the tenant in this lab.')),
+
+    // ---- Endpoints > Attack surface reduction policies
+    securityPolicySection(sp),
+
+    // ---- Endpoints > General > Email notifications
+    notificationSection(n),
 
     // ---- Custom detection rules
     h('section', { class: 'blade' },

@@ -14,7 +14,7 @@ export default {
   minutes: 20,
   topics: ['Sentinel automation', 'Playbooks', 'Managed identity', 'Azure RBAC'],
   examObjective: '1.x / 2.x Configure automation; playbook triggers and permissions',
-  sourceQuestions: { set1: [5, 6, 7, 18], set2: [7, 8, 9, 18] },
+  sourceQuestions: { set1: [5, 6, 7, 18], set2: [7, 8, 9, 18], set3: [5, 15] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "partial", note: "Trigger types (an incident-trigger playbook runs from an incident and from automation rules; an alert-trigger playbook runs on alerts) and the Playbook Operator / Responder / Logic App Contributor roles follow Microsoft Learn. That a playbook uses its own managed identity with a role on the target comes from the practice question; Learn pages I checked did not state it. The error text is paraphrased." },
   scenarios: ['vm-compromise-incident'],

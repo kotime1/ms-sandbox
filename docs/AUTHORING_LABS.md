@@ -7,7 +7,7 @@
 | Field | Purpose |
 |---|---|
 | `id, title, level, minutes, topics, examObjective` | Catalogue card |
-| `sourceQuestions` | `{ set1: [n...], set2: [n...] }`. Numbers are per question set (the sets overlap, so a bare number would be ambiguous). `node scripts/coverage.mjs` turns these into `docs/COVERAGE.md`; a test fails if you forget |
+| `sourceQuestions` | `{ set1: [n...], set2: [n...], set3: [n...] }`. Numbers are per question set (the sets overlap, so a bare number would be ambiguous). A new question file needs its key added here, to `SETS` in `scripts/coverage.mjs`, and to every lab. `node scripts/coverage.mjs` turns these into `docs/COVERAGE.md`; a test fails if you forget |
 | `verification` | **Required.** `{ level: 'docs' | 'partial' | 'exam', note }`. Be honest: `docs` = checked against Microsoft Learn, `partial` = right idea but simplified, `exam` = only from a practice question (shown as *Unverified*). Never claim a live-tenant check. A test enforces this |
 | `answers` | Optional `[{ id, label, placeholder }]`: fields the learner types a finding into (see *Investigation labs*) |
 | `brief` | Scenario text. State the *requirements*, not the answer |
@@ -87,3 +87,12 @@ When a feature has a documented rule set (automation rules, custom detections), 
 ## Add a study note for the assistant
 
 `server/knowledge/concepts.js`: original paraphrase (do not paste Microsoft text), with trigger `keys`.
+
+## Browser tests and timing
+
+Pages re-render after many actions (`ctx.reloadPage()` shows "Loading…" first), so a script that finds a control and then acts on it in a second step can hit a half-rendered page. In `scripts/e2e-lib.mjs`:
+
+- `click`, `setValue` wait for the control and for no `.loading` element. Do not write a bare `evalJs` that queries a control and then sets it.
+- When a step needs several controls (set a window, tick boxes, fill and submit), do the find-and-act in **one** `evalJs` and retry until it returns true (see `untilTrue` in `e2e-labs3.mjs`).
+- Use `okSoon(expr, message)` for assertions on page content that appears after an action. A one-shot read races the re-render.
+- Never pass a regular expression through a shell heredoc or a JS template literal: backslashes are silently dropped (`s` becomes `s`). Write the script with the Write tool.

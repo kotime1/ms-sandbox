@@ -8,6 +8,7 @@ import { SimError } from './world-errors.js';
 import { queueFor, ruleMatches, CLASSIFICATIONS } from './automation.js';
 import { MAX_ALERTS_PER_RUN, dedupeKey, fill, inScope } from './detections.js';
 import { runQuery, KqlError } from './kql/engine.js';
+import { ruleNotifies } from './notifications.js';
 import { rng, guid, randomToken } from '../core/util.js';
 
 export const SUB = '00000000-0000-0000-0000-000000000000';
@@ -16,7 +17,7 @@ export const WS_ID = `${RG}/providers/Microsoft.OperationalInsights/workspaces/l
 export const VM1_ID = `/subscriptions/${SUB}/resourceGroups/rg-workloads/providers/Microsoft.Compute/virtualMachines/VM1`;
 export const LEARNER = 'admin1@contoso.com';
 
-const MAX = { assignments: 200, automationRules: 50, suppression: 50, detections: 50, runs: 200, incidents: 500, alerts: 1000, indicators: 100, summaryRules: 20, favorites: 50, bookmarks: 100, workbooks: 30, findings: 40 };
+const MAX = { assignments: 200, automationRules: 50, suppression: 50, detections: 50, runs: 200, incidents: 500, alerts: 1000, indicators: 100, summaryRules: 20, customTables: 10, dcrs: 20, auditSearches: 40, analyticsRules: 100, notificationRules: 20, securityPolicies: 30, favorites: 50, bookmarks: 100, workbooks: 30, findings: 40 };
 
 /** The identity Sentinel itself uses to run playbooks from incidents/automation rules. */
 export const ASI_PRINCIPAL = 'sp-azure-security-insights';
@@ -69,6 +70,8 @@ export function createWorld() {
       workbooks: [], // saved workbooks: { id, name, template, tiles[] }
       hunting: { queries: [], favorites: [], bookmarks: [] }, // queries are seeded by labs
       summaryRules: [], // { id, name, source, destination, query, binMinutes }
+      customTables: [], // tables the learner created: { name }. Their rows/columns live in w.tables like any other table.
+      dcrs: [], // data collection rules: { id, name, table, columns[{name,type}], stream }
     },
     defender: {
       devices: [
@@ -88,7 +91,16 @@ export function createWorld() {
       allowBlock: [], // tenant allow/block list: { id, kind, value, action, expires }
       files: [], // files known to the tenant: { sha256, name, blocked, blockedBy, deepAnalysis }
       packages: [], // collected investigation packages: { id, deviceId, at, contents[] }
+      // Settings > Endpoints > General > Email notifications. Rules: { id, name, allDevices, deviceGroups[], severities[], recipients[], enabled }
+      notificationRules: [],
+      // Endpoint security > Attack surface reduction policies: { id, name, type, platform, deviceGroups[], rules[{rule, mode}] }
+      securityPolicies: [],
+      outbox: [], // simulated emails: { id, ruleId, to, alertId, title, severity, device, at }. Nothing is ever sent.
     },
+    // Microsoft Purview Audit: the unified audit log. `tier` is the licence the tenant has; records are seeded by labs.
+    audit: { tier: 'standard', records: [], searches: [] },
+    // People in the tenant. `actorId` is who the learner is signed in as for permission-gated settings (labs may change it).
+    directory: { actorId: 'u-sec1', users: [{ id: 'u-sec1', name: LEARNER, entraRole: 'Security Administrator', roleGroup: 'Security Administrator' }] },
     findings: [], // answers to "what did you find" questions: { objectiveId, value }
   };
 }
@@ -137,7 +149,7 @@ export { SimError };
  */
 export function visibleTables(w, _surface) {
   const base = ALL_QUERYABLE.filter((n) => !OPTIONAL_TABLES.has(n) || w.enabledTables.has(n));
-  const dynamic = w.sentinel.summaryRules.map((r) => r.destination);
+  const dynamic = [...w.sentinel.summaryRules.map((r) => r.destination), ...w.sentinel.customTables.map((t) => t.name)];
   return [...base, ...dynamic];
 }
 
@@ -267,7 +279,20 @@ export function raiseDefenderAlert(w, { title, severity = 'Medium', deviceId, ev
     alert.status = rule.action === 'resolve' ? 'Resolved' : 'Hidden';
   }
   w.defender.alerts.unshift(alert);
+  if (!alert.suppressedBy) queueNotifications(w, alert);
   return alert;
+}
+
+/** Email notification rules: one simulated email per matching rule and recipient. Hidden/resolved (tuned-out) alerts never notify. */
+function queueNotifications(w, alert) {
+  const dev = device(w, alert.deviceId);
+  for (const rule of w.defender.notificationRules) {
+    if (!ruleNotifies(rule, alert, dev)) continue;
+    for (const to of rule.recipients) {
+      if (w.defender.outbox.length >= 500) w.defender.outbox.shift();
+      w.defender.outbox.push({ id: `mail-${w.counters.alert++}`, ruleId: rule.id, to, alertId: alert.id, title: alert.title, severity: alert.severity, device: alert.deviceName, at: Date.now() });
+    }
+  }
 }
 
 export const REQUIRED_DETECTION_COLUMNS = ['Timestamp', 'ReportId'];

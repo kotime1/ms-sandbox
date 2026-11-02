@@ -17,7 +17,7 @@ export default {
   examObjective: '2.1 Respond to alerts and incidents in Microsoft Defender XDR',
   // The practice questions name the "Tenant Allow/Block List". In the product that list filters email; for a file blocked on
   // endpoints the mechanism is a file indicator with the Allow action. The debrief explains the difference.
-  sourceQuestions: { set1: [4], set2: [1, 5] },
+  sourceQuestions: { set1: [4], set2: [1, 5], set3: [2] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "docs", note: "Follows the product: a file indicator with the Allow action, scoped to device groups. The exam wording says \"Tenant Allow/Block List\", which the docs describe as an email feature." },
   scenarios: ['lob-file-blocked'],

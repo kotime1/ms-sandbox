@@ -219,13 +219,13 @@ test('every withholdNotes id refers to a real concept note (a typo would silentl
   for (const l of LABS) for (const n of l.withholdNotes ?? []) assert.ok(ids.has(n), `${l.id} withholds unknown note '${n}'`);
 });
 
-test('every lab: sourceQuestions use the {set1, set2} shape, ids are unique, scenarios exist', async () => {
+test('every lab: sourceQuestions use the {set1, set2, set3} shape, ids are unique, scenarios exist', async () => {
   const { LABS } = await import('../server/labs/index.js');
   const { SCENARIOS } = await import('../server/attacks/scenarios.js');
   const seen = new Set();
   for (const l of LABS) {
     assert.ok(!seen.has(l.id), `duplicate lab id ${l.id}`); seen.add(l.id);
-    assert.ok(Array.isArray(l.sourceQuestions.set1) && Array.isArray(l.sourceQuestions.set2), `${l.id} sourceQuestions shape`);
+    assert.ok(['set1', 'set2', 'set3'].every((k) => Array.isArray(l.sourceQuestions[k])), `${l.id} sourceQuestions shape`);
     for (const sc of l.scenarios) assert.ok(Object.hasOwn(SCENARIOS, sc), `${l.id}: unknown scenario ${sc}`);
     assert.match(l.id, /^[a-z0-9][a-z0-9-]*$/);
   }
@@ -297,7 +297,7 @@ test('docs/COVERAGE.md is up to date with the labs (regenerate with: node script
 test('coverage: every lab question number exists in its set (no typos), and the sets have 50 questions each', async () => {
   const { readFileSync } = await import('node:fs');
   const { LABS } = await import('../server/labs/index.js');
-  for (const k of ['set1', 'set2']) {
+  for (const k of ['set1', 'set2', 'set3']) {
     const text = readFileSync(new URL(`../question_sets/${k}.txt`, import.meta.url), 'utf8');
     assert.equal((text.match(/^Question \d+ of 50\s*$/gm) ?? []).length, 50, `${k} should have 50 questions`);
     for (const l of LABS) for (const n of l.sourceQuestions[k]) assert.ok(n >= 1 && n <= 50, `${l.id}: ${k} question ${n} out of range`);
@@ -324,4 +324,280 @@ test('the lab catalogue and the briefing both expose the verification label (and
   const { labSummary, LABS } = await import('../server/labs/index.js');
   for (const l of LABS) assert.ok(labSummary(l).verification);
   assert.doesNotMatch(JSON.stringify(labSummary(LABS[0])), /solution|hints|check/);
+});
+
+// --- Set 3: troubleshooting-mode (Q46) ---------------------------------------------------------
+
+const runQ = (s, text) => perform(s.ctx, 'query.run', { surface: 'defender', text });
+const BASE_TS = 'DeviceEvents | where Timestamp > ago(3h) | where ActionType == "AntivirusTroubleshootModeEvent"';
+const STARTED = 'extend p = parse_json(AdditionalFields) | where p.TroubleshootingStateChangeReason contains "started"';
+
+test('troubleshooting-mode: each plausible-but-wrong query misses the objective for its own reason', () => {
+  const wrong = {
+    'no time filter (includes the device that started 5h ago)': `DeviceEvents | where ActionType == "AntivirusTroubleshootModeEvent" | ${STARTED} | summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId) by DeviceId`,
+    'no reason filter (includes the device that only ENDED it)': `${BASE_TS} | summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId) by DeviceId`,
+    'no summarize (the same device twice)': `${BASE_TS} | ${STARTED} | project Timestamp, ReportId, DeviceId`,
+    'summarized but Timestamp/ReportId dropped': `${BASE_TS} | ${STARTED} | summarize count() by DeviceId`,
+    'the field name from the wrong answer (EventType does not exist)': 'DeviceEvents | where EventType == "TroubleshootingModeStarted"',
+  };
+  for (const [why, text] of Object.entries(wrong)) {
+    const s = fresh('troubleshooting-mode');
+    runQ(s, text);
+    assert.equal(met(s, 'query'), false, why);
+  }
+});
+
+test('troubleshooting-mode: the exam query shape solves it, and the unknown-column error names the real columns', () => {
+  const s = fresh('troubleshooting-mode');
+  const bad = runQ(s, 'DeviceEvents | where EventType == "TroubleshootingModeStarted"');
+  assert.equal(bad.ok, false);
+  assert.match(bad.error.message, /EventType/);
+  assert.ok(runQ(s, `${BASE_TS} | ${STARTED} | summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId), count() by DeviceId | order by Timestamp desc`).ok);
+  assert.equal(met(s, 'query'), true);
+  // Naming devices rather than ids also counts; the answer needs the right device, not just any.
+  assert.equal(met(s, 'latest'), false);
+  perform(s.ctx, 'findings.report', { objectiveId: 'latest', value: 'MAC-DEV02' });
+  assert.equal(met(s, 'latest'), false, 'MAC-DEV02 started earlier');
+  perform(s.ctx, 'findings.report', { objectiveId: 'latest', value: 'mac-fin01' });
+  assert.equal(met(s, 'latest'), true);
+});
+
+test('troubleshooting-mode: DeviceEvents (and its AdditionalFields column) is hidden until the lab enables it', () => {
+  const s = new SessionStore({ env: {} }).create();
+  const r = perform(s.ctx, 'query.run', { surface: 'defender', text: 'DeviceEvents | take 1' });
+  assert.equal(r.ok, false, 'DeviceEvents is optional and must not exist before a lab enables it');
+  const lab = fresh('troubleshooting-mode');
+  assert.ok(lab.world.tables.get('DeviceEvents').columns.some((c) => c.name === 'AdditionalFields'));
+});
+
+// --- Set 3: nrt-rule (Q20) ---------------------------------------------------------------------
+
+const RULE_Q = 'SigninLogs | where ResultType != "0"';
+const mk = (s, extra) => perform(s.ctx, 'sentinel.createAnalyticsRule', { kind: 'Scheduled', name: 'R', severity: 'Medium', query: RULE_Q, ...extra });
+
+test('nrt-rule: a scheduled rule cannot run every minute, and the message names the allowed range', () => {
+  const s = fresh('nrt-rule');
+  const out = mk(s, { frequencyMinutes: 1, lookbackMinutes: 1 });
+  assert.equal(out.ok, false);
+  assert.match(out.error.message, /between 5 minutes and 14 days/);
+  assert.match(out.error.message, /NRT/);
+  assert.equal(met(s, 'rule'), false);
+});
+
+test('nrt-rule: scheduled rules need lookback >= interval, and at most 14 days', () => {
+  const s = fresh('nrt-rule');
+  assert.match(mk(s, { frequencyMinutes: 60, lookbackMinutes: 30 }).error.message, /longer than or equal/);
+  assert.match(mk(s, { frequencyMinutes: 5, lookbackMinutes: 14 * 24 * 60 + 1 }).error.message, /14 days/);
+  assert.ok(mk(s, { frequencyMinutes: 5, lookbackMinutes: 5 }).ok, '5 minutes is the minimum and is allowed');
+  assert.equal(met(s, 'rule'), false, 'a valid scheduled rule still is not "every minute"');
+  assert.equal(met(s, 'shortest'), false);
+  perform(s.ctx, 'findings.report', { objectiveId: 'shortest', value: '1' });
+  assert.equal(met(s, 'shortest'), false, 'the shortest scheduled interval is 5, not 1');
+  perform(s.ctx, 'findings.report', { objectiveId: 'shortest', value: '5' });
+  assert.equal(met(s, 'shortest'), true);
+});
+
+test('nrt-rule: an NRT rule has fixed scheduling; sending a schedule is refused rather than silently ignored', () => {
+  const s = fresh('nrt-rule');
+  const out = mk(s, { kind: 'NRT', frequencyMinutes: 5 });
+  assert.equal(out.ok, false);
+  assert.match(out.error.message, /always run every 1 minute/);
+  const ok = mk(s, { kind: 'NRT', name: 'NRT1' });
+  assert.ok(ok.ok);
+  assert.deepEqual(ok.data.rule.schedule, { frequencyMinutes: 1, lookbackMinutes: 1, timeBasis: 'ingestion time', builtInDelayMinutes: 2 });
+  assert.equal(met(s, 'rule'), true);
+  assert.equal(met(s, 'mapping'), true);
+});
+
+test('nrt-rule: switching entity mapping off fails the mapping objective (the rule is fast but not investigable)', () => {
+  const s = fresh('nrt-rule');
+  mk(s, { kind: 'NRT', entityMapping: false });
+  assert.equal(met(s, 'rule'), true);
+  assert.equal(met(s, 'mapping'), false);
+});
+
+test('nrt-rule: a fast rule over the wrong table does not count; names are unique; the NRT cap of 50 holds; bad queries are rejected', () => {
+  const s = fresh('nrt-rule');
+  mk(s, { kind: 'NRT', query: 'AuditLogs | take 1' });
+  assert.equal(met(s, 'rule'), false, 'must evaluate SigninLogs');
+  assert.match(mk(s, { kind: 'NRT', name: 'r' }).error.message, /already exists/);
+  assert.match(mk(s, { kind: 'NRT', name: 'bad', query: 'NoSuchTable | take 1' }).error.message, /rule query is not valid/);
+  // 1 seeded NRT rule + 1 created above = 2; fill to the cap
+  for (let i = 0; i < 48; i++) assert.ok(mk(s, { kind: 'NRT', name: `n${i}` }).ok, `n${i}`);
+  assert.match(mk(s, { kind: 'NRT', name: 'one-too-many' }).error.message, /at most 50 NRT rules/);
+});
+
+// --- Set 3: email-notifications (Q3, Q4; Set 1 Q17) -----------------------------------------------
+
+const rule = (extra = {}) => ({ name: 'Brute force on servers', devices: 'groups', deviceGroups: ['grp-servers'], severities: ['High'], recipients: ['secops@contoso.com'], ...extra });
+const mk2 = (s, extra) => perform(s.ctx, 'defender.createNotificationRule', rule(extra));
+const replay = (s) => perform(s.ctx, 'attack.run', { scenario: 'bruteforce-alerts' });
+const outbox = (s) => s.world.defender.outbox.map((m) => `${m.device}:${m.severity}:${m.to}`);
+
+test('email-notifications: a server-scoped High rule emails exactly once for the server, not the workstation or the informational alert', () => {
+  const s = fresh('email-notifications');
+  assert.ok(mk2(s).ok);
+  assert.equal(met(s, 'rule'), true);
+  assert.equal(met(s, 'outcome'), false, 'the replay has not run yet');
+  replay(s);
+  assert.deepEqual(outbox(s), ['SRV-APP01:High:secops@contoso.com']);
+  assert.equal(met(s, 'outcome'), true);
+});
+
+test('email-notifications: severity alone does not limit to the servers (the exam distractor)', () => {
+  const s = fresh('email-notifications');
+  assert.match(mk2(s, { deviceGroups: [] }).error.message, /Select at least one device group/);
+  // The wrong-but-possible rule: every group, High only. It works mechanically but fails the lab's scope.
+  assert.ok(mk2(s, { deviceGroups: ['grp-servers', 'grp-workstations'], name: 'Both groups' }).ok);
+  replay(s);
+  assert.equal(s.world.defender.outbox.filter((m) => m.device === 'Device1').length, 1, 'the workstation also got mail');
+  assert.equal(met(s, 'rule'), false);
+  assert.equal(met(s, 'outcome'), false);
+});
+
+test('email-notifications: including Informational makes the outcome noisy and fails the rule objective', () => {
+  const s = fresh('email-notifications');
+  mk2(s, { severities: ['High', 'Informational'] });
+  replay(s);
+  assert.equal(met(s, 'rule'), false);
+  assert.equal(met(s, 'outcome'), false, 'two server emails (High + Informational)');
+});
+
+test('email-notifications: all-devices needs Global administrator; a Security Administrator is refused with the documented reason', () => {
+  const s = fresh('email-notifications');
+  const out = mk2(s, { devices: 'all', deviceGroups: [] });
+  assert.equal(out.ok, false);
+  assert.match(out.error.message, /Global administrator role can create a notification rule for all devices/);
+  perform(s.ctx, 'directory.signInAs', { userId: 'u-user1' });
+  assert.ok(mk2(s, { devices: 'all', deviceGroups: [], name: 'Everything' }).ok, 'User1 is a Global Administrator');
+  assert.equal(s.world.defender.notificationRules.at(-1).allDevices, true);
+});
+
+test('email-notifications: Security Reader users cannot create or delete rules, whichever portal role they hold', () => {
+  const s = fresh('email-notifications');
+  mk2(s);
+  const id = s.world.defender.notificationRules[0].id;
+  perform(s.ctx, 'directory.signInAs', { userId: 'u-user3' });
+  const create = mk2(s, { name: 'Another' });
+  assert.equal(create.ok, false);
+  assert.match(create.error.message, /Manage security settings/);
+  assert.equal(create.error.code, 'Forbidden');
+  assert.equal(perform(s.ctx, 'defender.deleteNotificationRule', { id }).ok, false);
+  assert.equal(s.world.defender.notificationRules.length, 1, 'nothing changed');
+  // User2: Entra Security Administrator but only the Security Reader role group. Entra role alone is enough.
+  perform(s.ctx, 'directory.signInAs', { userId: 'u-user2' });
+  assert.ok(mk2(s, { name: 'By user2' }).ok);
+});
+
+test('email-notifications: validation (bad address, unknown group, duplicate name, no severity, no recipient, unknown user)', () => {
+  const s = fresh('email-notifications');
+  assert.match(mk2(s, { recipients: ['not-an-email'] }).error.message, /not a valid email/);
+  assert.match(mk2(s, { recipients: [] }).error.message, /at least one recipient/);
+  assert.match(mk2(s, { severities: [] }).error.message, /at least one alert severity/);
+  assert.match(mk2(s, { deviceGroups: ['grp-nope'] }).error.message, /not a device group/);
+  assert.ok(mk2(s).ok);
+  assert.match(mk2(s).error.message, /already exists/);
+  assert.match(perform(s.ctx, 'directory.signInAs', { userId: 'u-nobody' }).error.message, /Unknown user/);
+});
+
+test('email-notifications: a tuned-out (hidden) alert does not send mail, and a disabled path sends nothing before a rule exists', () => {
+  const s = fresh('email-notifications');
+  replay(s);
+  assert.deepEqual(outbox(s), [], 'no rule, no mail');
+  const t = fresh('email-notifications');
+  mk2(t, { severities: ['High', 'Informational'] });
+  perform(t.ctx, 'defender.createSuppression', { alertTitle: 'Brute force attack detected', scope: 'organization', action: 'hide' });
+  replay(t);
+  assert.deepEqual(outbox(t), ['SRV-APP01:Informational:secops@contoso.com'], 'only the unsuppressed informational alert is emailed');
+});
+
+test('email-notifications: the Q4 answer is exactly User1 and User2; User3 or a lone name fails', () => {
+  const s = fresh('email-notifications');
+  for (const wrong of ['User1', 'User1, User2, User3', 'User2, User3', 'user3']) {
+    perform(s.ctx, 'findings.report', { objectiveId: 'who', value: wrong });
+    assert.equal(met(s, 'who'), false, wrong);
+  }
+  perform(s.ctx, 'findings.report', { objectiveId: 'who', value: 'User1, User2' });
+  assert.equal(met(s, 'who'), true);
+});
+
+test('email-notifications: the simulated outbox is capped at 500 and sheds the oldest mail', () => {
+  const s = fresh('email-notifications');
+  mk2(s);
+  for (let i = 0; i < 500; i++) s.world.defender.outbox.push({ id: `m${i}`, to: 'x@y.zz', title: 't', severity: 'High', device: 'd', at: Date.now() });
+  replay(s);
+  assert.equal(s.world.defender.outbox.length, 500, 'still 500 after one more mail');
+  assert.equal(s.world.defender.outbox.at(-1).device, 'SRV-APP01', 'the newest mail is kept');
+  assert.equal(s.world.defender.outbox.some((m) => m.id === 'm0'), false, 'the oldest was dropped');
+});
+
+// --- Set 3: asr-rules (Q1) ---------------------------------------------------------------------
+
+const pol = (extra = {}) => ({ name: 'P', type: 'asr', platform: 'Windows', deviceGroups: ['grp-workstations'], rules: [{ rule: 'email-exe', mode: 'block' }, { rule: 'usb-untrusted', mode: 'block' }], ...extra });
+const mkPol = (s, extra) => perform(s.ctx, 'defender.createSecurityPolicy', pol(extra));
+
+test('asr-rules: the exam answer (ASR rules) meets all three objectives', () => {
+  const s = fresh('asr-rules');
+  assert.ok(mkPol(s).ok);
+  assert.deepEqual(['capability', 'rules', 'scope'].map((id) => met(s, id)), [true, true, true]);
+});
+
+test('asr-rules: each distractor capability is a policy that does not satisfy the requirement', () => {
+  for (const type of ['exploit', 'cfa', 'network', 'web', 'device']) {
+    const s = fresh('asr-rules');
+    const out = mkPol(s, { type, rules: [] });
+    assert.ok(out.ok, `${type} policy is creatable`);
+    assert.equal(met(s, 'capability'), false, `${type} is not the ASR capability`);
+    assert.equal(met(s, 'rules'), false, `${type} has no behaviour rules`);
+  }
+  // Rules on a capability that has no rules are refused, with the reason.
+  const s = fresh('asr-rules');
+  assert.match(mkPol(s, { type: 'cfa' }).error.message, /no per-rule settings/);
+});
+
+test('asr-rules: ASR, controlled folder access and exploit protection exist on Windows only; network protection also covers macOS', () => {
+  const s = fresh('asr-rules');
+  assert.match(mkPol(s, { platform: 'macOS' }).error.message, /available only on Windows, not on macOS/);
+  assert.match(mkPol(s, { type: 'exploit', rules: [], platform: 'Linux' }).error.message, /available only on Windows/);
+  assert.ok(mkPol(s, { type: 'network', rules: [], platform: 'macOS', name: 'Net on Mac' }).ok);
+  assert.match(mkPol(s, { type: 'network', rules: [], platform: 'Linux', name: 'Net on Linux' }).error.message, /Windows and macOS, not on Linux/);
+});
+
+test('asr-rules: audit or warn is not block; the objective needs both rules in Block mode', () => {
+  const s = fresh('asr-rules');
+  mkPol(s, { name: 'Audit only', rules: [{ rule: 'email-exe', mode: 'audit' }, { rule: 'usb-untrusted', mode: 'audit' }] });
+  assert.equal(met(s, 'capability'), true);
+  assert.equal(met(s, 'rules'), false);
+  mkPol(s, { name: 'One rule', rules: [{ rule: 'email-exe', mode: 'block' }] });
+  assert.equal(met(s, 'rules'), false, 'only one of the two requirements');
+  mkPol(s, { name: 'Warn', rules: [{ rule: 'email-exe', mode: 'warn' }, { rule: 'usb-untrusted', mode: 'warn' }] });
+  assert.equal(met(s, 'rules'), false);
+});
+
+test('asr-rules: scope — servers or both groups fail the least-privilege objective', () => {
+  const s = fresh('asr-rules');
+  mkPol(s, { name: 'Both', deviceGroups: ['grp-workstations', 'grp-servers'] });
+  assert.equal(met(s, 'rules'), true);
+  assert.equal(met(s, 'scope'), false, 'the servers are out of scope');
+  mkPol(s, { name: 'Servers', deviceGroups: ['grp-servers'] });
+  assert.equal(met(s, 'scope'), false);
+  assert.match(mkPol(s, { name: 'None', deviceGroups: [] }).error.message, /at least one device group/);
+  assert.match(mkPol(s, { name: 'Nope', deviceGroups: ['grp-nope'] }).error.message, /not a device group/);
+});
+
+test('asr-rules: the two rules that do not support Warn refuse it; unknown rules and duplicates are refused', () => {
+  const s = fresh('asr-rules');
+  assert.match(mkPol(s, { rules: [{ rule: 'lsass', mode: 'warn' }] }).error.message, /doesn't support Warn mode/);
+  assert.match(mkPol(s, { rules: [{ rule: 'office-injection', mode: 'warn' }] }).error.message, /doesn't support Warn mode/);
+  assert.ok(mkPol(s, { name: 'Warn ok', rules: [{ rule: 'email-exe', mode: 'warn' }] }).ok);
+  assert.equal(mkPol(s, { name: 'x', rules: [{ rule: 'not-a-rule', mode: 'block' }] }).error.code, 'ValidationError');
+  assert.match(mkPol(s, { name: 'dup', rules: [{ rule: 'email-exe', mode: 'block' }, { rule: 'email-exe', mode: 'audit' }] }).error.message, /set more than once/);
+  assert.match(mkPol(s, { name: 'empty', rules: [] }).error.message, /at least one rule/);
+});
+
+test('asr-rules: policy names are unique and block-at-first-sight is not a capability (it is cloud antivirus)', () => {
+  const s = fresh('asr-rules');
+  assert.ok(mkPol(s).ok);
+  assert.match(mkPol(s).error.message, /already exists/);
+  assert.equal(perform(s.ctx, 'defender.createSecurityPolicy', pol({ name: 'BAFS', type: 'block-at-first-sight' })).ok, false);
 });

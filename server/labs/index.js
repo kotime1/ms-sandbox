@@ -12,12 +12,19 @@ import huntingFavorites from './hunting-favorites.js';
 import summaryRule from './summary-rule.js';
 import triageWs23 from './triage-ws23.js';
 import followTheToken from './follow-the-token.js';
+import troubleshootingMode from './troubleshooting-mode.js';
+import nrtRule from './nrt-rule.js';
+import emailNotifications from './email-notifications.js';
+import asrRules from './asr-rules.js';
+import workbooksLab from './workbooks.js';
+import ingestData from './ingest-data.js';
+import auditLog from './audit-log.js';
 
 // Ordered easiest to hardest within each area so the catalogue reads as a learning path.
 export const LABS = [
   suppressApp1, unblockLob1, approveDevices, sentinelRbac, huntingFavorites,
   playbookPermissions, playbookPicker, entityMapping, detectAndIsolate, kqlInvestigation, uebaJoin, summaryRule, triageWs23,
-  followTheToken,
+  followTheToken, troubleshootingMode, nrtRule, emailNotifications, asrRules, workbooksLab, ingestData, auditLog,
 ];
 const BY_ID = new Map(LABS.map((l) => [l.id, l]));
 export const getLab = (id) => (typeof id === 'string' ? BY_ID.get(id) ?? null : null);

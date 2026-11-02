@@ -10,10 +10,11 @@ Requires Node.js 22+ (developed on 24). There are **no dependencies to install**
 
 ```bash
 npm start            # http://127.0.0.1:3000
-npm test                         # 162 unit, integration and security tests
+npm test                         # 248 unit, integration and security tests
 node scripts/e2e.mjs             # plays iteration-1 labs through the real UI in headless Edge/Chrome (optional)
 node scripts/e2e-labs2.mjs       # plays the iteration-2 labs the same way (optional)
 node scripts/e2e-wizards.mjs     # drives the custom detection wizard and the automation rule panel (optional)
+node scripts/e2e-labs3.mjs       # drives the set 3 labs through the real UI: ASR, workbooks, connectors, audit... (optional)
 node scripts/coverage.mjs        # regenerates docs/COVERAGE.md (a test fails if it is stale)
 node scripts/screenshot.mjs      # saves PNGs of key pages to ./screenshots (optional)
 ```
@@ -32,7 +33,7 @@ They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)
 
 ## Labs
 
-14 labs, inspired by (not copies of) the practice questions in [question_sets/](question_sets/). The two sets overlap heavily (27 of set 2's 50 questions repeat set 1 word for word), so one lab usually serves several questions. **[docs/COVERAGE.md](docs/COVERAGE.md) maps every question to a lab and lists what is still missing.**
+21 labs, inspired by (not copies of) the practice questions in [question_sets/](question_sets/). The three sets overlap heavily (27 of set 2's and 36 of set 3's 50 questions repeat an earlier set word for word), so one lab usually serves several questions. **[docs/COVERAGE.md](docs/COVERAGE.md) maps every question to a lab and lists what is still missing.**
 
 | Lab | Level | Practices |
 |---|---|---|
@@ -50,6 +51,13 @@ They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)
 | Queries that time out | Intermediate | Summary rules for high-volume tables |
 | Triage WS-23 | Intermediate | Device timeline, investigation package, deep analysis, indicators, response restraint |
 | Follow one token through Graph | Advanced | Graph activity logs, sign-in correlation |
+| Who turned troubleshooting mode on? | Intermediate | Hunting `DeviceEvents`, `parse_json`, `arg_max` |
+| Cut the delay between a sign-in and the alert | Intermediate | NRT vs scheduled analytics rules, ingestion time |
+| Email the right people about brute force | Beginner | Email notification rules, device groups, who can change settings |
+| Stop email attachments and USB malware | Beginner | Attack surface reduction rules vs exploit protection and controlled folder access |
+| Build the SOC manager a workbook | Beginner | Workbook templates, clone, Workbook Contributor |
+| Bring SharePoint and a factory app into Sentinel | Intermediate | Microsoft 365 connector, custom table first, data collection rules |
+| Search the audit log, keep it for a year | Intermediate | Purview Audit (Standard vs Premium), record types, who can search |
 
 Each lab shows a **verification level**: *Matches Microsoft Learn*, *Simplified vs Learn*, or *Unverified* (comes from a practice question only). Nothing has been checked against a live tenant; see [docs/FIDELITY.md](docs/FIDELITY.md).
 
@@ -83,8 +91,8 @@ Every iteration must update the docs and add an entry to [docs/CHANGELOG.md](doc
 server/  core/ (bus, session, validation)   sim/ (world, actions, KQL engine, RBAC, tables)
          agents/  attacks/  labs/  knowledge/  http/
 web/     index.html  css/  js/ (dom, api, main, pages/, components/)
-test/    kql, labs, labs2 (trap paths), http (security), web-static (front-end guardrails)
-scripts/ e2e-lib.mjs  e2e.mjs  e2e-labs2.mjs  e2e-wizards.mjs  coverage.mjs  screenshot.mjs
-question_sets/  set1.txt  set2.txt   (the source practice questions)
+test/    kql, labs, labs2 (trap paths), automation, detections, workbooks, ingestion, audit, http (security), web-static (front-end guardrails)
+scripts/ e2e-lib.mjs  e2e.mjs  e2e-labs2.mjs  e2e-labs3.mjs  e2e-wizards.mjs  coverage.mjs  screenshot.mjs
+question_sets/  set1.txt  set2.txt  set3.txt   (the source practice questions)
 docs/
 ```

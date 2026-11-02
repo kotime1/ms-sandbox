@@ -23,10 +23,16 @@ export const SECTIONS = [
     title: 'Microsoft Sentinel',
     items: [
       { id: 'sentinel/hunting', label: 'Threat management > Hunting' },
+      { id: 'sentinel/workbooks', label: 'Threat management > Workbooks' },
+      { id: 'sentinel/connectors', label: 'Configuration > Data connectors' },
       { id: 'sentinel/analytics', label: 'Configuration > Analytics' },
       { id: 'sentinel/automation', label: 'Configuration > Automation' },
       { id: 'sentinel/summary', label: 'Configuration > Summary rules' },
     ],
+  },
+  {
+    title: 'Microsoft Purview',
+    items: [{ id: 'purview/audit', label: 'Audit > Search' }],
   },
   {
     title: 'System > Settings',

@@ -100,7 +100,7 @@ function lex(src) {
       i += 2;
       continue;
     }
-    if ('|(),=<>+-*/%.'.includes(c)) {
+    if ('|(),=<>+-*/%.[]'.includes(c)) {
       toks.push({ t: 'op', v: c, pos: i });
       i++;
       continue;
@@ -282,6 +282,16 @@ class Parser {
     while (this.isOp(',')) { this.next(); out.push(this.expectId()); }
     return out;
   }
+  /** True at `( id , id ... ) =`: a tuple of output names, only valid before arg_max/arg_min. */
+  tupleTargetAhead() {
+    let i = 1;
+    for (;;) {
+      if (this.peek(i).t !== 'id') return false;
+      i++;
+      if (this.isOp(',', i)) { i++; continue; }
+      return this.isOp(')', i) && this.isOp('=', i + 1);
+    }
+  }
   parseNamedList() {
     const items = [];
     do {
@@ -316,6 +326,12 @@ class Parser {
         if (this.peek().t === 'id' && this.isOp('=', 1)) {
           name = this.next().v;
           this.next();
+        } else if (this.isOp('(') && this.tupleTargetAhead()) {
+          // `(Timestamp, ReportId) = arg_max(Timestamp, ReportId)`: the names only label the output, which
+          // arg_max already names after the columns it returns, so the tuple is validated and dropped.
+          this.next();
+          while (!this.isOp(')')) this.next();
+          this.next(); this.next();
         }
         const expr = this.parseExpr();
         if (expr.k !== 'call' || !isAgg(expr.name.toLowerCase())) {
@@ -390,7 +406,23 @@ class Parser {
   }
   parseUnary() {
     if (this.isOp('-')) { this.next(); return { k: 'neg', e: this.parseUnary() }; }
-    return this.parsePrimary();
+    return this.parsePostfix();
+  }
+  // Property access on a dynamic value: `col.name` and `col["name"]`, as in `parse_json(AdditionalFields).Reason`.
+  parsePostfix() {
+    let e = this.parsePrimary();
+    for (;;) {
+      if (this.isOp('.') && this.peek(1).t === 'id') {
+        this.next();
+        e = { k: 'prop', e, name: this.next().v };
+      } else if (this.isOp('[') ) {
+        this.next();
+        const key = this.next();
+        if (key.t !== 'str') throw this.err('expected a quoted property name, e.g. col["name"]');
+        this.expectOp(']');
+        e = { k: 'prop', e, name: key.v };
+      } else return e;
+    }
   }
   parsePrimary() {
     const t = this.peek();
@@ -493,6 +525,13 @@ const FUNCS = {
   tolower: (_c, [s]) => str(s).toLowerCase(),
   toupper: (_c, [s]) => str(s).toUpperCase(),
   tostring: (_c, [v]) => (isNil(v) ? '' : str(v)),
+  // JSON.parse yields null-prototype-free plain objects; reviver drops __proto__ keys so a hostile string cannot shadow anything.
+  parse_json: (_c, [v]) => {
+    if (isNil(v)) return null;
+    if (typeof v === 'object') return v;
+    try { return JSON.parse(String(v), (k, x) => (k === '__proto__' ? undefined : x)); } catch { return null; }
+  },
+  todynamic: (_c, [v]) => FUNCS.parse_json(_c, [v]),
   toint: (_c, [v]) => { const n = num(v); return Number.isNaN(n) ? null : Math.trunc(n); },
   tolong: (_c, [v]) => { const n = num(v); return Number.isNaN(n) ? null : Math.trunc(n); },
   todouble: (_c, [v]) => { const n = num(v); return Number.isNaN(n) ? null : n; },
@@ -575,6 +614,7 @@ function walk(node, fn) {
   switch (node.k) {
     case 'bin': walk(node.l, fn); walk(node.r, fn); break;
     case 'neg': walk(node.e, fn); break;
+    case 'prop': walk(node.e, fn); break;
     case 'in': walk(node.e, fn); node.list.forEach((n) => walk(n, fn)); break;
     case 'between': walk(node.e, fn); walk(node.lo, fn); walk(node.hi, fn); break;
     case 'call': node.args.forEach((n) => walk(n, fn)); break;
@@ -604,6 +644,11 @@ function evalExpr(node, row, ctx) {
     case 'lit': return node.v;
     case 'col': return row[node.name] ?? null;
     case 'neg': return -num(evalExpr(node.e, row, ctx));
+    case 'prop': {
+      // Own properties of plain parsed JSON only; a missing key or a non-object yields null, as in Kusto.
+      const v = evalExpr(node.e, row, ctx);
+      return v !== null && typeof v === 'object' && !isDate(v) && Object.hasOwn(v, node.name) ? v[node.name] : null;
+    }
     case 'star': throw new KqlError("'*' can only be used with has/contains/startswith, e.g. where * has \"value\"");
     case 'call': {
       const low = node.name.toLowerCase();
@@ -878,7 +923,8 @@ function summarize(st, columns, rows, ctx) {
     const def = AGGS[low];
     if (def.multi) {
       if (a.expr.args.length < 2) throw new KqlError(`${a.expr.name}() expects a key and at least one column, e.g. ${a.expr.name}(Timestamp, *)`);
-      const cols = [];
+      // Like Kusto, the column being maximised is returned too: arg_max(Timestamp, ReportId) -> Timestamp, ReportId.
+      const cols = a.expr.args[0].k === 'col' ? [a.expr.args[0].name] : [];
       for (const x of a.expr.args.slice(1)) {
         if (x.k === 'star') columns.forEach((c) => cols.push(c));
         else if (x.k === 'col') cols.push(x.name);

@@ -10,7 +10,7 @@ export default {
   minutes: 20,
   topics: ['Advanced hunting', 'Custom detection rules', 'Response actions', 'KQL'],
   examObjective: '3.1 Detect threats by using Microsoft Defender XDR',
-  sourceQuestions: { set1: [16, 40, 41, 42], set2: [17, 40] },
+  sourceQuestions: { set1: [16, 40, 41, 42], set2: [17, 40], set3: [41] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "docs", note: "The six-step wizard, frequencies and lookback, device/file/user/email actions with their required columns, the 150-alert cap and NRT eligibility follow Microsoft Learn (custom-detection-rules, 2026-09-02). The practice questions say a query MUST return Timestamp and ReportId; current Learn says it is recommended. Not simulated: Sentinel custom frequency, SaaS governance actions, scheduled execution." },
   scenarios: ['bruteforce-device'],

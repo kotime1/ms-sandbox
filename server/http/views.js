@@ -3,11 +3,17 @@
 // the server.
 
 import { listScopes, listPrincipals, ROLE_CATALOG } from '../sim/actions.js';
-import { LEARNER, visibleTables, tableColumns } from '../sim/world.js';
+import { LEARNER, visibleTables, tableColumns, query } from '../sim/world.js';
 import { tableSource } from '../sim/tables.js';
 import { FREQUENCIES } from '../sim/detections.js';
 import { TRIGGERS, PROPERTIES, OPERATOR_LABELS, conditionsFor, nextOrder } from '../sim/automation.js';
 import { asiCanRun } from '../sim/world.js';
+import { KINDS, SEVERITIES, MIN_MINUTES, NRT_FIXED, describeKind } from '../sim/analytics.js';
+import { CAPABILITIES, ASR_RULES, MODES, PLATFORMS } from '../sim/security-policies.js';
+import { TEMPLATES } from '../sim/workbooks.js';
+import { CATALOGUE, COLUMN_TYPES } from '../sim/ingestion.js';
+import { RECORD_TYPES, canSearchAudit } from '../sim/audit.js';
+import { canManageSecuritySettings, isGlobalAdmin, SEVERITIES as ALERT_SEVERITIES } from '../sim/notifications.js';
 
 const iso = (ms) => new Date(ms).toISOString();
 
@@ -54,7 +60,8 @@ const runView = (r) => ({ id: r.id, playbook: r.playbookName, by: r.by, at: iso(
 
 const sentinelConfig = (w) => ({
   connectors: w.sentinel.connectors,
-  analyticsRules: w.sentinel.analyticsRules.map((r) => ({ id: r.id, name: r.name, kind: r.kind, severity: r.severity, enabled: r.enabled, tactics: r.tactics, query: r.query })),
+  analyticsRules: w.sentinel.analyticsRules.map((r) => ({ id: r.id, name: r.name, kind: r.kind, severity: r.severity, enabled: r.enabled, tactics: r.tactics, query: r.query, schedule: r.schedule ?? null, entityMapping: r.entityMapping !== false && Boolean(r.query) })),
+  analyticsMeta: { kinds: KINDS.map((k) => ({ id: k, label: k === 'NRT' ? 'NRT query rule' : 'Scheduled query rule', summary: describeKind(k) })), severities: SEVERITIES, min: MIN_MINUTES, nrt: NRT_FIXED },
   automationRules: [...w.sentinel.automationRules].sort((a, b) => a.trigger.localeCompare(b.trigger) || a.order - b.order).map((a) => ({
     id: a.id, name: a.name, order: a.order, enabled: a.enabled && !(a.expiresAt && Date.now() >= a.expiresAt), expired: Boolean(a.expiresAt && Date.now() >= a.expiresAt),
     trigger: a.trigger, triggerLabel: TRIGGERS[a.trigger],
@@ -100,6 +107,64 @@ const fileView = (f) => ({
   // The verdict and sandbox behaviours are what deep analysis REVEALS, so they are only sent once it has run.
   analysis: f.deepAnalysis ? { status: f.deepAnalysis.status, verdict: f.deepAnalysis.verdict, behaviors: f.deepAnalysis.behaviors } : null,
 });
+
+// Settings > Endpoints > General > Email notifications, plus who the learner is signed in as.
+// Users are listed with their roles (an admin can see a directory); whether each may manage settings is computed here.
+const notifications = (w) => ({
+  actorId: w.directory.actorId,
+  users: w.directory.users.map((u) => ({ id: u.id, name: u.name, entraRole: u.entraRole, roleGroup: u.roleGroup })),
+  canManage: canManageSecuritySettings(w.directory.users.find((u) => u.id === w.directory.actorId)),
+  isGlobalAdmin: isGlobalAdmin(w.directory.users.find((u) => u.id === w.directory.actorId)),
+  severities: ALERT_SEVERITIES,
+  deviceGroups: w.defender.deviceGroups.filter((g) => g.id !== 'grp-all').map((g) => ({ id: g.id, name: g.name })),
+  rules: w.defender.notificationRules.map((r) => ({ id: r.id, name: r.name, allDevices: r.allDevices, deviceGroups: r.deviceGroups, severities: r.severities, recipients: r.recipients, enabled: r.enabled })),
+  outbox: w.defender.outbox.slice(-40).map((m) => ({ id: m.id, to: m.to, title: m.title, severity: m.severity, device: m.device, at: iso(m.at) })).reverse(),
+});
+
+// Endpoint security policies: the capability catalogue and rule list are public reference data; policies are the learner's own.
+const securityPolicies = (w) => ({
+  capabilities: Object.entries(CAPABILITIES).map(([id, c]) => ({ id, label: c.label, summary: c.summary, platforms: c.platforms, hasRules: c.rules })),
+  rules: ASR_RULES.map((r) => ({ id: r.id, name: r.name, warn: r.warn })),
+  modes: MODES,
+  platforms: PLATFORMS,
+  deviceGroups: w.defender.deviceGroups.filter((g) => g.id !== 'grp-all').map((g) => ({ id: g.id, name: g.name })),
+  policies: w.defender.securityPolicies.map((p) => ({ id: p.id, name: p.name, type: p.type, platform: p.platform, deviceGroups: p.deviceGroups, rules: p.rules.map((r) => ({ ...r })) })),
+});
+
+// Threat management > Workbooks. Tiles are executed here, against the sandbox's own data, and only the result is sent;
+// a failing tile (for example after its table was hidden) is reported as an error string, not a crash.
+const runTile = (w, t) => {
+  try {
+    const r = query(w, 'sentinel', t.query);
+    return { title: t.title, columns: r.columns.map((c) => ({ name: c.name, type: c.type })), rows: r.rows.slice(0, 100), render: r.meta.render ?? null, error: null };
+  } catch (e) { return { title: t.title, columns: [], rows: [], render: null, error: String(e.message).slice(0, 200) }; }
+};
+const workbooks = (w) => ({
+  templates: TEMPLATES.map((t) => ({ id: t.id, name: t.name, summary: t.summary, required: t.required, metrics: t.metrics, available: t.required.every((n) => visibleTables(w).includes(n)) })),
+  mine: w.sentinel.workbooks.map((b) => ({ id: b.id, name: b.name, template: b.template, metrics: b.metrics, editing: b.editing, viewed: b.viewed, revision: b.revision, clonedFrom: b.clonedFrom ?? null, tiles: b.viewed ? (b.tiles ?? []).map((t) => runTile(w, t)) : [] })),
+});
+
+// Configuration > Data connectors, and Settings > Tables / data collection rules. Row counts only: ingested data is read through queries.
+const ingestion = (w) => ({
+  catalogue: CATALOGUE.map((c) => {
+    const live = w.sentinel.connectors.find((x) => x.id === c.id);
+    return { id: c.id, name: c.name, blurb: c.blurb, apps: c.apps, tables: c.tables, connected: live?.status === 'Connected', connectedApps: live?.apps ?? [] };
+  }),
+  other: w.sentinel.connectors.filter((x) => !CATALOGUE.some((c) => c.id === x.id)).map((x) => ({ id: x.id, name: x.name, status: x.status, tables: x.tables })),
+  columnTypes: COLUMN_TYPES,
+  tables: w.sentinel.customTables.map((t) => ({ name: t.name, columns: w.tables.get(t.name).columns.map((c) => ({ name: c.name, type: c.type })), rows: w.tables.get(t.name).rows.length })),
+  dcrs: w.sentinel.dcrs.map((d) => ({ id: d.id, name: d.name, table: d.table, stream: d.stream, columns: d.columns.map((c) => ({ ...c })) })),
+});
+
+// Microsoft Purview > Audit. Records themselves are never sent: the learner reads them only through a search the server runs.
+const audit = (w) => {
+  const actor = w.directory.users.find((u) => u.id === w.directory.actorId);
+  return {
+    tier: w.audit.tier, actorId: w.directory.actorId, canSearch: canSearchAudit(actor),
+    users: w.directory.users.map((u) => ({ id: u.id, name: u.name, entraRole: u.entraRole, roleGroup: u.roleGroup })),
+    recordTypes: RECORD_TYPES.map((r) => ({ id: r.id, label: r.label, about: r.about })),
+  };
+};
 
 const defenderFiles = (w) => ({
   files: w.defender.files.map(fileView),
@@ -148,6 +213,11 @@ export const VIEWS = {
   'sentinel-config': sentinelConfig,
   defender,
   'defender-files': defenderFiles,
+  notifications,
+  audit,
+  ingestion,
+  workbooks,
+  'security-policies': securityPolicies,
   'sentinel-hunting': sentinelHunting,
   'sentinel-summary': sentinelSummary,
   'schema-sentinel': (w) => schema(w),

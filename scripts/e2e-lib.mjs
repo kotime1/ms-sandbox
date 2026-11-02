@@ -74,11 +74,29 @@ export async function launch() {
   const api = {
     port, errors, dialogs, send, evalJs, sleep, waitFor,
     glowTarget: () => evalJs(`document.querySelector('.coach-glow')?.getAttribute('data-target') ?? null`),
-    click: (target) => evalJs(`(() => { const e = [...document.querySelectorAll('[data-target]')].find((x) => x.getAttribute('data-target') === ${JSON.stringify(target)} || (x.getAttribute('data-target-aliases') ?? '').split(' ').includes(${JSON.stringify(target)})); if (!e) return false; e.click(); return true; })()`),
+    // Wait until the control exists and the page is not mid-render (renderPage shows .loading first), then click. A click on a control
+    // that is not there yet used to be a silent no-op, which made the scripts depend on timing. Now it fails loudly after a timeout.
+    click: async (target) => {
+      const t = JSON.stringify(target);
+      const find = `[...document.querySelectorAll('[data-target]')].find((x) => x.getAttribute('data-target') === ${t} || (x.getAttribute('data-target-aliases') ?? '').split(' ').includes(${t}))`;
+      await waitFor(`!document.querySelector('.loading') && ${find}`, `control ${target}`);
+      return evalJs(`(() => { const e = ${find}; if (!e) return false; e.click(); return true; })()`);
+    },
     clickText: (sel, text) => evalJs(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)})); if (!e) return false; e.click(); return true; })()`),
-    setValue: (selector, value) => evalJs(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); e.value = ${JSON.stringify(value)}; e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); })()`),
+    setValue: async (selector, value) => {
+      await waitFor(`!document.querySelector('.loading') && document.querySelector(${JSON.stringify(selector)})`, `field ${selector}`);
+      return evalJs(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); e.value = ${JSON.stringify(value)}; e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); })()`);
+    },
     go: (hash) => evalJs(`location.hash = ${JSON.stringify(hash)}`),
     met: () => evalJs(`[...document.querySelectorAll('.objectives li')].map((l) => l.classList.contains('met'))`),
+    // Assert a page condition that becomes true shortly after an action (a re-render is async). Polls, then fails with the message.
+    okSoon: async (expr, msg, ms = 6000) => {
+      const t = Date.now();
+      let v = false;
+      while (Date.now() - t < ms) { v = await evalJs(expr).catch(() => false); if (v) break; await sleep(100); }
+      if (!v) throw new Error(`FAIL: ${msg}`);
+      passed++; console.log(`  ok  ${msg}`);
+    },
     ok: (c, msg) => { if (!c) throw new Error(`FAIL: ${msg}`); passed++; console.log(`  ok  ${msg}`); },
     /** Count text nodes that are literally "null", "undefined" or "false" (a classic rendering bug the usual assertions miss). */
     strayText: (rootSelector = 'body') => evalJs(`(() => { const r = document.querySelector(${JSON.stringify(rootSelector)}); if (!r) return -1; const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT); let n = 0, t; while ((t = w.nextNode())) { if (/^\s*(null|undefined|false|NaN)\s*$/.test(t.textContent)) n++; } return n; })()`),

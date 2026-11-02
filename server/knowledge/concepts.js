@@ -80,6 +80,55 @@ export const CONCEPTS = [
       'With the UEBA behaviours layer, behaviour metadata (title, description, categories) is in one table and the entities involved (users, IPs, devices) in another. Combine them with a join on the shared behaviour id. join matches rows between two tables; union just stacks them. Columns that exist on both sides get a numeric suffix on the right.',
   },
   {
+    id: 'audit',
+    keys: ['audit', 'purview', 'record type', 'airinvestigation', 'retention', 'premium', 'standard', 'unified audit log', 'search-unifiedauditlog', 'management activity api'],
+    title: 'Microsoft Purview Audit',
+    body:
+      'Audit (Standard) keeps records for 180 days. Audit (Premium) keeps Microsoft Entra ID, Exchange, OneDrive and SharePoint records for one year by default; Search-UnifiedAuditLog and the Management Activity API only read the same log and do not extend retention. A search covers at most 180 days and the record type filter scopes it to one service: AirInvestigation is for Defender XDR automated investigation and response. Searching needs the Audit Logs or View-Only Audit Logs role.',
+  },
+  {
+    id: 'ingestion',
+    keys: ['connector', 'microsoft 365', 'office 365', 'sharepoint', 'officeactivity', 'logs ingestion', 'data collection rule', 'dcr', 'custom table', '_cl', 'json', 'ingestion api'],
+    title: 'Data connectors and the Logs Ingestion API',
+    body:
+      'The Microsoft 365 connector (formerly Office 365) ingests audit activity from Exchange Online, SharePoint Online and Teams into OfficeActivity; the Defender for Office 365 connector is about email threat protection. For the Logs Ingestion API the destination table must exist before data is sent, so create the custom log table first (names end in _CL, you pick the column names and types), then a data collection rule that maps the incoming stream to it.',
+  },
+  {
+    id: 'workbooks',
+    keys: ['workbook', 'template', 'clone', 'render', 'timechart', 'visualize', 'dashboard', 'workbook contributor', 'security operations efficiency', 'mean time to triage'],
+    title: 'Sentinel workbooks',
+    body:
+      'Workbooks visualize data over time. A template is read-only: save it to create a workbook, open it, press Edit, and finish with Done editing; use Save as to make a copy. The Security operations efficiency template carries SOC metrics such as incidents created over time and mean time to triage. render turns a query into a chart. Creating or deleting a workbook needs a Sentinel Contributor role, or a lesser Sentinel role plus the Workbook Contributor role.',
+  },
+  {
+    id: 'asr',
+    keys: ['asr', 'attack surface reduction', 'exploit protection', 'controlled folder access', 'block at first sight', 'usb', 'removable', 'email attachment', 'ransomware'],
+    title: 'Attack surface reduction capabilities',
+    body:
+      'Attack surface reduction rules target specific risky behaviours, such as launching executable content from email or running unsigned processes from removable drives. Exploit protection hardens processes against vulnerabilities, controlled folder access shields folders from untrusted apps, and network or web protection block bad destinations. Block at first sight is a cloud antivirus feature, not part of this set. ASR, controlled folder access and exploit protection are Windows only.',
+  },
+  {
+    id: 'email-notifications',
+    keys: ['email notification', 'notification rule', 'notify', 'device group', 'distribution group', 'manage security settings', 'security administrator', 'security reader', 'global administrator'],
+    title: 'Email alert notifications in Defender XDR',
+    body:
+      'A notification rule picks the devices (selected device groups, or all devices), the alert severities and the recipients. Severity alone cannot limit a rule to particular devices. It is configured under Settings > Endpoints > General > Email notifications, needs Manage security settings or a higher role (such as Security Administrator), and a rule for all devices needs Global administrator. Security Reader is read-only.',
+  },
+  {
+    id: 'nrt-rules',
+    keys: ['nrt', 'near-real-time', 'near real time', 'scheduled rule', 'ingestion time', 'every minute', 'lookback', 'ingestion delay'],
+    title: 'NRT versus scheduled analytics rules',
+    body:
+      'A scheduled rule lets you choose how often it runs and how far back it looks, and it evaluates the event timestamp after a built-in delay. A near-real-time rule has those settings fixed (every minute, one-minute lookback) and evaluates the time each event reached the workspace, so ingestion lag does not hide events. Both can map entities and attach automation. Compare what the create form lets you set for each type.',
+  },
+  {
+    id: 'troubleshooting-mode',
+    keys: ['troubleshooting mode', 'troubleshoot', 'parse_json', 'additionalfields', 'dynamic', 'tamper protection', 'arg_max'],
+    title: 'Hunting for troubleshooting-mode changes',
+    body:
+      'Defender for Endpoint records troubleshooting-mode state changes as device events with a specific ActionType. The details sit in AdditionalFields, a dynamic column holding JSON: wrap it in parse_json() and read a property with a dot, then filter on the value. Aggregate by device with arg_max(Timestamp, ReportId) to keep only the latest event per device, and filter on time first.',
+  },
+  {
     id: 'hunting-favorites',
     keys: ['favorite', 'favourite', 'hunting blade', 'livestream', 'bookmark', 'run when i open', 'hunting query'],
     title: 'Hunting favorites, livestream and bookmarks',

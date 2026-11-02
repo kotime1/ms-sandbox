@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { LABS } from '../server/labs/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SETS = ['set1', 'set2'];
+const SETS = ['set1', 'set2', 'set3']; // a new question file: add it here and a `setN: []` to each lab's sourceQuestions
+const short = (k) => `S${k.replace('set', '')}`;
 
 function parse(file) {
   const t = readFileSync(file, 'utf8').replace(/\r/g, '');
@@ -45,17 +46,20 @@ const T_MDI = 'Defender for Identity and identity remediation';
 const T_XDR = 'Defender XDR portal: disruption, email notifications, incident aggregation';
 const T_CLOUD = 'Defender for Cloud: alerts and automation';
 const BACKLOG = {
-  'set1:1': T_XDR, 'set1:2': 'Defender for Endpoint: supported platforms (recall)', 'set1:10': T_WORKBOOKS, 'set1:11': T_WORKBOOKS, 'set1:12': T_WORKBOOKS,
-  'set1:13': T_CONNECT, 'set1:14': T_CONNECT, 'set1:15': T_TI, 'set1:17': T_XDR, 'set1:21': 'Analytics: MITRE ATT&CK coverage',
+  'set1:1': T_XDR, 'set1:2': 'Defender for Endpoint: supported platforms (recall)', 
+  'set1:13': T_CONNECT, 'set1:14': T_CONNECT, 'set1:15': T_TI, 'set1:21': 'Analytics: MITRE ATT&CK coverage',
   'set1:22': T_PURVIEW, 'set1:23': T_PURVIEW, 'set1:24': T_MDI, 'set1:26': T_XDR, 'set1:27': T_CLOUD, 'set1:28': T_MDI, 'set1:29': T_PURVIEW,
-  'set1:36': T_PURVIEW, 'set1:37': T_PURVIEW, 'set1:46': 'Data lake: KQL jobs', 'set1:50': 'Data lake: Sentinel MCP server',
-  'set2:11': T_WORKBOOKS, 'set2:12': T_WORKBOOKS, 'set2:13': T_WORKBOOKS, 'set2:14': T_CONNECT, 'set2:16': T_TI, 'set2:22': T_PURVIEW,
-  'set2:26': 'Security Copilot', 'set2:33': T_PURVIEW, 'set2:34': T_PURVIEW, 'set2:35': T_PURVIEW, 'set2:39': T_PURVIEW,
+  'set1:37': T_PURVIEW, 'set1:46': 'Data lake: KQL jobs', 'set1:50': 'Data lake: Sentinel MCP server',
+  'set2:14': T_CONNECT, 'set2:16': T_TI, 'set2:22': T_PURVIEW,
+  'set2:26': 'Security Copilot', 'set2:33': T_PURVIEW, 'set2:34': T_PURVIEW, 'set2:35': T_PURVIEW,
   'set2:45': 'Sentinel graph and entity resolution',
+  // set 3 (labs in progress: each entry is deleted when its lab lands)
+  'set3:26': T_MDI, 'set3:35': 'ASIM parsers',
+  'set3:48': 'Sentinel graph and entity resolution',
 };
 
 const labsFor = {};
-for (const l of LABS) for (const k of SETS) for (const n of l.sourceQuestions[k]) (labsFor[`${k}:${n}`] ??= []).push(l.id);
+for (const l of LABS) for (const k of SETS) for (const n of l.sourceQuestions[k] ?? []) (labsFor[`${k}:${n}`] ??= []).push(l.id);
 
 function backlogTopic(key) {
   const t = BACKLOG[key];
@@ -77,28 +81,37 @@ export function build() {
   w(`**${LABS.length} labs** cover **${covered} of ${total}** practice questions (${SETS.map((k) => `${k}: ${sets[k].filter((q) => labsFor[`${k}:${q.n}`]).length}/${sets[k].length}`).join(', ')}).`);
   w();
 
-  // Duplicate clusters
-  const exact = [];
-  for (const q of sets.set2) {
-    let best = { j: 0, n: 0 };
-    for (const p of sets.set1) { const j = jaccard(q.stem, p.stem); if (j > best.j) best = { j, n: p.n }; }
-    if (best.j >= 0.95) exact.push([q.n, best.n]);
-  }
-  const dupSet2 = new Set(exact.map((e) => e[0]));
+  // Duplicates: a question that is word-for-word the same as one in an EARLIER set. Its "home" is the earliest match.
+  const home = new Map(); // "set3:5" -> "set1:5"
+  SETS.forEach((k, idx) => {
+    for (const q of sets[k]) {
+      let best = { j: 0, key: '' };
+      for (const earlier of SETS.slice(0, idx)) {
+        for (const p of sets[earlier]) { const j = jaccard(q.stem, p.stem); if (j > best.j) best = { j, key: `${earlier}:${p.n}` }; }
+      }
+      if (best.j >= 0.95) home.set(`${k}:${q.n}`, best.key);
+    }
+  });
   w('## Duplicates between sets');
   w();
-  w(`${exact.length} of the ${sets.set2.length} questions in set 2 are word-for-word repeats of a set 1 question, so they share a lab. ${sets.set2.length - exact.length} are new.`);
-  w();
-  w('| Set 2 | = Set 1 |');
+  const dupRows = [];
+  for (const k of SETS.slice(1)) {
+    const mine = [...home].filter(([key]) => key.startsWith(`${k}:`));
+    w(`${mine.length} of the ${sets[k].length} questions in ${k.replace('set', 'set ')} are word-for-word repeats of an earlier set, so they share a lab. ${sets[k].length - mine.length} are new.`);
+    w();
+    for (const [key, h] of mine) dupRows.push([key, h]);
+  }
+  const label = (key) => `${short(key.split(':')[0])}:${key.split(':')[1]}`;
+  w('| Question | = Earlier question |');
   w('|---|---|');
-  for (const [a, b] of exact) w(`| ${a} | ${b} |`);
+  for (const [key, h] of dupRows) w(`| ${label(key)} | ${label(h)} |`);
   w();
 
   w('## Labs');
   w();
-  w('| Lab | Level | Set 1 | Set 2 | Practises |');
-  w('|---|---|---|---|---|');
-  for (const l of LABS) w(`| \`${l.id}\` | ${l.level} | ${l.sourceQuestions.set1.join(', ') || '—'} | ${l.sourceQuestions.set2.join(', ') || '—'} | ${l.topics.join(', ')} |`);
+  w(`| Lab | Level | ${SETS.map((k) => k.replace('set', 'Set ')).join(' | ')} | Practises |`);
+  w(`|---|---|${SETS.map(() => '---').join('|')}|---|`);
+  for (const l of LABS) w(`| \`${l.id}\` | ${l.level} | ${SETS.map((k) => (l.sourceQuestions[k] ?? []).join(', ') || '—').join(' | ')} | ${l.topics.join(', ')} |`);
   w();
 
   w('## Not yet covered (backlog)');
@@ -109,17 +122,17 @@ export function build() {
   for (const k of SETS) {
     for (const q of sets[k]) {
       if (labsFor[`${k}:${q.n}`]) continue;
-      if (k === 'set2' && dupSet2.has(q.n)) continue; // reported once, under set 1
+      if (home.has(`${k}:${q.n}`)) continue; // a repeat is reported once, under its earliest set
       const t = backlogTopic(`${k}:${q.n}`);
       if (!groups.has(t)) groups.set(t, []);
-      groups.get(t).push(`${k === 'set1' ? 'S1' : 'S2'}:${q.n}`);
+      groups.get(t).push(`${short(k)}:${q.n}`);
     }
   }
   w('| Topic | Questions |');
   w('|---|---|');
   for (const [t, qs] of [...groups].sort((a, b) => b[1].length - a[1].length)) w(`| ${t} | ${qs.join(', ')} |`);
   w();
-  w('Duplicates are listed once. A `S2` question that repeats a set 1 question appears only under the set 1 number.');
+  w('Duplicates are listed once. A question that repeats an earlier one appears only under the earlier number.');
   w();
   return `${lines.join('\n')}\n`;
 }

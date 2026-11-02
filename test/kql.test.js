@@ -130,3 +130,49 @@ test('scanCost: aggregating a huge raw table times out, a small summary table do
   assert.throws(() => runQuery('Raw_CL | summarize count()', { tables: tbl, now: NOW }), (e) => e.kind === 'Timeout' && /summary rule/.test(e.message));
   assert.equal(runQuery('Summary_CL | summarize count()', { tables: tbl, now: NOW }).rows[0][0], 1);
 });
+
+// --- dynamic values: parse_json and property access (set 3 Q46) --------------------------------
+
+const dyn = new Map([
+  ['DeviceEvents', {
+    columns: [{ name: 'Timestamp' }, { name: 'DeviceId' }, { name: 'ReportId' }, { name: 'ActionType' }, { name: 'AdditionalFields' }],
+    rows: [
+      { Timestamp: t(30), DeviceId: 'mac-1', ReportId: 1, ActionType: 'AntivirusTroubleshootModeEvent', AdditionalFields: '{"TroubleshootingStateChangeReason":"Troubleshooting mode started","Mode":"on"}' },
+      { Timestamp: t(10), DeviceId: 'mac-1', ReportId: 2, ActionType: 'AntivirusTroubleshootModeEvent', AdditionalFields: '{"TroubleshootingStateChangeReason":"Troubleshooting mode started"}' },
+      { Timestamp: t(20), DeviceId: 'mac-2', ReportId: 3, ActionType: 'AntivirusTroubleshootModeEvent', AdditionalFields: '{"TroubleshootingStateChangeReason":"Troubleshooting mode ended"}' },
+      { Timestamp: t(25), DeviceId: 'mac-3', ReportId: 4, ActionType: 'AntivirusScanCompleted', AdditionalFields: 'not json' },
+    ],
+  }],
+]);
+const qd = (text) => runQuery(text, { tables: dyn, now: NOW });
+
+test('parse_json + property access: the Q46 query finds only devices that STARTED troubleshooting mode', () => {
+  const r = qd(`DeviceEvents
+| where Timestamp > ago(3h)
+| where ActionType == "AntivirusTroubleshootModeEvent"
+| extend _tsmodeproperties = parse_json(AdditionalFields)
+| where _tsmodeproperties.TroubleshootingStateChangeReason contains "started"
+| summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId), count() by DeviceId
+| order by Timestamp desc`);
+  assert.deepEqual(r.rows.map((x) => x[r.columns.findIndex((c) => c.name === 'DeviceId')]), ['mac-1']);
+  assert.equal(r.rows[0][r.columns.findIndex((c) => c.name === 'ReportId')], 2, 'arg_max keeps the latest event');
+});
+
+test('parse_json: bad JSON and missing keys give null, bracket access works, nothing throws', () => {
+  const r = qd('DeviceEvents | extend p = parse_json(AdditionalFields) | project DeviceId, a = p.Mode, b = p["Mode"], c = p.Missing.Deeper');
+  const col = (n) => r.rows.map((x) => x[r.columns.findIndex((c) => c.name === n)]);
+  assert.deepEqual(col('a'), ['on', null, null, null]);
+  assert.deepEqual(col('b'), ['on', null, null, null]);
+  assert.deepEqual(col('c'), [null, null, null, null]);
+});
+
+test('property access never resolves through the prototype chain', () => {
+  for (const key of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    const r = qd(`DeviceEvents | extend p = parse_json(AdditionalFields) | project v = p.${key}`);
+    assert.ok(r.rows.every((x) => x[0] === null), `p.${key} must be null`);
+  }
+  const hostile = new Map([['T', { columns: [{ name: 'J' }], rows: [{ J: '{"__proto__":{"polluted":1},"x":2}' }] }]]);
+  const r = runQuery('T | extend p = parse_json(J) | project x = p.x, bad = p.polluted', { tables: hostile, now: NOW });
+  assert.deepEqual(r.rows[0], [2, null]);
+  assert.equal({}.polluted, undefined);
+});

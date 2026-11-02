@@ -185,7 +185,7 @@ try {
   await evalJs(`(() => { const s = document.querySelector('.modal select[aria-label="Playbook"]'); s.value = [...s.options].find((o) => o.textContent === 'Play1').value; s.dispatchEvent(new Event('change')); })()`);
   await click('btn:apply-automation');
   await waitFor(`!document.querySelector('.modal')`, 'rule saved');
-  ok(await evalJs(`document.body.textContent.includes('Run playbook: Play1')`), 'the saved rule is listed with its action');
+  await b.okSoon(`document.body.textContent.includes('Run playbook: Play1')`, 'the saved rule is listed with its action');
   await click('btn:run-sim:playbook-picker');
   await allMet(4);
   ok((await b.met()).every(Boolean), 'the playbook runs from the automation rule once Sentinel has permission');
