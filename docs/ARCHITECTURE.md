@@ -44,6 +44,8 @@ Actions and scenarios added after iteration 1 live in `server/sim/actions-extra.
 
 The Azure portal has its own header (`web/js/azure-chrome.js`) and an **All services** catalogue (`web/js/azure-services.js`); every other page uses the shared header. A catalogue entry with a `page` opens it, anything else says it is not simulated. Hiding the side navigation must not remove it from the grid (see `.sidenav[hidden]`), or the lab coach slides into the wrong column.
 
+The Defender portal has the same treatment (`web/js/defender-chrome.js`, `defender-nav.js`, `pages/defender-home.js`). `nav.js` holds the menu: groups with `items`, groups without (shown, not simulated), and plain links. Page ids never change; only labels and grouping do.
+
 ### Actions, not endpoints per feature
 
 Every state change is a named action in `ACTIONS` with a validation spec (`server/core/validate.js`). Adding a feature never adds an HTTP route; it adds an action plus a page that calls `ctx.act(name, params)`. Unknown names are rejected via `Object.hasOwn`.

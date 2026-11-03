@@ -1,10 +1,12 @@
 import { h, clear, safeContainer } from './dom.js';
 import * as api from './api.js';
 import { ctx } from './app.js';
-import { SECTIONS, AZURE, isAzure, matches } from './nav.js';
+import { AZURE, isAzure, matches } from './nav.js';
 import { renderLabPanel, noteFeed, feedCursor, resetFeed, applyGlow } from './components/lab-panel.js';
 import { answerBox } from './components/answer-box.js';
 import { azureHeader } from './azure-chrome.js';
+import { defenderHeader } from './defender-chrome.js';
+import { renderDefenderNav } from './defender-nav.js';
 
 // ---- routing -------------------------------------------------------------------------------
 // Hash routes: #/home, #/azure/resources, #/azure/logicapp/<slug>, #/sentinel/incidents ...
@@ -12,7 +14,7 @@ import { azureHeader } from './azure-chrome.js';
 // (where IAM and Logic Apps live). Navigation labels come from nav.js.
 const PORTALS = {
   home: { label: 'Labs', cls: 'p-home', start: 'home' },
-  defender: { label: 'Microsoft Defender portal', cls: 'p-defender', start: 'defender/alerts' },
+  defender: { label: 'Microsoft Defender portal', cls: 'p-defender', start: 'defender/home' },
   azure: { label: 'Azure portal', cls: 'p-azure', start: 'azure/services' },
 };
 const portalOf = (key) => (key === 'home' ? 'home' : isAzure(key) ? 'azure' : 'defender');
@@ -32,6 +34,7 @@ const PAGES = {
   'purview/audit': () => import('./pages/purview-audit.js'),
   'sentinel/analytics': () => import('./pages/sentinel-analytics.js'),
   'sentinel/automation': () => import('./pages/sentinel-automation.js'),
+  'defender/home': () => import('./pages/defender-home.js'),
   'defender/alerts': () => import('./pages/defender-alerts.js'),
   'defender/hunting': () => import('./pages/defender-hunting.js'),
   'defender/devices': () => import('./pages/defender-devices.js'),
@@ -80,10 +83,13 @@ async function renderPage() {
 
 function renderChrome(portal, path) {
   shell.top.classList.toggle('az-top', portal === 'azure');
+  shell.top.classList.toggle('df-top', portal === 'defender');
+  shell.nav.classList.toggle('df-nav', portal === 'defender');
   const tabs = h('nav', { class: 'portal-tabs', 'aria-label': 'Portals' }, ['home', 'defender', 'azure'].map((p) => h('a', {
     href: `#/${PORTALS[p].start}`, class: p === portal ? 'active' : '', 'aria-current': p === portal ? 'page' : undefined,
   }, PORTALS[p].label)));
   if (portal === 'azure') clear(shell.top).append(...azureHeader(tabs));
+  else if (portal === 'defender') clear(shell.top).append(...defenderHeader(tabs));
   else clear(shell.top).append(
     h('a', { class: 'brand', href: '#/home', 'data-target': 'nav:home' }, 'SC-200 Sandbox'),
     h('span', { class: 'sim-badge', title: 'This is a simulation that mimics portal workflows. It is not the real product and nothing here touches a real tenant.' }, 'SIMULATION'),
@@ -94,8 +100,8 @@ function renderChrome(portal, path) {
   // The Azure All services page has its own category list, as in the real portal, so the sandbox's blade menu is hidden there.
   shell.nav.hidden = portal === 'home' || path === 'azure/services';
   if (shell.nav.hidden) return;
-  const sections = portal === 'azure' ? [AZURE] : SECTIONS;
-  for (const sec of sections) {
+  if (portal === 'defender') { renderDefenderNav(shell.nav, path); return; }
+  for (const sec of [AZURE]) {
     shell.nav.append(h('div', { class: 'nav-title' }, sec.title));
     for (const it of sec.items) {
       const active = matches(it, path);
@@ -118,6 +124,7 @@ ctx.refresh = async () => {
   ctx.lab = out.data.lab;
   noteFeed(out.data.feed);
   renderLabPanel(shell.panel);
+  if (portalOf(parseRoute().key) === 'defender') renderDefenderNav(shell.nav, ctx.route ?? parseRoute().path);
   applyGlow(ctx.lab?.next?.target);
 };
 ctx.reloadPage = () => renderPage();

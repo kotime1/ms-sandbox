@@ -49,8 +49,9 @@ const setWindow = (endsAgo, length) => untilTrue(`(() => {
 })()`, 'window set');
 // Search and wait for a result. A click can land on a page that re-renders straight afterwards (the coach refresh), losing the result,
 // so retry the whole search a few times instead of assuming the first click took.
-const searchUntil = async (expr, label, tries = 4) => {
+const searchUntil = async (expr, label, types = null, tries = 4) => {
   for (let i = 0; i < tries; i++) {
+    if (types) await setTypes(types);
     await click('btn:run-audit-search');
     const t = Date.now();
     while (Date.now() - t < 2500) { if (await evalJs(expr).catch(() => false)) return; await sleep(100); }
@@ -322,27 +323,21 @@ try {
   await okSoon(`document.body.innerText.includes('Audit (Standard)') && document.body.innerText.includes('180 days')`, 'the tenant starts on Audit (Standard) with 180-day retention');
   ok((await evalJs(`document.querySelectorAll('[data-target^="check:record:"]').length`)) === 7, 'seven record types are offered');
   // The distractor first
-  await setTypes(['SecurityComplianceCenterEOPCmdlet']);
-  await click('btn:run-audit-search');
-  await waitFor(`document.body.innerText.includes('New-ComplianceSearch')`, 'cmdlet results');
+  await searchUntil(`document.body.innerText.includes('New-ComplianceSearch')`, 'cmdlet results', ['SecurityComplianceCenterEOPCmdlet']);
   await okSoon(`document.body.innerText.includes('New-ComplianceSearch') && !document.body.innerText.includes('Automated investigation')`, 'the cmdlet record type returns cmdlet records, not Defender XDR activity');
   ok((await b.met())[0] === false, 'the wrong record type does not meet the first objective');
-  await setTypes(['AirInvestigation']);
-  await click('btn:run-audit-search');
-  await waitFor(`document.body.innerText.includes('Automated investigation completed')`, 'air results');
+  await searchUntil(`document.body.innerText.includes('Automated investigation completed')`, 'air results', ['AirInvestigation']);
   await okSoon(`!document.body.innerText.includes('New-ComplianceSearch')`, 'AirInvestigation shows only Defender XDR activity');
   await waitFor(`document.querySelectorAll('.objectives li.met').length === 1`, 'air objective');
   ok(true, 'AirInvestigation over the last five days meets the objective');
   // Nine months back under Standard: nothing
   await setWindow(259, 22);
-  await setTypes(['AzureActiveDirectory', 'ExchangeAdmin']);
-  await searchUntil(`document.body.innerText.includes('No results found')`, 'empty under standard');
+  await searchUntil(`document.body.innerText.includes('No results found')`, 'empty under standard', ['AzureActiveDirectory', 'ExchangeAdmin']);
   ok(true, 'under Audit (Standard) the nine-month-old events are gone');
   await click('btn:set-premium');
   await waitFor(`document.body.innerText.includes('Audit (Premium)') && document.querySelectorAll('input[type=number]').length === 2 && !document.querySelector('.loading')`, 'premium page re-rendered');
   await setWindow(259, 22);
-  await setTypes(['AzureActiveDirectory', 'ExchangeAdmin']);
-  await searchUntil(`document.body.innerText.includes('New-InboxRule') && document.body.innerText.includes('Add user')`, 'premium results');
+  await searchUntil(`document.body.innerText.includes('New-InboxRule') && document.body.innerText.includes('Add user')`, 'premium results', ['AzureActiveDirectory', 'ExchangeAdmin']);
   ok(true, 'under Audit (Premium) the Entra ID and Exchange events are returned');
   // Who can search: try as Admin2 and as a reader isn't available, so check the badge for each
   await untilTrue(`(() => { if (document.querySelector('.loading')) return false; const s = document.querySelector('[data-target="select:sign-in-as"]'); if (!s) return false; s.value = 'u-adm2'; s.dispatchEvent(new Event('change')); return true; })()`, 'sign in as Admin2');
@@ -374,6 +369,61 @@ try {
   await click('result:Access control (IAM)');
   await waitFor(`location.hash === '#/azure/iam'`, 'iam opens');
   ok(true, 'global search opens Access control (IAM)');
+
+  // ================================================================ Defender portal skin
+  await go('#/home');
+  await waitFor(`document.querySelector('[data-target="btn:start:workbooks"]')`, 'labs');
+  await go('#/defender/home');
+  await waitFor(`document.querySelector('.dh-cards')`, 'defender home');
+  await okSoon(`getComputedStyle(document.querySelector('.topbar')).backgroundColor === 'rgb(59, 58, 57)'`, 'the Defender header is charcoal');
+  await okSoon(`getComputedStyle(document.body).backgroundColor === 'rgb(255, 255, 255)'`, 'the Defender portal is light, whatever the OS theme');
+  await okSoon(`document.querySelectorAll('.dn-group').length === 10`, 'the menu has the real portal groups');
+  await okSoon(`(() => { const t = [...document.querySelectorAll('.dn-group .dn-label')].map((x) => x.textContent); return ['Exposure management', 'Investigation & response', 'Microsoft Sentinel', 'Endpoints', 'Email & collaboration', 'Cloud apps'].every((n) => t.includes(n)); })()`, 'group names match the portal');
+  await okSoon(`!document.querySelector('.dn-sub')`, 'groups start collapsed, as in the portal');
+  await okSoon(`[...document.querySelectorAll('.dn-group')].every((g) => ['true', 'false'].includes(g.getAttribute('aria-expanded')))`, 'every group exposes aria-expanded as true or false (never "null")');
+  await click('group:Microsoft Sentinel');
+  await okSoon(`document.querySelector('.dn-sub') && document.querySelector('.dn-sub').innerText.includes('Analytics')`, 'opening a group shows its pages');
+  await click('group:Microsoft Sentinel');
+  await okSoon(`!document.querySelector('.dn-sub')`, 'it closes again');
+  await click('group:Identities');
+  await okSoon(`document.querySelector('#toasts').innerText.includes('not simulated')`, 'a group the sandbox does not simulate says so');
+  await click('btn:dismiss:ignite');
+  await okSoon(`!document.body.innerText.includes('Explore the latest security solutions')`, 'a banner can be dismissed');
+  await click('btn:dismiss:hero');
+  await okSoon(`!document.querySelector('.dh-hero')`, 'the promotional card can be closed');
+  await setValue('input.df-search', 'workbooks');
+  await waitFor(`document.querySelector('.df-result')`, 'defender search result');
+  await click('result:Threat management > Workbooks');
+  await waitFor(`location.hash === '#/sentinel/workbooks'`, 'search opens the page');
+  await okSoon(`document.querySelector('.dn-sub') && document.querySelector('.dn-link.active')?.innerText.includes('Workbooks')`, 'the group holding the current page opens and marks it');
+  // The coach target sits inside a collapsed group: the group must open itself so the glow can find the link. The real labs rarely reach
+  // this state (a lab lands on the page its first step names), so drive the actual nav module with a controlled coach state.
+  await go('#/defender/home');
+  await waitFor(`document.querySelector('.dh-cards')`, 'defender home');
+  const probe = await evalJs(`(async () => {
+    const { ctx } = await import('/js/app.js');
+    const { renderDefenderNav } = await import('/js/defender-nav.js');
+    const keep = ctx.lab;
+    const host = document.createElement('div');
+    const out = {};
+    ctx.lab = { next: { target: 'nav:sentinel/analytics' } };
+    renderDefenderNav(host, 'defender/home');
+    out.opened = host.querySelector('[data-target="group:Microsoft Sentinel"]').getAttribute('aria-expanded');
+    out.hasLink = Boolean(host.querySelector('[data-target="nav:sentinel/analytics"]'));
+    out.otherClosed = host.querySelector('[data-target="group:Endpoints"]').getAttribute('aria-expanded');
+    ctx.lab = { next: { target: 'btn:something-else' } };
+    renderDefenderNav(host, 'defender/home');
+    out.noTarget = host.querySelector('[data-target="group:Microsoft Sentinel"]').getAttribute('aria-expanded');
+    ctx.lab = { next: { target: 'nav:sentinel/logs' } }; // an alias of Advanced hunting, which lives in Investigation & response
+    renderDefenderNav(host, 'defender/home');
+    out.alias = host.querySelector('[data-target="group:Investigation & response"]').getAttribute('aria-expanded');
+    ctx.lab = keep;
+    return out;
+  })()`);
+  ok(probe.opened === 'true' && probe.hasLink, 'a coach target inside a closed group opens that group and exposes the link');
+  ok(probe.otherClosed === 'false', 'only that group opens');
+  ok(probe.noTarget === 'false', 'a non-menu target opens nothing');
+  ok(probe.alias === 'true', 'an alias target (nav:sentinel/logs) opens the group that holds its menu entry');
 
   ok((await b.strayText('#app, body')) === 0, 'no stray "null"/"undefined" text on the last page');
   ok(b.errors.length === 0, `no console errors or CSP violations (${b.errors.length ? b.errors.join('; ') : 'none'})`);

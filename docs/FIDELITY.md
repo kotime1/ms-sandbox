@@ -217,3 +217,5 @@ Built against [custom-detection-rules](https://learn.microsoft.com/en-us/defende
 **Open:** study-guide section 2.9 puts notification rules under "Microsoft Defender XDR" settings; the current docs say Endpoints > General > Email notifications. **Not built:** Defender for Identity actions (Q26), ASIM parser pinning (Q35), blast radius / data lake (Q48).
 
 **Azure portal look (2026-11-03).** Matched to a screenshot of the portal from an exam lab, not to a live tenant: header, light theme, All services layout and the search box. The service list is a subset with invented two-letter marks instead of the real icons, the header icons do nothing, and the Defender portal is still the sandbox's own style.
+
+**Defender portal look (2026-11-03).** Matched to one screenshot of the Home page, not to a live tenant: header, left menu names and order, banners, promo card and card layout. Menu icons are plain glyphs, most groups are not simulated, the promo text is the real wording but its button does nothing, and the Home cards show sandbox counts rather than real posture data.

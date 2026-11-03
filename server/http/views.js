@@ -166,6 +166,19 @@ const audit = (w) => {
   };
 };
 
+// Defender portal Home: counts only (what the dashboard cards show), never incident or alert detail.
+const defenderHome = (w) => {
+  const rules = w.sentinel.automationRules;
+  const open = w.sentinel.incidents.filter((i) => i.status !== 'Closed');
+  return {
+    automationRules: rules.length,
+    incidents: { open: open.length, high: open.filter((i) => i.severity === 'High').length },
+    devices: { total: w.defender.devices.length, pending: w.defender.devices.filter((d) => d.onboarding !== 'Approved').length },
+    connectors: { connected: w.sentinel.connectors.filter((c) => c.status === 'Connected').length, total: w.sentinel.connectors.length },
+    workbooks: w.sentinel.workbooks.length,
+  };
+};
+
 const defenderFiles = (w) => ({
   files: w.defender.files.map(fileView),
   allowBlock: w.defender.allowBlock.map((e) => ({ id: e.id, kind: e.kind, value: e.value, action: e.action, expiry: e.expiry })),
@@ -214,6 +227,7 @@ export const VIEWS = {
   defender,
   'defender-files': defenderFiles,
   notifications,
+  'defender-home': defenderHome,
   audit,
   ingestion,
   workbooks,
