@@ -4,6 +4,7 @@ import { ctx } from './app.js';
 import { SECTIONS, AZURE, isAzure, matches } from './nav.js';
 import { renderLabPanel, noteFeed, feedCursor, resetFeed, applyGlow } from './components/lab-panel.js';
 import { answerBox } from './components/answer-box.js';
+import { azureHeader } from './azure-chrome.js';
 
 // ---- routing -------------------------------------------------------------------------------
 // Hash routes: #/home, #/azure/resources, #/azure/logicapp/<slug>, #/sentinel/incidents ...
@@ -12,12 +13,13 @@ import { answerBox } from './components/answer-box.js';
 const PORTALS = {
   home: { label: 'Labs', cls: 'p-home', start: 'home' },
   defender: { label: 'Microsoft Defender portal', cls: 'p-defender', start: 'defender/alerts' },
-  azure: { label: 'Azure portal', cls: 'p-azure', start: 'azure/resources' },
+  azure: { label: 'Azure portal', cls: 'p-azure', start: 'azure/services' },
 };
 const portalOf = (key) => (key === 'home' ? 'home' : isAzure(key) ? 'azure' : 'defender');
 
 const PAGES = {
   home: () => import('./pages/home.js'),
+  'azure/services': () => import('./pages/azure-services.js'),
   'azure/resources': () => import('./pages/azure-resources.js'),
   'azure/iam': () => import('./pages/azure-iam.js'),
   'azure/logicapp': () => import('./pages/azure-logicapp.js'),
@@ -77,17 +79,21 @@ async function renderPage() {
 }
 
 function renderChrome(portal, path) {
-  clear(shell.top).append(
+  shell.top.classList.toggle('az-top', portal === 'azure');
+  const tabs = h('nav', { class: 'portal-tabs', 'aria-label': 'Portals' }, ['home', 'defender', 'azure'].map((p) => h('a', {
+    href: `#/${PORTALS[p].start}`, class: p === portal ? 'active' : '', 'aria-current': p === portal ? 'page' : undefined,
+  }, PORTALS[p].label)));
+  if (portal === 'azure') clear(shell.top).append(...azureHeader(tabs));
+  else clear(shell.top).append(
     h('a', { class: 'brand', href: '#/home', 'data-target': 'nav:home' }, 'SC-200 Sandbox'),
     h('span', { class: 'sim-badge', title: 'This is a simulation that mimics portal workflows. It is not the real product and nothing here touches a real tenant.' }, 'SIMULATION'),
-    h('nav', { class: 'portal-tabs', 'aria-label': 'Portals' }, ['home', 'defender', 'azure'].map((p) => h('a', {
-      href: `#/${PORTALS[p].start}`, class: p === portal ? 'active' : '', 'aria-current': p === portal ? 'page' : undefined,
-    }, PORTALS[p].label))),
+    tabs,
     h('span', { class: 'who' }, 'admin1@contoso.com'),
   );
   clear(shell.nav);
-  shell.nav.hidden = portal === 'home';
-  if (portal === 'home') return;
+  // The Azure All services page has its own category list, as in the real portal, so the sandbox's blade menu is hidden there.
+  shell.nav.hidden = portal === 'home' || path === 'azure/services';
+  if (shell.nav.hidden) return;
   const sections = portal === 'azure' ? [AZURE] : SECTIONS;
   for (const sec of sections) {
     shell.nav.append(h('div', { class: 'nav-title' }, sec.title));

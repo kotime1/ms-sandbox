@@ -43,6 +43,7 @@ export const SECTIONS = [
 export const AZURE = {
   title: 'Azure portal',
   items: [
+    { id: 'azure/services', label: 'All services' },
     { id: 'azure/resources', label: 'All resources' },
     { id: 'azure/iam', label: 'Access control (IAM)' },
   ],

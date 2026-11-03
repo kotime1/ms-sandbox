@@ -215,3 +215,5 @@ Built against [custom-detection-rules](https://learn.microsoft.com/en-us/defende
 | macOS troubleshooting-mode event fields | **Simplified** | ActionType and TroubleshootingStateChangeReason come from the question; other fields are invented |
 
 **Open:** study-guide section 2.9 puts notification rules under "Microsoft Defender XDR" settings; the current docs say Endpoints > General > Email notifications. **Not built:** Defender for Identity actions (Q26), ASIM parser pinning (Q35), blast radius / data lake (Q48).
+
+**Azure portal look (2026-11-03).** Matched to a screenshot of the portal from an exam lab, not to a live tenant: header, light theme, All services layout and the search box. The service list is a subset with invented two-letter marks instead of the real icons, the header icons do nothing, and the Defender portal is still the sandbox's own style.

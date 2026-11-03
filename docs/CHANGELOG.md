@@ -15,6 +15,9 @@ One entry per iteration, newest first. **Every iteration must update the docs an
 - **Bring SharePoint and a factory app into Sentinel** (Q11, Q13). Data connectors page (Microsoft 365 connector with app selection; Defender for Office 365 is the decoy), custom table first, then a data collection rule, then ingestion.
 - **Search the audit log, keep it for a year** (Q34, Q39; set 1 Q36; set 2 Q39). Purview Audit search with record types, the 180-day range limit, Standard (180 days) vs Premium (one year for Entra ID, Exchange, OneDrive, SharePoint) retention.
 
+### Azure portal restyle
+Restyled the Azure side to match a screenshot of portal.azure.com from an exam lab: always-light page, blue header with a global search box, icon buttons, tenant name, and an **All services** landing page (filter box, featured row, category list, two-column service list). Search finds a service and opens its page: Microsoft Sentinel opens in the Defender portal, Entra ID and Access control open IAM. Most services are listed for realism and say they are not simulated. The SIMULATION badge and the lab tabs stay in the header. Coach targets (`nav:azure/iam` and the rest) are unchanged. Hiding the sandbox sidebar on All services had pushed the lab coach off screen (and would have on Home); a hidden sidebar now keeps its grid slot.
+
 ### Bugs found and fixed
 - **Unreachable objective in the browser.** Two labs asked for an answer on pages that never rendered the answer box; every server test passed. The shell now adds the box to any page when the lab has `answers`.
 - **Lab setup could not be played by its own UI.** The workbooks lab assigned roles to users the IAM picker could not list; `listPrincipals` now includes directory members.

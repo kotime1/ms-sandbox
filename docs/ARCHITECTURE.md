@@ -40,6 +40,10 @@ The UI mirrors them: `components/wizard.js` is a generic stepper, `detection-wiz
 
 Actions and scenarios added after iteration 1 live in `server/sim/actions-extra.js`, `actions-automation.js`, `actions-detections.js` and `server/attacks/scenarios-extra.js` and are merged in (`Object.assign`) by the original modules. This keeps each file reviewable. Nothing depends on the split; fold them together if you prefer.
 
+### Portal chrome
+
+The Azure portal has its own header (`web/js/azure-chrome.js`) and an **All services** catalogue (`web/js/azure-services.js`); every other page uses the shared header. A catalogue entry with a `page` opens it, anything else says it is not simulated. Hiding the side navigation must not remove it from the grid (see `.sidenav[hidden]`), or the lab coach slides into the wrong column.
+
 ### Actions, not endpoints per feature
 
 Every state change is a named action in `ACTIONS` with a validation spec (`server/core/validate.js`). Adding a feature never adds an HTTP route; it adds an action plus a page that calls `ctx.act(name, params)`. Unknown names are rejected via `Object.hasOwn`.

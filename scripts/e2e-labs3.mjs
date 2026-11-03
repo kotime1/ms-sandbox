@@ -47,6 +47,16 @@ const setWindow = (endsAgo, length) => untilTrue(`(() => {
   n.forEach((x) => x.dispatchEvent(new Event('input')));
   return n[0].value === '${endsAgo}' && n[1].value === '${length}';
 })()`, 'window set');
+// Search and wait for a result. A click can land on a page that re-renders straight afterwards (the coach refresh), losing the result,
+// so retry the whole search a few times instead of assuming the first click took.
+const searchUntil = async (expr, label, tries = 4) => {
+  for (let i = 0; i < tries; i++) {
+    await click('btn:run-audit-search');
+    const t = Date.now();
+    while (Date.now() - t < 2500) { if (await evalJs(expr).catch(() => false)) return; await sleep(100); }
+  }
+  throw new Error(`timeout waiting for: ${label}`);
+};
 const objectivesMet = async () => (await b.met()).filter(Boolean).length;
 
 try {
@@ -326,15 +336,13 @@ try {
   // Nine months back under Standard: nothing
   await setWindow(259, 22);
   await setTypes(['AzureActiveDirectory', 'ExchangeAdmin']);
-  await click('btn:run-audit-search');
-  await waitFor(`document.body.innerText.includes('No results found')`, 'empty under standard');
+  await searchUntil(`document.body.innerText.includes('No results found')`, 'empty under standard');
   ok(true, 'under Audit (Standard) the nine-month-old events are gone');
   await click('btn:set-premium');
   await waitFor(`document.body.innerText.includes('Audit (Premium)') && document.querySelectorAll('input[type=number]').length === 2 && !document.querySelector('.loading')`, 'premium page re-rendered');
   await setWindow(259, 22);
   await setTypes(['AzureActiveDirectory', 'ExchangeAdmin']);
-  await click('btn:run-audit-search');
-  await waitFor(`document.body.innerText.includes('New-InboxRule') && document.body.innerText.includes('Add user')`, 'premium results');
+  await searchUntil(`document.body.innerText.includes('New-InboxRule') && document.body.innerText.includes('Add user')`, 'premium results');
   ok(true, 'under Audit (Premium) the Entra ID and Exchange events are returned');
   // Who can search: try as Admin2 and as a reader isn't available, so check the badge for each
   await untilTrue(`(() => { if (document.querySelector('.loading')) return false; const s = document.querySelector('[data-target="select:sign-in-as"]'); if (!s) return false; s.value = 'u-adm2'; s.dispatchEvent(new Event('change')); return true; })()`, 'sign in as Admin2');
@@ -344,6 +352,28 @@ try {
   await answer('Admin1, Admin2, Admin3');
   await waitFor(`document.querySelectorAll('.objectives li.met').length === 4`, 'audit lab complete');
   ok(true, 'the audit lab completes through the UI');
+
+  // ================================================================ Azure portal skin
+  await go('#/azure/services');
+  await waitFor(`document.querySelector('.az-grid')`, 'all services');
+  await okSoon(`getComputedStyle(document.querySelector('.topbar')).backgroundColor === 'rgb(0, 120, 212)'`, 'the Azure header is the portal blue');
+  await okSoon(`getComputedStyle(document.body).backgroundColor === 'rgb(255, 255, 255)'`, 'the Azure portal is light, whatever the OS theme');
+  await okSoon(`!!document.querySelector('.labpanel') && document.querySelector('.labpanel').getBoundingClientRect().width > 200`, 'the lab coach is still visible beside the services page');
+  await okSoon(`document.querySelectorAll('.az-featured .az-tile').length === 8`, 'eight featured services are shown in a row');
+  await setValue('input.az-filter', 'monitor');
+  await okSoon(`document.querySelector('.az-body').innerText.includes('Azure Monitor') && !document.querySelector('.az-body').innerText.includes('Bot Services')`, 'the Filter services box narrows the list');
+  await setValue('input.az-search', 'sentinel');
+  await waitFor(`document.querySelector('.az-result')`, 'search results');
+  await click('result:Microsoft Sentinel');
+  await waitFor(`location.hash === '#/sentinel/analytics'`, 'sentinel opens in the Defender portal');
+  ok(true, 'global search finds Microsoft Sentinel and opens it in the Defender portal');
+  await go('#/azure/services');
+  await waitFor(`document.querySelector('.az-grid')`, 'all services again');
+  await setValue('input.az-search', 'access control');
+  await waitFor(`document.querySelector('.az-result')`, 'iam result');
+  await click('result:Access control (IAM)');
+  await waitFor(`location.hash === '#/azure/iam'`, 'iam opens');
+  ok(true, 'global search opens Access control (IAM)');
 
   ok((await b.strayText('#app, body')) === 0, 'no stray "null"/"undefined" text on the last page');
   ok(b.errors.length === 0, `no console errors or CSP violations (${b.errors.length ? b.errors.join('; ') : 'none'})`);
