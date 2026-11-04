@@ -338,3 +338,20 @@ body.p-defender .labpanel { background: #fafafa; }
 @media (max-width: 900px) { .dh-hero { grid-template-columns: 1fr; } .dh-hero-art { display: none; } .df-icons, .df-avatar { display: none; } .sidenav.df-nav { width: 100%; } }
 .df-search { padding-left: 2.1rem; }
 .df-searchbox::before { left: .7rem; top: 7px; pointer-events: none; }
+
+/* ---- Labs skin: light like the two portals, with the shared header pattern (brand at the left, tabs and badge at the right) ---- */
+body.p-home {
+  --bg: #f5f5f5; --surface: #fff; --text: #242424; --muted: #616161; --border: #e0e0e0;
+  --accent: #0f6cbd; --accent-text: #fff; --top: #3b3a39; --code-bg: #f5f5f5;
+  --ok: #107c10; --ok-bg: #dff6dd; --warn: #8a3c00; --warn-bg: #fff4ce; --err: #a4262c; --err-bg: #fde7e9;
+  color-scheme: light;
+}
+body.p-home .topbar { height: 48px; background: #3b3a39; }
+body.p-home .labpanel { background: #fafafa; }
+body.p-home .brand { font-size: 1.05rem; }
+body.p-home .portal-tabs a { padding: .85rem .8rem; }
+body.p-home .content { background: var(--bg); }
+body.p-home .card { background: #fff; border: 0; border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .18); padding: 1.1rem 1.2rem; }
+body.p-home .card.current { box-shadow: 0 0 0 2px var(--accent), 0 1px 4px rgba(0, 0, 0, .18); }
+body.p-home .card h2 { font-size: 1.15rem; font-weight: 600; }
+body.p-home h1 { font-size: 1.9rem; }
