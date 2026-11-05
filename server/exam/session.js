@@ -7,6 +7,8 @@ import { DOMAINS, DOMAIN_KEYS } from './objectives.js';
 import { buildExam, apportion, TYPE_MIX, MIN_COUNT, MAX_COUNT, DEFAULT_COUNT } from './build.js';
 import { makeItem, publicView, grade, ExamInputError } from './item.js';
 import { ExamAgent } from '../agents/exam-agent.js';
+import { ExamTutor } from '../agents/exam-tutor.js';
+import { refsFor } from './references.js';
 
 /** Share of each domain's quota we ask Claude to write when live generation is on. The rest comes from the bank. */
 const LIVE_SHARE = 0.4;
@@ -14,9 +16,10 @@ const LIVE_SHARE = 0.4;
 const LIVE_BATCH = 4;
 
 export class ExamSession {
-  constructor({ env = process.env, bank = BANK, agent, rand = Math.random } = {}) {
+  constructor({ env = process.env, bank = BANK, agent, tutor, rand = Math.random } = {}) {
     this.bank = bank;
     this.agent = agent ?? new ExamAgent({ env });
+    this.tutor = tutor ?? new ExamTutor({ env });
     this.rand = rand;
     this.seen = new Set(); // bank ids already used in this session, so the next exam prefers new questions
     this.exam = null;
@@ -24,7 +27,7 @@ export class ExamSession {
   }
 
   info() {
-    return { live: this.agent.available, bank: this.bank.length, min: MIN_COUNT, max: MAX_COUNT, count: DEFAULT_COUNT };
+    return { live: this.agent.available, tutor: this.tutor.available, bank: this.bank.length, min: MIN_COUNT, max: MAX_COUNT, count: DEFAULT_COUNT };
   }
 
   async start({ count = DEFAULT_COUNT, includeLive = false } = {}) {
@@ -65,6 +68,7 @@ export class ExamSession {
       if (!questions.length) throw new ExamInputError('No questions are available.');
       for (const q of questions) if (q.source !== 'live') this.seen.add(q.id);
       const id = `x${Math.floor(this.rand() * 1e9).toString(36)}`;
+      this.tutor.reset();
       this.exam = { id, items: questions.map((q) => makeItem(q, this.rand)), notes, startedAt: Date.now() };
       return { examId: id, total: this.exam.items.length, notes, live: extra.length, question: this.question(1) };
     } finally {
@@ -89,11 +93,34 @@ export class ExamSession {
   answer(n, answer) {
     const item = this.#item(n);
     if (item.answered) throw new ExamInputError('This question has already been answered.');
-    const result = grade(item, answer);
+    const result = { ...grade(item, answer), refs: refsFor(item.q) };
     item.answered = true;
     item.answer = answer;
     item.result = result;
     return { n: Number(n), ...result, summary: this.summary() };
+  }
+
+  /** The follow-up chat for an answered question. Refuses before the learner has submitted, so it can never reveal the key early. */
+  #answered(n) {
+    const item = this.#item(n);
+    if (!item.answered) throw new ExamInputError('Submit your answer first, then you can ask about this question.');
+    return item;
+  }
+
+  chat(n) {
+    this.#answered(n);
+    return { available: this.tutor.available, history: this.tutor.history(Number(n)) };
+  }
+
+  async ask(n, message) {
+    const item = this.#answered(n);
+    try {
+      return await this.tutor.ask(Number(n), { q: item.q, item, result: item.result, refs: item.result.refs }, message);
+    } catch (e) {
+      if (e.name === 'TutorInput' || e.name === 'TutorUnavailable') throw new ExamInputError(e.message);
+      // Upstream trouble (timeout, HTTP error, empty reply): say so plainly, keep the chat usable.
+      throw new ExamInputError('The tutor could not answer just now. Try again in a moment, or read the sources below.');
+    }
   }
 
   summary() {

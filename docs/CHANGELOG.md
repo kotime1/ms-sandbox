@@ -12,6 +12,25 @@ One entry per iteration, newest first. **Every iteration must update the docs an
 - **Unchanged guarantees**: key only in the header, `redirect: 'error'`, timeouts, reply size cap, no response body in errors, offline fallback on any failure. `ICA_BASE_URL` must be https or Claude stays off.
 - **Not verified against the real service.** All tests use a mocked `fetch` shaped from the ICA docs (OpenAI-compatible). The docs I saw show the endpoint list, not the request/response schemas, so: confirm `max_tokens` is accepted, that the reply is `choices[0].message.content`, and that the chosen model follows the "reply with ONE JSON array" instruction. The assistant's `/chat-models` endpoint was chosen because the exam writer needs a raw model; the `/assistants` and `/agents` namespaces would add ICA-side behaviour.
 
+## Iteration 9: Sources and an AI tutor under each answer (2026-11-05)
+
+**Summary.** After you submit a practice-exam answer, two cards appear under the explanation: **Sources and references** and **Ask the tutor**. Unit tests 362 -> **383**; new browser scripts `e2e-exam-cards.mjs on|off` (29 + 4 checks).
+
+### Sources
+- 92 Microsoft Learn pages in a curated table (`server/exam/references.js`), mapped to each of the 54 skills-measured bullets. The card shows the pages for the question's skill plus the matching lab. A question written by Claude gets the same pages for its skill and cannot bring its own links; the page only renders `https://learn.microsoft.com/en-us/` links.
+- **I checked the URLs instead of trusting my memory.** `scripts/check-refs.mjs` fetched all 93 I first wrote: 3 were 404 and 11 had moved, three of them to generic pages (the Windows Security Events, Windows Forwarded Events and Azure Activity connector pages no longer exist). All 92 now resolve with no redirects. I then read the real heading of 15 pages and fixed 7 titles that did not match what the page is (for example "email notifications" was actually "alert notifications").
+- **Known gap:** there is no specific page for Windows Security Events via AMA or Windows Event Forwarding, so those skills link to the general "Find your data connector" and "Connect to Azure, Windows, Microsoft services" pages. The Syslog/CEF link is a Syslog-only tutorial. Sources were chosen by skill, not per question, so a question can get a page that is broader than what it tests.
+
+### Tutor
+- `server/agents/exam-tutor.js`. It is refused until the question has been submitted, then sees that one question, the key, the explanation and what the learner chose. Learner text is a user message; the question text is quoted as data, and a Claude-written question is flagged to it as possibly wrong. Per-question history, 12 questions per item, 12 messages a minute, 600 characters a message.
+- Needs ICA (`EXAM_TUTOR_MODEL`, else `EXAM_MODEL`, else `ICA_MODEL`). Without it the card says why and the sources still show.
+- **Tested against the real service with your key** (`scripts/probe-tutor.mjs`): it declined an attempt to print its prompt and the key, explained my deliberately wrong pick accurately, and refused before submitting.
+- **Real-model findings:** (1) replies were **cut off mid-sentence**. This model spends tokens before the visible text (898 tokens for 1297 characters), so a 500 token budget truncated a 100-word answer. Now 1600 tokens, the shared client reports `finish_reason: length`, and a cut-off reply ends at its last full sentence and says so. (2) One call failed once and could not be reproduced (three further 3-turn runs were clean), so it is treated as transient: the learner sees a plain message, keeps their typed text, and the failed turn is not recorded.
+- **Browser check found my own test was half-empty:** the harness ends the process when a run finishes, so the second scenario in my script never ran while the first reported green. Scenarios are now separate runs (`on` and `off`).
+
+### Not done
+- The tutor is a plain chat. It does not search the web or Microsoft Learn, so it can be wrong about product details and says so. Answers are not streamed: a reply takes about 5 to 15 seconds and shows "Thinking…".
+
 ## Iteration 8c: Make ICA actually switch on, and make live questions work at full size (2026-11-05)
 
 **Summary.** With `ICA_API_KEY` and `ICA_MODEL` in `.env`, the assistant still used offline notes and the exam showed no AI option. Unit tests 360 -> **362**.

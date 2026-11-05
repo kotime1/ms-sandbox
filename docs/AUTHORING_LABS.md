@@ -102,6 +102,10 @@ Questions live in `server/exam/bank/*.js` (one default-exported array per file, 
 - Short options that are product names (tables, roles, record types) cannot be padded; the length-spread rule only applies to phrase-length options.
 - Fixing one question changes the bank-level histogram. Run `node scripts/e2e-exam.mjs` for the UI, and `node --test test/exam.test.js` for the rules.
 
+### Sources for exam questions
+
+The Sources card is chosen by the question's `objective` from `OBJECTIVE_REFS` in `server/exam/references.js`; a question can name tighter pages with `refs: ['id', ...]`. Add a page to `CATALOG` (id, the page's own title, path under `learn.microsoft.com/en-us/`), then run `node scripts/check-refs.mjs` (needs the network): it fails on a 404 and reports redirects. A redirect to a generic page means the specific page no longer exists, so pick another. A test requires every skills-measured bullet to have references, every id to resolve, and every catalogue page to be used. Use the page's real title, not a paraphrase.
+
 ## Add a study note for the assistant
 
 `server/knowledge/concepts.js`: original paraphrase (do not paste Microsoft text), with trigger `keys`.

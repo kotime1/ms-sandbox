@@ -14,13 +14,19 @@ import { createApp } from '../server/http/app.js';
 
 const CANDIDATES = [process.env.BROWSER, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].filter(Boolean);
 
-export async function launch() {
+// `env` adds server settings for this run (for example a fake ICA key). `fakeIca(body)` answers calls to the ICA host in place of the
+// real service, so a browser test of the tutor is fast and does not spend tokens; every other request goes through untouched.
+export async function launch({ env = {}, fakeIca } = {}) {
   const browserPath = CANDIDATES.find((p) => existsSync(p));
   if (!browserPath) { console.error('No Chromium-based browser found. Set BROWSER=<path>.'); process.exit(2); }
 
   // The default limit (240 requests a minute per session) is a security control and stays. The long browser scripts play a dozen labs in one
   // session, so they raise it for THIS test server only, through the same RATE_LIMIT override the HTTP rate-limit test uses.
-  const server = http.createServer(createApp({ env: { RATE_LIMIT: '5000' } }));
+  if (fakeIca) {
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, init) => (String(url).startsWith('https://ica.test/') ? fakeIca(JSON.parse(init.body)) : real(url, init));
+  }
+  const server = http.createServer(createApp({ env: { RATE_LIMIT: '5000', ...env } }));
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
   const dbgPort = 9300 + Math.floor(Math.random() * 500);

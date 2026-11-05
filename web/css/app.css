@@ -415,4 +415,21 @@ body.p-exam .blade { border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .18); border
 .exam-blank { margin-bottom: .6rem; }
 .exam-score { font-size: 1.6rem; font-weight: 600; margin: 0 0 .3rem; }
 .exam-missed { list-style: none; padding: 0; display: grid; gap: .4rem; }
+
+/* cards under the explanation: sources and the tutor chat */
+.exam-card-sub { margin-top: 1rem; padding: .9rem 1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.exam-card-sub h4 { margin: 0 0 .5rem; }
+.exam-card-sub p { margin: .4rem 0 0; }
+.exam-sources { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.exam-sources li { line-height: 1.4; }
+.exam-chat-log { display: grid; gap: .5rem; max-height: 22rem; overflow-y: auto; margin: .6rem 0; }
+.exam-chat-log:empty { display: none; }
+.exam-msg { padding: .5rem .75rem; border-radius: 6px; background: var(--bg); line-height: 1.5; max-width: 92%; }
+.exam-msg.you { justify-self: end; background: var(--accent); color: var(--accent-text); }
+.exam-msg.pending { opacity: .7; font-style: italic; }
+.exam-msg-who { display: block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+.exam-msg-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.exam-chat-form { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: end; margin-top: .5rem; }
+.exam-chat-form[hidden] { display: none; }
+.exam-chat-input { resize: vertical; min-height: 2.6rem; }
 @media (max-width: 720px) { .exam-why { padding-left: 0; } .exam-step-text { max-width: 100%; display: block; } .exam-step-btns { float: none; margin-top: .4rem; } }

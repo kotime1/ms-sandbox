@@ -244,13 +244,65 @@ function showResult(el, q, r) {
     el.append(h('div', { class: 'exam-review' }, h('h4', null, 'Each selection'), r.blanks.map((b) => h('div', { class: 'exam-blank' },
       h('strong', null, `Selection ${b.id}: `), b.right ? 'right' : 'wrong', h('ul', null, b.options.map((o) => reviewRow(o.text, o, 'chose')))))));
   }
-  const links = [];
-  if (r.learn) links.push(h('p', { class: 'muted small' }, `Read on Microsoft Learn: ${r.learn}`));
-  if (r.labId) {
-    const lab = ctx.labs.find((l) => l.id === r.labId);
-    if (lab) links.push(h('p', { class: 'small' }, 'Practise this in the sandbox: ', h('a', { href: '#/home' }, lab.title)));
-  }
-  el.append(...links);
+  el.append(sourcesCard(r), tutorCard(q));
+}
+
+// ---- sources: curated Microsoft Learn pages for this question's skill, plus the matching lab -----
+const LEARN = /^https:\/\/learn\.microsoft\.com\/en-us\/[A-Za-z0-9\-_./#?=&%]*$/;
+
+function sourcesCard(r) {
+  const refs = (r.refs ?? []).filter((x) => LEARN.test(x.url)); // only ever link to Microsoft Learn
+  const lab = r.labId ? ctx.labs.find((l) => l.id === r.labId) : null;
+  return h('section', { class: 'exam-card-sub', 'aria-label': 'Sources and references' },
+    h('h4', null, 'Sources and references'),
+    refs.length
+      ? h('ul', { class: 'exam-sources' }, refs.map((x) => h('li', null,
+        h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.title), h('span', { class: 'muted small' }, ' · Microsoft Learn'))))
+      : h('p', { class: 'muted small' }, 'No reference pages are listed for this skill yet.'),
+    lab ? h('p', { class: 'small' }, 'Practise it in the sandbox: ', h('a', { href: '#/home' }, lab.title)) : null,
+    h('p', { class: 'muted small' }, 'Pages are chosen for the skill this question tests. Microsoft Learn is the source of truth for product behaviour.'));
+}
+
+// ---- tutor: a chat about this one question, available once it has been answered ------------------
+function tutorCard(q) {
+  const log = h('div', { class: 'exam-chat-log', role: 'log', 'aria-live': 'polite' });
+  const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
+  const box = h('textarea', { class: 'exam-chat-input', rows: 2, maxlength: 600, 'aria-label': 'Ask a question about this item', placeholder: 'Ask about this question: why is an option wrong, how do two features differ, what should I remember?' });
+  const send = h('button', { class: 'btn primary', type: 'button', 'data-target': 'btn:exam-ask' }, 'Ask');
+  const hint = h('p', { class: 'muted small' }, 'The tutor can see this question, the correct answer, and what you chose. It can be wrong, so check anything that matters against the sources above.');
+  const form = h('div', { class: 'exam-chat-form' }, box, send);
+  const card = h('section', { class: 'exam-card-sub exam-tutor', 'aria-label': 'Ask the tutor' }, h('h4', null, 'Ask the tutor'), hint, log, err, form);
+
+  const line = (who, text) => log.append(h('div', { class: `exam-msg ${who}` }, h('span', { class: 'exam-msg-who' }, who === 'you' ? 'You' : 'Tutor'), h('div', { class: 'exam-msg-text' }, text)));
+  const draw = (history) => { clear(log); for (const m of history) line(m.role === 'user' ? 'you' : 'tutor', m.content); log.scrollTop = log.scrollHeight; };
+  const off = (why) => { form.hidden = true; hint.textContent = why; };
+
+  api.get(`/api/exam/chat/${q.n}`).then((out) => {
+    if (!out.ok) return off(out.error.message);
+    if (!out.data.available) return off('The tutor is off because IBM Consulting Advantage is not configured (ICA_API_KEY and ICA_MODEL). The sources above still work.');
+    draw(out.data.history);
+  });
+
+  const submit = async () => {
+    const text = box.value.trim();
+    if (!text) return;
+    err.hidden = true;
+    send.disabled = true; box.disabled = true;
+    line('you', text);
+    const wait = h('div', { class: 'exam-msg tutor pending' }, h('span', { class: 'exam-msg-who' }, 'Tutor'), h('div', { class: 'exam-msg-text' }, 'Thinking…'));
+    log.append(wait);
+    log.scrollTop = log.scrollHeight;
+    const out = await api.post('/api/exam/ask', { n: q.n, message: text });
+    send.disabled = false; box.disabled = false;
+    if (!out.ok) { wait.remove(); err.textContent = out.error.message; err.hidden = false; log.lastElementChild?.remove(); box.value = text; box.focus(); return; }
+    box.value = '';
+    draw(out.data.history);
+    box.focus();
+  };
+  send.addEventListener('click', submit);
+  // Enter sends; Shift+Enter makes a new line.
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
+  return card;
 }
 
 function reviewRow(text, o, verb) {

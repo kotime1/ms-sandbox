@@ -23,7 +23,10 @@ export function icaConfig(env, modelVar) {
  * @returns the assistant text. Throws an Error named 'UpstreamError' (HTTP failure or empty reply) or a fetch error
  *          such as 'TimeoutError'; callers catch and fall back.
  */
-export async function icaChat({ fetchImpl = globalThis.fetch, cfg, system, messages, maxTokens, timeoutMs }) {
+export async function icaChat(args) { return (await icaChatFull(args)).text; }
+
+/** Like icaChat, but also says whether the model stopped because it ran out of tokens (a cut-off reply). */
+export async function icaChatFull({ fetchImpl = globalThis.fetch, cfg, system, messages, maxTokens, timeoutMs }) {
   const res = await fetchImpl(`${cfg.base}/chat-models/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json', authorization: `Bearer ${cfg.key}` },
@@ -37,8 +40,9 @@ export async function icaChat({ fetchImpl = globalThis.fetch, cfg, system, messa
   });
   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { name: 'UpstreamError', status: res.status });
   const body = await res.json();
-  const content = body?.choices?.[0]?.message?.content;
+  const choice = body?.choices?.[0];
+  const content = choice?.message?.content;
   const text = (typeof content === 'string' ? content : Array.isArray(content) ? content.map((p) => p?.text ?? '').join('') : '').trim();
   if (!text) throw Object.assign(new Error('empty'), { name: 'UpstreamError' });
-  return text.slice(0, MAX_REPLY_BYTES);
+  return { text: text.slice(0, MAX_REPLY_BYTES), truncated: choice?.finish_reason === 'length' };
 }
