@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { createApp } from './http/app.js';
+import { icaConfig } from './core/ica-client.js';
 
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT) || 3000;
@@ -20,7 +21,8 @@ server.maxRequestsPerSocket = 1000;
 
 server.listen(port, host, () => {
   console.log(`ms-sandbox listening on http://${host}:${port}`);
-  console.log(`assistant: ${process.env.ANTHROPIC_API_KEY && process.env.ASSISTANT_PROVIDER !== 'local' ? 'Claude (optional provider enabled)' : 'offline notes (no API key)'}`);
+  const ica = icaConfig(process.env, 'ASSISTANT_MODEL');
+  console.log(`assistant: ${ica.enabled && process.env.ASSISTANT_PROVIDER !== 'local' ? `Claude via IBM Consulting Advantage (${ica.model})` : process.env.ICA_API_KEY ? 'offline notes (ICA key set, but no model: set ICA_MODEL, see scripts/ica-models.mjs)' : 'offline notes (no ICA key)'}`);
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => server.close(() => process.exit(0)));

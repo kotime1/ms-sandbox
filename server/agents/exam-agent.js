@@ -1,20 +1,20 @@
 // exam-agent: writes fresh practice-exam questions with Claude, on request. Optional: it is only available when
-// ANTHROPIC_API_KEY is set (and EXAM_PROVIDER != local). The authored bank in server/exam/bank/ works without it.
+// ICA_API_KEY and a model (EXAM_MODEL or ICA_MODEL) are set (and EXAM_PROVIDER != local). Calls go through IBM Consulting Advantage. The authored bank in server/exam/bank/ works without it.
 //
 // Security properties (same shape as assistant-agent.js):
 //  - The only inputs are enum values chosen by the server (domain key, question types, how many). No text from the
 //    browser reaches the prompt, so there is nothing to inject into.
 //  - The reply is untrusted data: it must be a JSON array, every item goes through validateQuestion() (structure and
 //    answer-shape neutrality), and anything that fails is dropped. Nothing from the model is rendered as HTML.
-//  - The API key is read once from the environment, sent only to api.anthropic.com, and never returned or logged.
+//  - The API key is read once from the environment, sent only to the ICA API (core/ica-client.js), and never returned or logged.
 //    Calls have a timeout and a response size cap.
 //  - Generated questions are labelled source:'live'; the UI tells the learner to verify them on Microsoft Learn.
 
 import { DOMAINS, OBJECTIVES } from '../exam/objectives.js';
 import { validateQuestion } from '../exam/validate.js';
 import { randomToken } from '../core/util.js';
+import { icaConfig, icaChat } from '../core/ica-client.js';
 
-const API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_BODY_CHARS = 60_000;
 const TIMEOUT_MS = 60_000;
 
@@ -85,9 +85,9 @@ function extractJson(text) {
 export class ExamAgent {
   constructor({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
     this.fetch = fetchImpl;
-    this.key = env.ANTHROPIC_API_KEY || '';
-    this.model = env.EXAM_MODEL || 'claude-sonnet-5-5';
-    this.available = Boolean(this.key) && env.EXAM_PROVIDER !== 'local';
+    this.cfg = icaConfig(env, 'EXAM_MODEL');
+    this.model = this.cfg.model;
+    this.available = this.cfg.enabled && env.EXAM_PROVIDER !== 'local';
   }
 
   /**
@@ -113,17 +113,7 @@ export class ExamAgent {
   }
 
   async call(prompt) {
-    const res = await this.fetch(API_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': this.key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: this.model, max_tokens: 8000, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      redirect: 'error',
-    });
-    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { name: 'UpstreamError' });
-    const body = await res.json();
-    const text = body?.content?.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
-    if (!text) throw Object.assign(new Error('empty'), { name: 'UpstreamError' });
+    const text = await icaChat({ fetchImpl: this.fetch, cfg: this.cfg, system: SYSTEM, messages: [{ role: 'user', content: prompt }], maxTokens: 8000, timeoutMs: TIMEOUT_MS });
     return extractJson(text.slice(0, MAX_BODY_CHARS));
   }
 }

@@ -406,7 +406,7 @@ const liveQuestion = (extra = {}) => ({
 });
 const fakeFetch = (reply, seen = []) => async (url, init) => {
   seen.push({ url, init });
-  return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: typeof reply === 'string' ? reply : JSON.stringify(reply) }] }) };
+  return { ok: true, status: 200, json: async () => ({ choices: [{ message: { role: 'assistant', content: typeof reply === 'string' ? reply : JSON.stringify(reply) } }] }) };
 };
 
 test('ExamAgent is unavailable without a key and never calls the network', async () => {
@@ -416,13 +416,15 @@ test('ExamAgent is unavailable without a key and never calls the network', async
   const r = await a.generate('respond', ['single']);
   assert.deepEqual(r.questions, []);
   assert.equal(called, false);
-  assert.equal(new ExamAgent({ env: { ANTHROPIC_API_KEY: 'k', EXAM_PROVIDER: 'local' } }).available, false);
+  assert.equal(new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm', EXAM_PROVIDER: 'local' } }).available, false);
+  assert.equal(new ExamAgent({ env: { ICA_API_KEY: 'k' } }).available, false, 'a key without a model id is not enough');
+  assert.equal(new ExamAgent({ env: { ANTHROPIC_API_KEY: 'k', ICA_MODEL: 'm' } }).available, false, 'the old Anthropic key is no longer used');
 });
 
 test('ExamAgent: keeps valid questions, drops invalid ones, forces domain/source/id, and keeps the key in the header only', async () => {
   const seen = [];
   const bad = liveQuestion({ options: [{ text: 'The device timeline view that shows every event on the device in order', correct: true }, { text: 'Inventory', why: 'Inventory lists installed software.' }, { text: 'Score', why: 'The score summarises risk and nothing else.' }, { text: 'Groups', why: 'Groups define scope and show no events.' }] });
-  const a = new ExamAgent({ env: { ANTHROPIC_API_KEY: 'sk-secret' }, fetchImpl: fakeFetch(`Here you go:\n${JSON.stringify([liveQuestion(), bad, { nonsense: true }, liveQuestion({ domain: 'manage', source: 'bank', id: 'm001' })])}`, seen) });
+  const a = new ExamAgent({ env: { ICA_API_KEY: 'sk-secret', EXAM_MODEL: 'exam-model' }, fetchImpl: fakeFetch(`Here you go:\n${JSON.stringify([liveQuestion(), bad, { nonsense: true }, liveQuestion({ domain: 'manage', source: 'bank', id: 'm001' })])}`, seen) });
   const r = await a.generate('respond', ['single', 'single']);
   assert.ok(r.error === null);
   assert.equal(r.questions.length, 2);
@@ -432,15 +434,15 @@ test('ExamAgent: keeps valid questions, drops invalid ones, forces domain/source
     assert.equal(q.domain, 'respond', 'the model cannot choose the domain');
     assert.match(q.id, /^live-/, 'the model cannot choose the id');
   }
-  assert.equal(seen[0].url, 'https://api.anthropic.com/v1/messages');
-  assert.equal(seen[0].init.headers['x-api-key'], 'sk-secret');
+  assert.equal(seen[0].url, 'https://api.servicesessentials.ibm.com/v1/chat-models/chat/completions');
+  assert.equal(seen[0].init.headers.authorization, 'Bearer sk-secret');
   assert.doesNotMatch(seen[0].init.body, /sk-secret/);
   assert.equal(seen[0].init.redirect, 'error');
-  assert.match(JSON.parse(seen[0].init.body).model, /sonnet/);
+  assert.equal(JSON.parse(seen[0].init.body).model, 'exam-model');
 });
 
 test('ExamAgent: bad JSON, HTTP errors and timeouts return no questions instead of throwing', async () => {
-  const mk = (f) => new ExamAgent({ env: { ANTHROPIC_API_KEY: 'k' }, fetchImpl: f });
+  const mk = (f) => new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: f });
   assert.equal((await mk(fakeFetch('sorry, no json')).generate('hunt', ['single'])).error, 'BadReply');
   assert.equal((await mk(async () => ({ ok: false, status: 500 })).generate('hunt', ['single'])).error, 'UpstreamError');
   assert.equal((await mk(async () => { throw Object.assign(new Error('t'), { name: 'TimeoutError' }); }).generate('hunt', ['single'])).error, 'TimeoutError');
@@ -449,18 +451,19 @@ test('ExamAgent: bad JSON, HTTP errors and timeouts return no questions instead 
 
 test('ExamAgent: only server-chosen enums reach the prompt', async () => {
   const seen = [];
-  const a = new ExamAgent({ env: { ANTHROPIC_API_KEY: 'k' }, fetchImpl: fakeFetch([], seen) });
+  const a = new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: fakeFetch([], seen) });
   assert.equal((await a.generate('not-a-domain', ['single'])).error, 'unavailable');
   await a.generate('hunt', ['single', 'order']);
   const body = JSON.parse(seen[0].init.body);
-  assert.match(body.messages[0].content, /single, order/);
-  assert.match(body.system, /ANSWER-SHAPE RULES/);
+  assert.equal(body.messages[0].role, 'system');
+  assert.match(body.messages[0].content, /ANSWER-SHAPE RULES/);
+  assert.match(body.messages[1].content, /single, order/);
 });
 
 test('ExamSession with live questions: mixes them in, labels them, and reports discards', async () => {
   const good = (i) => liveQuestion({ stem: `Which view helps you see the order of events on device number ${i}?` });
-  const agent = new ExamAgent({ env: { ANTHROPIC_API_KEY: 'k' }, fetchImpl: fakeFetch([good(1), good(2), { nonsense: 1 }]) });
-  const s = new ExamSession({ env: { ANTHROPIC_API_KEY: 'k' }, agent, rand: seeded(21) });
+  const agent = new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: fakeFetch([good(1), good(2), { nonsense: 1 }]) });
+  const s = new ExamSession({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, agent, rand: seeded(21) });
   assert.equal(s.info().live, true);
   const out = await s.start({ count: 20, includeLive: true });
   assert.ok(out.live >= 1);
@@ -473,7 +476,7 @@ test('ExamSession with live questions: mixes them in, labels them, and reports d
 });
 
 test('ExamSession: when Claude fails the exam still starts from the bank', async () => {
-  const agent = new ExamAgent({ env: { ANTHROPIC_API_KEY: 'k' }, fetchImpl: async () => { throw new Error('down'); } });
+  const agent = new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: async () => { throw new Error('down'); } });
   const s = new ExamSession({ env: {}, agent, rand: seeded(8) });
   const out = await s.start({ count: 10, includeLive: true });
   assert.equal(out.total, 10);

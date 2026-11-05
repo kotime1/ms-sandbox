@@ -27,7 +27,7 @@ Open the page, pick a lab, and work through it in the simulated portals. The rig
 |---|---|---|
 | **lab-agent** | Sets up each lab, knows which control comes next, grades the *state* of the environment, serves hints (3 tiers per objective) | [server/agents/lab-agent.js](server/agents/lab-agent.js) |
 | **attack-agent** | Writes synthetic attacker activity (sign-ins, alerts, incidents, Graph calls) into the sandbox. Used by lab setup and the "Replay" buttons. Only runs scenarios the active lab allows | [server/agents/attack-agent.js](server/agents/attack-agent.js) |
-| **assistant-agent** | Answers questions during a lab. Works offline from built-in notes; uses Claude only if you set `ANTHROPIC_API_KEY`. Coaches, does not hand over the answer | [server/agents/assistant-agent.js](server/agents/assistant-agent.js) |
+| **assistant-agent** | Answers questions during a lab. Works offline from built-in notes; uses Claude (through IBM Consulting Advantage) only if you set `ICA_API_KEY` and `ICA_MODEL`. Coaches, does not hand over the answer | [server/agents/assistant-agent.js](server/agents/assistant-agent.js) |
 
 They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)); the "Agent activity" drawer in the coach panel shows it.
 
@@ -74,13 +74,13 @@ The **Practice exam** tab builds an SC-200-style exam on request (10 to 50 quest
 
 - The built-in bank is in [server/exam/bank/](server/exam/bank/): original questions written for this sandbox, plus some adapted from [question_sets/](question_sets/) (those files only record the right answers, so the wrong options are new). Every one of the 54 skills-measured bullets has at least one question.
 - **Answers cannot be guessed from their shape.** The bank refuses to load if a correct answer is distinguishable by length, punctuation, hedging or repeated stem words, and a bank-wide check keeps the correct option's length rank near 25% for each of longest to shortest. Option order is shuffled for every exam.
-- With `ANTHROPIC_API_KEY` set, a checkbox adds freshly written questions (about 40% of the exam). They pass the same checks or are discarded, are labelled "Written by Claude", and can contain mistakes. See [.env.example](.env.example).
+- With IBM Consulting Advantage configured (`ICA_API_KEY` and `ICA_MODEL`), a checkbox adds freshly written questions (about 40% of the exam). They pass the same checks or are discarded, are labelled "Written by Claude", and can contain mistakes. See [.env.example](.env.example).
 - Answers are held on the server for the session. Nothing is stored in the browser, and the answer key is never sent before you submit.
 
 ## Optional: Claude-powered assistant
 
 ```bash
-cp .env.example .env     # add ANTHROPIC_API_KEY=...
+cp .env.example .env     # add ICA_API_KEY=... (then: node --env-file=.env scripts/ica-models.mjs, and set ICA_MODEL)
 node --env-file=.env server/index.js
 ```
 

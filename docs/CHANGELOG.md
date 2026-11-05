@@ -2,6 +2,16 @@
 
 One entry per iteration, newest first. **Every iteration must update the docs and add an entry here.**
 
+## Iteration 8b: Claude through IBM Consulting Advantage instead of the Anthropic API (2026-11-05)
+
+**Summary.** Both Claude-backed features (lab assistant and exam question writer) now call IBM Consulting Advantage (ICA) instead of `api.anthropic.com`. `ANTHROPIC_API_KEY` is no longer read. Unit tests 356 -> **360**.
+
+- **One shared client**, `server/core/ica-client.js`: `POST {ICA_BASE_URL}/chat-models/chat/completions` (default base `https://api.servicesessentials.ibm.com/v1`), `Authorization: Bearer <ICA_API_KEY>`, OpenAI-style body (`messages` with the system prompt first) and reply (`choices[0].message.content`). The two agents no longer carry their own copy of the call.
+- **New env vars**: `ICA_API_KEY`, `ICA_MODEL`, optional `ICA_BASE_URL`, and the existing `ASSISTANT_MODEL` / `EXAM_MODEL` now override `ICA_MODEL` per agent. `*_PROVIDER=local` still forces offline.
+- **No default model.** The ICA docs I was given do not list the Claude model ids, and they are tenant-specific, so none is guessed. A key without a model keeps both agents offline (and the startup line says why). `node --env-file=.env scripts/ica-models.mjs` calls `GET /chat-models/models` and prints the Claude ids your key can use.
+- **Unchanged guarantees**: key only in the header, `redirect: 'error'`, timeouts, reply size cap, no response body in errors, offline fallback on any failure. `ICA_BASE_URL` must be https or Claude stays off.
+- **Not verified against the real service.** All tests use a mocked `fetch` shaped from the ICA docs (OpenAI-compatible). The docs I saw show the endpoint list, not the request/response schemas, so: confirm `max_tokens` is accepted, that the reply is `choices[0].message.content`, and that the chosen model follows the "reply with ONE JSON array" instruction. The assistant's `/chat-models` endpoint was chosen because the exam writer needs a raw model; the `/assistants` and `/agents` namespaces would add ICA-side behaviour.
+
 ## Iteration 8: Practice exam tab (2026-11-05)
 
 **Summary.** A new top-level **Practice exam** tab builds an SC-200-style exam on request: 10 to 50 questions (default 50), four formats, scenario and performance-style items, domain weights from the October 2026 skills-measured list, and an explanation after every submitted question. Unit tests 318 -> **356**; new browser script `scripts/e2e-exam.mjs` (94 checks).
