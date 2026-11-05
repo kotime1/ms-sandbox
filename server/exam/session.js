@@ -10,6 +10,8 @@ import { ExamAgent } from '../agents/exam-agent.js';
 
 /** Share of each domain's quota we ask Claude to write when live generation is on. The rest comes from the bank. */
 const LIVE_SHARE = 0.4;
+/** Questions requested per Claude call. Kept small so a call finishes well inside the timeout. */
+const LIVE_BATCH = 4;
 
 export class ExamSession {
   constructor({ env = process.env, bank = BANK, agent, rand = Math.random } = {}) {
@@ -37,15 +39,25 @@ export class ExamSession {
         if (!this.agent.available) notes.push('Live question writing is not configured, so this exam uses the built-in bank.');
         else {
           const quota = apportion(n, Object.fromEntries(DOMAIN_KEYS.map((d) => [d, DOMAINS[d].target])));
-          const results = await Promise.all(DOMAIN_KEYS.map((d) => {
+          // Many small requests in parallel, not one big one per domain: a model writes ~4 questions in ~45 s, so 8 per
+          // domain in one request ran past the timeout. Each batch fails on its own and the bank fills any gap.
+          const jobs = DOMAIN_KEYS.flatMap((d) => {
             const want = Math.round(quota[d] * LIVE_SHARE);
             const types = Object.entries(apportion(want, TYPE_MIX)).flatMap(([t, k]) => Array(k).fill(t));
-            return this.agent.generate(d, types);
-          }));
+            const batches = [];
+            for (let i = 0; i < types.length; i += LIVE_BATCH) batches.push(types.slice(i, i + LIVE_BATCH));
+            return batches.map((b) => this.agent.generate(d, b));
+          });
+          const results = await Promise.all(jobs);
           extra = results.flatMap((r) => r.questions);
           const rejected = results.reduce((s, r) => s + r.rejected, 0);
-          if (extra.length === 0) notes.push('Claude did not return usable questions, so this exam uses the built-in bank.');
-          else if (rejected) notes.push(`${rejected} generated question(s) were discarded because they did not pass the quality checks.`);
+          const failed = results.filter((r) => r.error).length;
+          const wanted = DOMAIN_KEYS.reduce((s, d) => s + Math.round(quota[d] * LIVE_SHARE), 0);
+          if (extra.length === 0) notes.push(`Claude did not return usable questions${failed ? ` (${failed} of ${results.length} requests failed${results.find((r) => r.error)?.error ? `: ${results.find((r) => r.error).error}` : ''})` : ''}, so this exam uses the built-in bank.`);
+          else {
+            if (extra.length < wanted) notes.push(`Claude wrote ${extra.length} of the ${wanted} questions asked for${failed ? ` (${failed} of ${results.length} requests failed)` : ''}; the built-in bank filled the rest.`);
+            if (rejected) notes.push(`${rejected} generated question(s) were discarded because they did not pass the quality checks.`);
+          }
         }
       }
       const { questions, shortfall } = buildExam({ bank: this.bank, extra, count: n, seen: this.seen, rand: this.rand });

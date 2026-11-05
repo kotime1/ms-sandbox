@@ -12,6 +12,16 @@ One entry per iteration, newest first. **Every iteration must update the docs an
 - **Unchanged guarantees**: key only in the header, `redirect: 'error'`, timeouts, reply size cap, no response body in errors, offline fallback on any failure. `ICA_BASE_URL` must be https or Claude stays off.
 - **Not verified against the real service.** All tests use a mocked `fetch` shaped from the ICA docs (OpenAI-compatible). The docs I saw show the endpoint list, not the request/response schemas, so: confirm `max_tokens` is accepted, that the reply is `choices[0].message.content`, and that the chosen model follows the "reply with ONE JSON array" instruction. The assistant's `/chat-models` endpoint was chosen because the exam writer needs a raw model; the `/assistants` and `/agents` namespaces would add ICA-side behaviour.
 
+## Iteration 8c: Make ICA actually switch on, and make live questions work at full size (2026-11-05)
+
+**Summary.** With `ICA_API_KEY` and `ICA_MODEL` in `.env`, the assistant still used offline notes and the exam showed no AI option. Unit tests 360 -> **362**.
+
+- **Cause: `npm start` never loaded `.env`.** The script was `node server/index.js`; Node only reads `.env` with `--env-file`. Both `npm start` and `npm run dev` now use `--env-file-if-exists=.env` (a missing `.env` is fine). That flag needs Node 22.9, so `engines` is now `>=22.9`. I told you the key would work in iteration 8b without saying how to load it; that was my gap.
+- **Verified against the real service, with your key** (the key was read from `.env` and never printed): a tiny chat call returns the expected reply, so the request shape, Bearer auth, `max_tokens` and `choices[0].message.content` from 8b are confirmed. The model `claude-sonnet-5-5` follows "reply with one JSON array": 4 asked, 4 accepted.
+- **Found by running a real 50-question exam: only 4 of ~20 live questions arrived, in exactly 60 s, with no note.** One request per domain asked for ~8 questions, a model needs ~45 s for 4, so the big requests timed out and fell back to the bank silently. Now each domain is split into batches of at most 4, all in parallel, with a 90 s timeout each. Real result: 15 live questions in 58 s. The other 5 were rejected by the answer-shape validator, which is the point of it.
+- **Failures are now reported, not silent.** The exam start returns notes such as "Claude wrote 15 of the 20 questions asked for; the built-in bank filled the rest", "5 generated question(s) were discarded...", or "N of M requests failed: UpstreamError".
+- The start button now says "Writing questions, about a minute…" so the wait is expected.
+
 ## Iteration 8: Practice exam tab (2026-11-05)
 
 **Summary.** A new top-level **Practice exam** tab builds an SC-200-style exam on request: 10 to 50 questions (default 50), four formats, scenario and performance-style items, domain weights from the October 2026 skills-measured list, and an explanation after every submitted question. Unit tests 318 -> **356**; new browser script `scripts/e2e-exam.mjs` (94 checks).

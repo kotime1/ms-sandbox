@@ -32,7 +32,7 @@ function startScreen(host, sum) {
   const go = h('button', { class: 'btn primary', type: 'button', 'data-target': 'btn:exam-start', onclick: async () => {
     go.disabled = true;
     err.hidden = true;
-    go.textContent = live?.checked ? 'Preparing questions…' : 'Starting…';
+    go.textContent = live?.checked ? 'Writing questions, about a minute…' : 'Starting…';
     const out = await api.post('/api/exam/start', { count: Number(count.value), includeLive: Boolean(live?.checked) });
     go.disabled = false;
     go.textContent = 'Start practice exam';
@@ -58,7 +58,7 @@ function startScreen(host, sum) {
       h('h2', null, 'Start'),
       h('div', { class: 'field' }, h('label', { for: 'exam-count' }, 'Number of questions'), count, h('div', { id: 'exam-count-hint', class: 'hint-text' }, `${info.min} to ${info.max}. The real exam is about 40 to 60 questions.`)),
       info.live
-        ? h('div', { class: 'field' }, h('label', { class: 'toggle', for: 'exam-live' }, live, ' Also have Claude write some fresh questions'), h('div', { class: 'hint-text' }, 'About 40% of the exam is written on request and checked by the same answer-shape rules as the built-in questions. It takes a little longer to prepare, and generated questions can contain mistakes, so confirm anything surprising on Microsoft Learn.'))
+        ? h('div', { class: 'field' }, h('label', { class: 'toggle', for: 'exam-live' }, live, ' Also have Claude write some fresh questions'), h('div', { class: 'hint-text' }, 'About 40% of the exam is written on request and checked by the same answer-shape rules as the built-in questions. Preparing them takes about a minute, and generated questions can contain mistakes, so confirm anything surprising on Microsoft Learn.'))
         : h('p', { class: 'muted small' }, 'Fresh questions written by Claude are available when an Anthropic API key is configured. This session uses the built-in bank.'),
       err, go),
     sum?.answered ? h('p', { class: 'muted small' }, 'Starting a new exam replaces the one in progress.') : null,

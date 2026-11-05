@@ -483,3 +483,34 @@ test('ExamSession: when Claude fails the exam still starts from the bank', async
   assert.equal(out.live, 0);
   assert.match(out.notes.join(' '), /built-in bank/);
 });
+
+test('ExamSession live: asks for small batches in parallel, and reports what Claude did not deliver', async () => {
+  const calls = [];
+  let n = 0;
+  const f = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls.push(body.messages[1].content.match(/Write (\d+) questions for the domain "([^"]+)"/).slice(1));
+    // Every third request fails; the others return one valid question each.
+    if (++n % 3 === 0) return { ok: false, status: 500 };
+    const q = liveQuestion({ stem: `Which view shows the order of events on device number ${n}?` });
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify([q]) } }] }) };
+  };
+  const agent = new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: f });
+  const s = new ExamSession({ env: {}, agent, rand: seeded(31) });
+  const out = await s.start({ count: 50, includeLive: true });
+  assert.ok(calls.length >= 5, `${calls.length} requests`);
+  assert.ok(calls.every(([k]) => Number(k) <= 4), `no request asks for more than 4: ${calls.map((c) => c[0])}`);
+  assert.equal(calls.reduce((a, [k]) => a + Number(k), 0), 20, 'the batches add up to the 40% share of 50');
+  assert.equal(out.total, 50, 'the bank fills any gap');
+  assert.ok(out.live >= 1 && out.live < 20);
+  assert.match(out.notes.join(' '), /wrote \d+ of the 20 questions asked for/);
+  assert.match(out.notes.join(' '), /\d+ of \d+ requests failed/);
+});
+
+test('ExamSession live: when every request fails the note names the failure and the exam still starts', async () => {
+  const agent = new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: async () => ({ ok: false, status: 503 }) });
+  const out = await new ExamSession({ env: {}, agent, rand: seeded(32) }).start({ count: 10, includeLive: true });
+  assert.equal(out.total, 10);
+  assert.equal(out.live, 0);
+  assert.match(out.notes.join(' '), /did not return usable questions \(\d+ of \d+ requests failed: UpstreamError\)/);
+});

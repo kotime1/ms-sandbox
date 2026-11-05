@@ -16,7 +16,7 @@ import { randomToken } from '../core/util.js';
 import { icaConfig, icaChat } from '../core/ica-client.js';
 
 const MAX_BODY_CHARS = 60_000;
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 90_000;
 
 const EXAMPLE = {
   domain: 'respond',

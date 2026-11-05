@@ -81,7 +81,7 @@ The **Practice exam** tab builds an SC-200-style exam on request (10 to 50 quest
 
 ```bash
 cp .env.example .env     # add ICA_API_KEY=... (then: node --env-file=.env scripts/ica-models.mjs, and set ICA_MODEL)
-node --env-file=.env server/index.js
+npm start                 # loads .env automatically (Node 22.9+); `npm run dev` restarts on file changes
 ```
 
 The key is read from the environment only. It is never sent to the browser or logged. The model only sees the lab brief, objectives and hints *you already unlocked*; never the solution. Set `ASSISTANT_PROVIDER=local` to force offline mode.
