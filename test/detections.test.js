@@ -170,3 +170,41 @@ test('alert tuning rules never apply to alerts raised by custom detection rules 
   assert.equal(alert.suppressedBy, null, 'a tuning rule cannot hide it');
   assert.equal(alert.status, 'New');
 });
+
+// --- set 5 Q21: keep the required columns through an aggregation ----------------------------------------------------------------
+
+test('Q21: project after summarize cannot bring back columns the aggregation removed; the error names the column', () => {
+  const s = fresh();
+  const base = 'DeviceLogonEvents | where ActionType == "LogonFailed"';
+  const wrong = perform(s.ctx, 'defender.previewDetection', { query: `${base} | summarize LogonFailures=count() by DeviceId | where LogonFailures > 3 | project Timestamp, DeviceId, ReportId` });
+  assert.equal(wrong.ok, false);
+  assert.match(wrong.error.message, /Failed to resolve scalar expression named 'Timestamp'/);
+});
+
+test('Q21: summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId), count() by DeviceId keeps the required columns AND the count to filter on', () => {
+  const s = fresh();
+  const base = 'DeviceLogonEvents | where ActionType == "LogonFailed"';
+  const ok = perform(s.ctx, 'defender.previewDetection', { query: `${base} | summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId), LogonFailures=count() by DeviceId | where LogonFailures > 3` });
+  assert.ok(ok.ok, ok.error?.message);
+  const cols = ok.data.preview.columns;
+  for (const c of ['Timestamp', 'ReportId', 'DeviceId', 'LogonFailures']) assert.ok(cols.includes(c), c);
+  assert.equal(ok.data.preview.actions.isolateDevice.available, true);
+  assert.equal(ok.data.preview.rowCount, 1, 'the threshold still works: only the attacked device remains');
+});
+
+test('Q21: distinct returns the required columns but removes the count, so the aggregation logic is lost', () => {
+  const s = fresh();
+  const base = 'DeviceLogonEvents | where ActionType == "LogonFailed"';
+  const d = perform(s.ctx, 'defender.previewDetection', { query: `${base} | distinct Timestamp, DeviceId, ReportId` });
+  assert.ok(d.ok);
+  assert.ok(!d.data.preview.columns.includes('LogonFailures'));
+  const filtered = perform(s.ctx, 'defender.previewDetection', { query: `${base} | distinct Timestamp, DeviceId, ReportId | where LogonFailures > 3` });
+  assert.equal(filtered.ok, false, 'there is no count to filter on');
+  assert.match(filtered.error.message, /LogonFailures/);
+});
+
+test('Q21: the arg_max tuple names are only labels; a tuple on a non-arg aggregate is refused', () => {
+  const s = fresh();
+  const bad = perform(s.ctx, 'defender.previewDetection', { query: 'DeviceLogonEvents | summarize (A, B)=count() by DeviceId' });
+  assert.equal(bad.ok, false);
+});

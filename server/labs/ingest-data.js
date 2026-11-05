@@ -14,7 +14,7 @@ export default {
   minutes: 15,
   topics: ['Data connectors', 'Microsoft 365 connector', 'Custom log tables', 'Data collection rules', 'Logs Ingestion API'],
   examObjective: '1.3 Ingest data into the Microsoft Sentinel SIEM and platform',
-  sourceQuestions: { set1: [], set2: [], set3: [11, 13] },
+  sourceQuestions: { set1: [], set2: [], set3: [11, 13], set4: [12], set5: [15] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The connector name and its OfficeActivity table are from the Microsoft Sentinel tables-and-connectors reference, and the order of Logs Ingestion API setup (table first, then the DCR; _CL suffix; Custom- stream) is from the Azure Monitor Logs Ingestion API page, both checked 2026-11-02. That Defender for Office 365 does not carry SharePoint audit events is from the practice question. The screens, the app registration and the data collection endpoint are simplified or not modelled.' },
   scenarios: [],

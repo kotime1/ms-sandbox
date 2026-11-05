@@ -11,8 +11,11 @@ import { asiCanRun } from '../sim/world.js';
 import { KINDS, SEVERITIES, MIN_MINUTES, NRT_FIXED, describeKind } from '../sim/analytics.js';
 import { CAPABILITIES, ASR_RULES, MODES, PLATFORMS } from '../sim/security-policies.js';
 import { TEMPLATES } from '../sim/workbooks.js';
-import { CATALOGUE, COLUMN_TYPES } from '../sim/ingestion.js';
+import { CATALOGUE, COLUMN_TYPES, pickerMachines } from '../sim/ingestion.js';
 import { RECORD_TYPES, canSearchAudit } from '../sim/audit.js';
+import { TAGS as TA_TAGS, REPORT_TYPES as TA_REPORT_TYPES } from '../sim/ta-notifications.js';
+import { assess as assessDisruption, PRODUCTS as DIS_PRODUCTS, LEVELS as DIS_LEVELS } from '../sim/disruption.js';
+import { ACTIONS as ID_ACTIONS, REPORTS as ID_REPORTS, REPORT_PATH, unavailableReason, canAuthenticate } from '../sim/identity.js';
 import { canManageSecuritySettings, isGlobalAdmin, SEVERITIES as ALERT_SEVERITIES } from '../sim/notifications.js';
 
 const iso = (ms) => new Date(ms).toISOString();
@@ -117,6 +120,9 @@ const notifications = (w) => ({
   isGlobalAdmin: isGlobalAdmin(w.directory.users.find((u) => u.id === w.directory.actorId)),
   severities: ALERT_SEVERITIES,
   deviceGroups: w.defender.deviceGroups.filter((g) => g.id !== 'grp-all').map((g) => ({ id: g.id, name: g.name })),
+  kindRules: w.defender.kindRules.map((r) => ({ id: r.id, kind: r.kind, name: r.name, description: r.description, enabled: r.enabled, recipients: r.recipients, scope: r.scope })),
+  taReports: w.defender.taReports.map((r) => ({ id: r.id, title: r.title, type: r.type, tags: r.tags })),
+  taOptions: { tags: TA_TAGS, reportTypes: TA_REPORT_TYPES },
   rules: w.defender.notificationRules.map((r) => ({ id: r.id, name: r.name, allDevices: r.allDevices, deviceGroups: r.deviceGroups, severities: r.severities, recipients: r.recipients, enabled: r.enabled })),
   outbox: w.defender.outbox.slice(-40).map((m) => ({ id: m.id, to: m.to, title: m.title, severity: m.severity, device: m.device, at: iso(m.at) })).reverse(),
 });
@@ -152,6 +158,10 @@ const ingestion = (w) => ({
   }),
   other: w.sentinel.connectors.filter((x) => !CATALOGUE.some((c) => c.id === x.id)).map((x) => ({ id: x.id, name: x.name, status: x.status, tables: x.tables })),
   columnTypes: COLUMN_TYPES,
+  machines: w.sentinel.machines.map((m) => ({ name: m.name, kind: m.kind, arc: m.kind === 'Azure VM' ? null : Boolean(m.arc), collecting: Boolean(m.collecting) })),
+  picker: pickerMachines(w.sentinel.machines).map((m) => m.name),
+  workspaceLocation: w.sentinel.workspaceLocation,
+  forwarders: w.sentinel.forwarders.map((f) => ({ name: f.name, os: f.os, daemon: f.daemon })),
   tables: w.sentinel.customTables.map((t) => ({ name: t.name, columns: w.tables.get(t.name).columns.map((c) => ({ name: c.name, type: c.type })), rows: w.tables.get(t.name).rows.length })),
   dcrs: w.sentinel.dcrs.map((d) => ({ id: d.id, name: d.name, table: d.table, stream: d.stream, columns: d.columns.map((c) => ({ ...c })) })),
 });
@@ -176,6 +186,30 @@ const defenderHome = (w) => {
     devices: { total: w.defender.devices.length, pending: w.defender.devices.filter((d) => d.onboarding !== 'Approved').length },
     connectors: { connected: w.sentinel.connectors.filter((c) => c.status === 'Connected').length, total: w.sentinel.connectors.length },
     workbooks: w.sentinel.workbooks.length,
+  };
+};
+
+// Defender for Identity: accounts with the actions available to each (and why one is not), alerts, the report catalogue.
+// Report rows are never sent: the learner reads them only by downloading a report for a period.
+const identity = (w) => ({
+  reportPath: REPORT_PATH,
+  reports: ID_REPORTS.map((r) => ({ id: r.id, name: r.name, about: r.about })),
+  accounts: w.identity.accounts.map((a) => ({
+    id: a.id, name: a.name, source: a.source, enabled: a.enabled, mustChangePassword: a.mustChangePassword, sessions: a.sessions, flaggedCompromised: a.flaggedCompromised,
+    canAuthenticate: canAuthenticate(a),
+    actions: ID_ACTIONS.map((x) => ({ action: x, unavailable: unavailableReason(x, a.source) })),
+  })),
+  alerts: w.identity.alerts.map((x) => ({ id: x.id, title: x.title, account: x.account, severity: x.severity, reportDownloaded: Boolean(x.reportDownloaded) })),
+});
+
+// Settings > Microsoft Defender XDR > Automatic attack disruption: the posture and what it currently allows (with the reason for each gap).
+const disruption = (w) => {
+  const a = assessDisruption(w.disruption);
+  return {
+    deployed: { ...w.disruption.deployed }, discovery: w.disruption.discovery, groups: w.disruption.groups.map((g) => ({ ...g })),
+    mdiSensorOnDc: w.disruption.mdiSensorOnDc, mdiAuditing: w.disruption.mdiAuditing, actionAccountOk: w.disruption.actionAccountOk, mdaOfficeConnector: w.disruption.mdaOfficeConnector,
+    products: Object.entries(DIS_PRODUCTS).map(([id, p]) => ({ id, label: p.label })), levels: DIS_LEVELS,
+    can: a.can, cannot: a.cannot,
   };
 };
 
@@ -227,6 +261,8 @@ export const VIEWS = {
   defender,
   'defender-files': defenderFiles,
   notifications,
+  disruption,
+  identity,
   'defender-home': defenderHome,
   audit,
   ingestion,

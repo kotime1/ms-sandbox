@@ -33,7 +33,7 @@ export const SECTIONS = [
       { id: 'sentinel/summary', label: 'Configuration > Summary rules' },
     ],
   },
-  { title: 'Identities', icon: '▣', items: [] },
+  { title: 'Identities', icon: '▣', items: [{ id: 'defender/identities', label: 'Identities and reports' }] },
   { title: 'Endpoints', icon: '▭', items: [] },
   { title: 'Email & collaboration', icon: '✉', items: [] },
   { title: 'Cloud apps', icon: '☁', items: [] },
@@ -51,6 +51,7 @@ export const LINKS = [
   { label: 'Learning hub', icon: '☺' },
   { label: 'Trials', icon: '✦' },
   { id: 'defender/rules', label: 'System > Settings', icon: '⚙', aliases: [] },
+  { id: 'defender/disruption', label: 'Settings > Attack disruption', icon: '⛨', aliases: [] },
 ];
 
 export const AZURE = {

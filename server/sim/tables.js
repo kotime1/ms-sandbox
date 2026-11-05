@@ -19,6 +19,7 @@ export const SCHEMAS = {
   DeviceEvents: [T('Timestamp', 'datetime'), T('ReportId', 'long'), T('DeviceId'), T('DeviceName'), T('OSPlatform'), T('ActionType'), T('InitiatingProcessFileName'), T('InitiatingProcessCommandLine'), T('InitiatingProcessAccountUpn'), T('AdditionalFields', 'dynamic')],
   BehaviorInfo: [T('Timestamp', 'datetime'), T('BehaviorId'), T('Title'), T('Description'), T('Categories')],
   BehaviorEntities: [T('Timestamp', 'datetime'), T('BehaviorId'), T('EntityType'), T('AccountUpn'), T('RemoteIP'), T('DeviceName')],
+  CommonSecurityLog: [T('TimeGenerated', 'datetime'), T('DeviceVendor'), T('DeviceProduct'), T('Activity'), T('SourceIP'), T('DestinationIP'), T('LogSeverity')],
   OfficeActivity: [T('TimeGenerated', 'datetime'), T('OfficeWorkload'), T('Operation'), T('UserId'), T('ClientIP'), T('OfficeObjectId'), T('SiteUrl')],
   EmailEvents: [T('Timestamp', 'datetime'), T('NetworkMessageId'), T('SenderFromAddress'), T('RecipientEmailAddress'), T('Subject'), T('ThreatTypes'), T('DeliveryAction')],
   NetworkSessions_CL: [T('TimeGenerated', 'datetime'), T('SourceIP'), T('DestinationIP'), T('DestinationPort', 'long'), T('Bytes', 'long'), T('Action')],
@@ -29,7 +30,7 @@ export const SCHEMAS = {
  * The UEBA behaviour tables live in Advanced hunting (the exam question asks about it there).
  */
 export const SURFACES = {
-  sentinel: ['SigninLogs', 'AuditLogs', 'SecurityAlert', 'SecurityIncident', 'AzureActivity', 'MicrosoftGraphActivityLogs', 'NetworkSessions_CL', 'OfficeActivity'],
+  sentinel: ['SigninLogs', 'AuditLogs', 'SecurityAlert', 'SecurityIncident', 'AzureActivity', 'MicrosoftGraphActivityLogs', 'NetworkSessions_CL', 'OfficeActivity', 'CommonSecurityLog'],
   defender: ['DeviceLogonEvents', 'DeviceEvents', 'BehaviorInfo', 'BehaviorEntities', 'EmailEvents'],
 };
 
@@ -43,7 +44,7 @@ export const ALL_QUERYABLE = [...SURFACES.sentinel, ...SURFACES.defender];
 export const tableSource = (name) => (SURFACES.defender.includes(name) ? 'Microsoft Defender XDR' : 'Microsoft Sentinel');
 
 /** Tables a lab must opt into (so the schema browser stays uncluttered). Hidden from `/api/view/schema-*` until enabled. */
-export const OPTIONAL_TABLES = new Set(['NetworkSessions_CL', 'BehaviorInfo', 'BehaviorEntities', 'DeviceEvents', 'OfficeActivity', 'EmailEvents']);
+export const OPTIONAL_TABLES = new Set(['NetworkSessions_CL', 'BehaviorInfo', 'BehaviorEntities', 'DeviceEvents', 'OfficeActivity', 'EmailEvents', 'CommonSecurityLog']);
 
 export const USERS = [
   'alex.rivera', 'priya.shah', 'jordan.lee', 'sam.okafor', 'mei.tan', 'chris.novak',

@@ -7,7 +7,7 @@
 | Field | Purpose |
 |---|---|
 | `id, title, level, minutes, topics, examObjective` | Catalogue card |
-| `sourceQuestions` | `{ set1: [n...], set2: [n...], set3: [n...] }`. Numbers are per question set (the sets overlap, so a bare number would be ambiguous). A new question file needs its key added here, to `SETS` in `scripts/coverage.mjs`, and to every lab. `node scripts/coverage.mjs` turns these into `docs/COVERAGE.md`; a test fails if you forget |
+| `sourceQuestions` | `{ set1: [n...], ..., setN: [n...] }` (one key per file in `question_sets/`). Numbers are per question set (the sets overlap, so a bare number would be ambiguous). A new question file needs its key added to every lab and to `SETS` in `scripts/coverage.mjs`; the tests read `question_sets/` themselves, so a lab missing the key fails. `node scripts/coverage.mjs` turns these into `docs/COVERAGE.md`; a test fails if you forget |
 | `verification` | **Required.** `{ level: 'docs' | 'partial' | 'exam', note }`. Be honest: `docs` = checked against Microsoft Learn, `partial` = right idea but simplified, `exam` = only from a practice question (shown as *Unverified*). Never claim a live-tenant check. A test enforces this |
 | `answers` | Optional `[{ id, label, placeholder }]`: fields the learner types a finding into (see *Investigation labs*) |
 | `brief` | Scenario text. State the *requirements*, not the answer |
@@ -96,3 +96,7 @@ Pages re-render after many actions (`ctx.reloadPage()` shows "Loading…" first)
 - When a step needs several controls (set a window, tick boxes, fill and submit), do the find-and-act in **one** `evalJs` and retry until it returns true (see `untilTrue` in `e2e-labs3.mjs`).
 - Use `okSoon(expr, message)` for assertions on page content that appears after an action. A one-shot read races the re-render.
 - Never pass a regular expression through a shell heredoc or a JS template literal: backslashes are silently dropped (`s` becomes `s`). Write the script with the Write tool.
+
+## Tracking your progress
+
+`node scripts/progress.mjs` reads the answer markers in `question_sets/` and prints, for each set, how many you got fully right, how many were new to you versus repeats, how many of the repeats you had missed before are now right, and the questions still wrong on the latest attempt (with the lab for each). A question is fully correct only if every answer you gave is marked correct. Use it to refresh `sc200-study-guide.md` after adding a set.

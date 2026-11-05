@@ -10,6 +10,8 @@ import { SimError } from './world-errors.js';
 export const CATALOGUE = Object.freeze([
   { id: 'm365', name: 'Microsoft 365 (formerly, Office 365)', blurb: 'Audit activity from Exchange Online, SharePoint Online and Microsoft Teams.', tables: ['OfficeActivity'], apps: ['Exchange', 'SharePoint', 'Teams'] },
   { id: 'mdo', name: 'Microsoft Defender for Office 365', blurb: 'Email threat protection alerts and email events: phishing, malware and Safe Links verdicts. Not the Exchange, SharePoint or Teams audit log.', tables: ['EmailEvents'], apps: [] },
+  { id: 'entra-protect', name: 'Microsoft Entra ID Protection', blurb: 'Risk detections and risky-user alerts from Microsoft Entra ID Protection.', tables: ['SecurityAlert'], apps: [] },
+  { id: 'cef', name: 'Common Event Format (CEF) via AMA', blurb: 'CEF messages from network and security appliances, collected by the Azure Monitor Agent on a Linux log forwarder.', tables: ['CommonSecurityLog'], apps: [], needsForwarder: true },
   { id: 'entra', name: 'Microsoft Entra ID', blurb: 'Sign-in and audit logs.', tables: ['SigninLogs', 'AuditLogs'], apps: [] },
 ]);
 const BY_ID = new Map(CATALOGUE.map((c) => [c.id, c]));
@@ -22,8 +24,28 @@ const NAME = /^[A-Za-z][A-Za-z0-9_]{0,44}$/;
 const RESERVED = new Set(['_resourceid', 'id', '_subscriptionid', 'tenantid', 'type', 'uniqueid', 'title']);
 
 /** Connect a connector, optionally with a subset of apps. Returns the data the sandbox should now receive. */
-export function connect(connector, { apps }) {
+export const FORWARDER_OS = ['Linux', 'Windows'];
+export const MAX_FORWARDERS = 5;
+
+/**
+ * A log forwarder: the machine network devices send their CEF/Syslog messages to. Source (checked 2026-11-04):
+ * learn.microsoft.com/azure/sentinel/connect-cef-syslog-ama - "You must have a designated Linux VM as a log forwarder"; the forwarder
+ * needs rsyslog or syslog-ng, Python, and (if it is not an Azure VM) the Azure Arc Connected Machine agent.
+ */
+export function buildForwarder(p, { existing }) {
+  if (existing.length >= MAX_FORWARDERS) throw new SimError(`You can have at most ${MAX_FORWARDERS} log forwarders in the sandbox.`);
+  if (existing.some((f) => f.name.toLowerCase() === p.name.toLowerCase())) throw new SimError(`A machine named '${p.name}' already exists.`);
+  if (p.os !== 'Linux') {
+    throw new SimError(`A Windows machine cannot be a CEF/Syslog log forwarder. The forwarder runs a syslog daemon (rsyslog or syslog-ng), so it must be a Linux machine.`);
+  }
+  return { name: p.name, os: 'Linux', daemon: 'rsyslog', arc: !p.azureVm };
+}
+
+export function connect(connector, { apps, forwarders = [] }) {
   if (!connector) throw new SimError('Connector not found', 'NotFound');
+  if (connector.needsForwarder && !forwarders.some((f) => f.os === 'Linux')) {
+    throw new SimError(`${connector.name} collects messages through a Linux log forwarder, and there is none yet. Deploy a Linux machine to receive the CEF messages first, then connect.`);
+  }
   if (connector.apps.length) {
     const chosen = [...new Set(apps)];
     if (!chosen.length) throw new SimError(`Select at least one of: ${connector.apps.join(', ')}.`);
@@ -101,4 +123,40 @@ export function ingest(dcr, records, table) {
     rows.push(row);
   }
   return rows;
+}
+
+// ---- Azure Monitor Agent collection: which machines can a data collection rule target? ---------------------------------------------
+// Source (checked 2026-11-04): learn.microsoft.com/azure/sentinel/connect-services-windows-based
+//   "To collect events from any system that is not an Azure virtual machine, the system must have Azure Arc installed and enabled BEFORE you
+//    enable the Azure Monitor Agent-based connector" (Windows servers on physical machines, on-premises VMs, VMs in non-Azure clouds).
+//   The DCR Resources picker lists "Azure virtual machines and Azure Arc-enabled servers". The DCR itself may sit in any resource group or
+//   subscription, as long as it is in the same tenant.
+export const MACHINE_KINDS = ['Azure VM', 'On-premises'];
+export const MAX_MACHINES = 60;
+
+/** The machines a DCR's Resources picker offers: Azure VMs always, anything else only once Arc-enabled. */
+export const pickerMachines = (machines) => machines.filter((m) => m.kind === 'Azure VM' || m.arc);
+
+/** Install the Azure Connected Machine agent (Azure Arc) on a non-Azure machine. */
+export function enableArc(machine) {
+  if (!machine) throw new SimError('Machine not found', 'NotFound');
+  if (machine.kind === 'Azure VM') throw new SimError(`${machine.name} is an Azure virtual machine: it is already an Azure resource and needs no Azure Arc agent.`);
+  if (machine.arc) throw new SimError(`${machine.name} is already Azure Arc-enabled.`);
+  return { ...machine, arc: true };
+}
+
+/** Apply a data collection rule to machines. Returns the machines now collecting. */
+export function applyCollectionRule(p, { machines, dcrLocation, workspaceLocation }) {
+  if (!p.machineNames.length) throw new SimError('Select at least one machine.');
+  const offered = new Map(pickerMachines(machines).map((m) => [m.name, m]));
+  const missing = p.machineNames.find((n) => !offered.has(n));
+  if (missing) {
+    const exists = machines.some((m) => m.name === missing);
+    throw new SimError(exists
+      ? `${missing} is not in the resource picker. A machine that is not an Azure virtual machine must be Azure Arc-enabled (the Azure Connected Machine agent installed) before a data collection rule can target it.`
+      : `${missing} is not a machine in this environment.`);
+  }
+  // The DCR can live in a different resource group or subscription than the machines; the location must match the workspace.
+  if (dcrLocation !== workspaceLocation) throw new SimError(`The data collection rule must be in the same region as the Log Analytics workspace (${workspaceLocation}).`);
+  return [...new Set(p.machineNames)].map((n) => offered.get(n).name);
 }

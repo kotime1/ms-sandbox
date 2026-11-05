@@ -19,12 +19,17 @@ import asrRules from './asr-rules.js';
 import workbooksLab from './workbooks.js';
 import ingestData from './ingest-data.js';
 import auditLog from './audit-log.js';
+import threatAnalyticsNotify from './threat-analytics-notify.js';
+import cefAndTables from './cef-and-tables.js';
+import identityResponse from './identity-response.js';
+import attackDisruption from './attack-disruption.js';
+import arcServers from './arc-servers.js';
 
 // Ordered easiest to hardest within each area so the catalogue reads as a learning path.
 export const LABS = [
   suppressApp1, unblockLob1, approveDevices, sentinelRbac, huntingFavorites,
   playbookPermissions, playbookPicker, entityMapping, detectAndIsolate, kqlInvestigation, uebaJoin, summaryRule, triageWs23,
-  followTheToken, troubleshootingMode, nrtRule, emailNotifications, asrRules, workbooksLab, ingestData, auditLog,
+  followTheToken, troubleshootingMode, nrtRule, emailNotifications, asrRules, workbooksLab, ingestData, auditLog, threatAnalyticsNotify, cefAndTables, identityResponse, attackDisruption, arcServers,
 ];
 const BY_ID = new Map(LABS.map((l) => [l.id, l]));
 export const getLab = (id) => (typeof id === 'string' ? BY_ID.get(id) ?? null : null);

@@ -10,7 +10,7 @@ Requires Node.js 22+ (developed on 24). There are **no dependencies to install**
 
 ```bash
 npm start            # http://127.0.0.1:3000
-npm test                         # 248 unit, integration and security tests
+npm test                         # 318 unit, integration and security tests
 node scripts/e2e.mjs             # plays iteration-1 labs through the real UI in headless Edge/Chrome (optional)
 node scripts/e2e-labs2.mjs       # plays the iteration-2 labs the same way (optional)
 node scripts/e2e-wizards.mjs     # drives the custom detection wizard and the automation rule panel (optional)
@@ -33,7 +33,7 @@ They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)
 
 ## Labs
 
-21 labs, inspired by (not copies of) the practice questions in [question_sets/](question_sets/). The three sets overlap heavily (27 of set 2's and 36 of set 3's 50 questions repeat an earlier set word for word), so one lab usually serves several questions. **[docs/COVERAGE.md](docs/COVERAGE.md) maps every question to a lab and lists what is still missing.**
+26 labs, inspired by (not copies of) the practice questions in [question_sets/](question_sets/). The three sets overlap heavily (27 of set 2's and 36 of set 3's 50 questions repeat an earlier set word for word), so one lab usually serves several questions. **[docs/COVERAGE.md](docs/COVERAGE.md) maps every question to a lab and lists what is still missing.**
 
 | Lab | Level | Practices |
 |---|---|---|
@@ -58,6 +58,11 @@ They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)
 | Build the SOC manager a workbook | Beginner | Workbook templates, clone, Workbook Contributor |
 | Bring SharePoint and a factory app into Sentinel | Intermediate | Microsoft 365 connector, custom table first, data collection rules |
 | Search the audit log, keep it for a year | Intermediate | Purview Audit (Standard vs Premium), record types, who can search |
+| Get told when a new threat report lands | Beginner | Threat analytics notification rules vs alert and vulnerability rules |
+| Firewall logs in, and where did Entra ID Protection go? | Intermediate | CEF via AMA, Linux log forwarder, which table a connector writes to |
+| Stop a stolen service account, then find who changed Enterprise Admins | Intermediate | Defender for Identity actions per identity source, identity reports |
+| Contain the device and disable the account, automatically | Intermediate | Automatic attack disruption and its prerequisites |
+| Why are my on-premises servers missing from the picker? | Beginner | Azure Arc, Azure Monitor Agent, data collection rule picker |
 
 Each lab shows a **verification level**: *Matches Microsoft Learn*, *Simplified vs Learn*, or *Unverified* (comes from a practice question only). Nothing has been checked against a live tenant; see [docs/FIDELITY.md](docs/FIDELITY.md).
 
@@ -91,8 +96,8 @@ Every iteration must update the docs and add an entry to [docs/CHANGELOG.md](doc
 server/  core/ (bus, session, validation)   sim/ (world, actions, KQL engine, RBAC, tables)
          agents/  attacks/  labs/  knowledge/  http/
 web/     index.html  css/  js/ (dom, api, main, pages/, components/)
-test/    kql, labs, labs2 (trap paths), automation, detections, workbooks, ingestion, audit, http (security), web-static (front-end guardrails)
+test/    kql, labs, labs2 (trap paths), automation, detections, workbooks, ingestion, audit, ta-notifications, cef, identity, disruption, arc, http (security), web-static (front-end guardrails)
 scripts/ e2e-lib.mjs  e2e.mjs  e2e-labs2.mjs  e2e-labs3.mjs  e2e-wizards.mjs  coverage.mjs  screenshot.mjs
-question_sets/  set1.txt  set2.txt  set3.txt   (the source practice questions)
+question_sets/  set1.txt ... set5.txt   (the source practice questions)
 docs/
 ```

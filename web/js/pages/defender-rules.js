@@ -9,6 +9,7 @@
 import { h, badge, sev, fmtTime } from '../dom.js';
 import { openDetectionWizard } from '../components/detection-wizard.js';
 import { notificationSection } from '../components/notification-rules.js';
+import { kindNotificationSection } from '../components/ta-notifications.js';
 import { securityPolicySection } from '../components/security-policies.js';
 import { table } from '../components/table.js';
 import { modal, field } from '../components/modal.js';
@@ -63,6 +64,7 @@ export async function render(host) {
 
     // ---- Endpoints > General > Email notifications
     notificationSection(n),
+    kindNotificationSection(n),
 
     // ---- Custom detection rules
     h('section', { class: 'blade' },

@@ -14,6 +14,8 @@ export async function render(host) {
     h('p', { class: 'muted' }, 'Real path: Microsoft Sentinel > Configuration > Data connectors. Pick the connector that carries the data you need; connecting it makes its tables appear in Advanced hunting.'),
     h('div', { class: 'cards' }, v.catalogue.map(card)),
     v.other.length ? h('div', null, h('h3', null, 'Other connectors'), table([{ key: 'name', label: 'Connector' }, { key: 'status', label: 'Status', render: (c) => badge(c.status, c.status === 'Connected' ? 'ok' : '') }, { key: 'tables', label: 'Tables', render: (c) => c.tables.join(', ') || 'none' }], v.other)) : null,
+    machineSection(v),
+    forwarderSection(v),
     ingestionSection(v));
 }
 
@@ -40,6 +42,63 @@ function openConnector(c) {
         x.close(); ctx.toast(`${c.name} connected`, 'ok'); await ctx.reloadPage();
       } },
     ],
+  });
+}
+
+// ---- Windows Security Events via AMA: which machines can a data collection rule target? (learn.microsoft.com/azure/sentinel/connect-services-windows-based)
+function machineSection(v) {
+  if (!v.machines.length) return null;
+  return h('section', { class: 'blade' },
+    h('h2', null, 'Windows Security Events via AMA'),
+    h('p', { class: 'muted small' }, `A data collection rule can target Azure virtual machines and Azure Arc-enabled servers only. (The sandbox shows ${v.machines.length} machines instead of a full fleet.)`),
+    table([
+      { key: 'name', label: 'Machine' }, { key: 'kind', label: 'Where it runs' },
+      { key: 'arc', label: 'Azure Arc', render: (m) => (m.arc === null ? 'Not needed (Azure VM)' : badge(m.arc ? 'Arc-enabled' : 'Not Arc-enabled', m.arc ? 'ok' : 'warn')) },
+      { key: 'collecting', label: 'Collecting', render: (m) => (m.collecting ? badge('Yes', 'ok') : 'No') },
+      { key: 'id', label: '', render: (m) => (m.arc === false ? h('button', { class: 'btn small', type: 'button', 'data-target': `btn:install-arc:${m.name}`, onclick: async () => {
+        const o = await ctx.act('sentinel.enableArc', { machine: m.name }, { silentError: true });
+        if (!o.ok) ctx.toast(o.error.message, 'err'); else { ctx.toast(`Azure Connected Machine agent installed on ${m.name}`, 'ok'); await ctx.reloadPage(); }
+      } }, 'Install Azure Connected Machine agent') : null) },
+    ], v.machines, { rowTarget: (m) => `row:machine:${m.name}` }),
+    h('div', { class: 'toolbar' }, h('button', { class: 'btn primary', type: 'button', 'data-target': 'btn:add-dcr-machines', onclick: () => pickMachines(v) }, '+ Add data collection rule')));
+}
+
+function pickMachines(v) {
+  const boxes = v.picker.map((n) => h('label', { class: 'toggle' }, h('input', { type: 'checkbox', value: n, 'data-target': `check:machine:${n}` }), ` ${n}`));
+  const region = h('select', { 'aria-label': 'Region' }, ['eastus', 'westus', 'westeurope'].map((r) => h('option', { value: r, selected: r === v.workspaceLocation }, r)));
+  modal({
+    title: 'Create data collection rule', wide: true,
+    content: [h('p', { class: 'muted small' }, 'Resources: the picker lists Azure virtual machines and Azure Arc-enabled servers.'), h('div', { class: 'field' }, h('label', null, 'Select machines'), h('div', { class: 'col' }, boxes.length ? boxes : h('em', null, 'No machines available'))), field('Region', region, `The rule must be in the same region as the workspace (${v.workspaceLocation}).`)],
+    buttons: [{ label: 'Cancel', onClick: (x) => x.close() },
+      { label: 'Create', primary: true, target: 'btn:save-dcr-machines', onClick: async (x) => {
+        const names = boxes.map((b) => b.querySelector('input')).filter((i) => i.checked).map((i) => i.value);
+        const o = await ctx.act('sentinel.applyCollectionRule', { machineNames: names, location: region.value }, { silentError: true });
+        if (!o.ok) { x.setError(o.error.message); return; }
+        x.close(); ctx.toast(`Collecting from ${o.data.collecting.length} machine(s)`, 'ok'); await ctx.reloadPage();
+      } }],
+  });
+}
+
+// ---- Log forwarders: where network devices send CEF / Syslog messages (learn.microsoft.com/azure/sentinel/connect-cef-syslog-ama)
+function forwarderSection(v) {
+  return h('section', { class: 'blade' },
+    h('h2', null, 'Log forwarders'),
+    h('p', { class: 'muted small' }, 'Network and security devices send CEF or Syslog messages to a forwarder, and the Azure Monitor Agent on it sends them on to Sentinel. The Common Event Format (CEF) via AMA connector needs one first.'),
+    h('div', { class: 'toolbar' }, h('button', { class: 'btn', type: 'button', 'data-target': 'btn:deploy-forwarder', onclick: () => deployForwarder() }, '+ Deploy a log forwarder')),
+    table([{ key: 'name', label: 'Machine' }, { key: 'os', label: 'Operating system' }, { key: 'daemon', label: 'Syslog daemon' }], v.forwarders, { empty: 'No log forwarders.' }));
+}
+
+function deployForwarder() {
+  const name = h('input', { type: 'text', maxlength: '40', placeholder: 'cef-forwarder-01', 'aria-label': 'Machine name' });
+  const os = h('select', { 'aria-label': 'Operating system' }, ['Linux', 'Windows'].map((o) => h('option', { value: o }, o)));
+  modal({
+    title: 'Deploy a log forwarder', content: [field('Machine name', name), field('Operating system', os, 'The forwarder runs a syslog daemon (rsyslog or syslog-ng).')],
+    buttons: [{ label: 'Cancel', onClick: (x) => x.close() },
+      { label: 'Deploy', primary: true, target: 'btn:save-forwarder', onClick: async (x) => {
+        const o = await ctx.act('sentinel.deployForwarder', { name: name.value.trim(), os: os.value }, { silentError: true });
+        if (!o.ok) { x.setError(o.error.message); return; }
+        x.close(); ctx.toast('Log forwarder deployed', 'ok'); await ctx.reloadPage();
+      } }],
   });
 }
 

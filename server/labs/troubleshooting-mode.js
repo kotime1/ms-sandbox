@@ -11,7 +11,7 @@ export default {
   minutes: 15,
   topics: ['Advanced hunting', 'DeviceEvents', 'parse_json', 'Tamper protection'],
   examObjective: '3.1 Detect threats by using Microsoft Defender XDR',
-  sourceQuestions: { set1: [], set2: [], set3: [46] },
+  sourceQuestions: { set1: [], set2: [], set3: [46], set4: [44], set5: [] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The ActionType and the TroubleshootingStateChangeReason field come from the practice question. The wording of the reason text and the other fields in AdditionalFields are invented for the exercise.' },
   scenarios: ['macos-troubleshooting'],

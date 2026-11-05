@@ -80,6 +80,41 @@ export const CONCEPTS = [
       'With the UEBA behaviours layer, behaviour metadata (title, description, categories) is in one table and the entities involved (users, IPs, devices) in another. Combine them with a join on the shared behaviour id. join matches rows between two tables; union just stacks them. Columns that exist on both sides get a numeric suffix on the right.',
   },
   {
+    id: 'arc-servers',
+    keys: ['azure arc', 'connected machine agent', 'on-premises', 'resource picker', 'data collection rule', 'windows security events', 'ama', 'azure monitor agent', 'windows event forwarding'],
+    title: 'Azure Arc and the data collection rule picker',
+    body:
+      'A server that is not an Azure VM must be Azure Arc-enabled (the Azure Connected Machine agent installed) before an Azure Monitor Agent based connector can collect from it; the rule\'s Resources picker lists only Azure VMs and Arc-enabled servers. The rule can sit in another resource group or subscription in the same tenant, but its region must match the workspace. Windows Event Forwarding is a different architecture.',
+  },
+  {
+    id: 'attack-disruption',
+    keys: ['attack disruption', 'automatic attack disruption', 'contain device', 'isolate device', 'disable user', 'action account', 'standard discovery', 'advanced features', 'device isolation'],
+    title: 'Automatic attack disruption',
+    body:
+      'Attack disruption contains assets an attacker controls by acting at the incident level, using the products you have deployed: Defender for Endpoint contains or isolates devices, Defender for Identity disables on-premises accounts from the sensor on a domain controller, Entra ID revokes sessions, Defender for Cloud Apps handles OAuth apps. Device isolation alone only addresses devices. Contain device needs Standard discovery; a device group set to No automated response is left out; Defender for Identity needs a valid action account and auditing.',
+  },
+  {
+    id: 'identity-response',
+    keys: ['defender for identity', 'disable', 'revoke session', 'mark as compromised', 'force password', 'sensitive groups', 'enterprise admins', 'identity report', 'xlsx', 'excel', 'ntlm', 'compromised account'],
+    title: 'Defender for Identity: actions and reports',
+    body:
+      'On a compromised on-premises account, Disable prevents sign-in and access to network resources; Revoke session is not available for Active Directory and would not stop new authentications; Mark as compromised is Microsoft Entra ID only. The sensor on a domain controller carries the action out. Identity reports are under Reports > Identities > Report management: Summary, Modification to sensitive groups and Passwords exposed in cleartext. The detailed alert report downloads as Excel (XLSX).',
+  },
+  {
+    id: 'cef-tables',
+    keys: ['cef', 'common event format', 'syslog', 'log forwarder', 'linux', 'commonsecuritylog', 'entra id protection', 'securityalert', 'which table', 'azure monitor agent'],
+    title: 'CEF ingestion and connector tables',
+    body:
+      'Devices that send CEF or Syslog cannot run the Azure Monitor Agent, so a Linux machine acts as a log forwarder: devices send to its syslog daemon and the agent forwards to Sentinel. The CEF via AMA connector writes to CommonSecurityLog. A connector name is not a reliable guide to its table: Entra ID Protection detections are stored in SecurityAlert, so look at the data.',
+  },
+  {
+    id: 'threat-analytics-notify',
+    keys: ['threat analytics', 'notification rule', 'email notification', 'vulnerabilities', 'threat report', 'ransomware', 'report update', 'tag'],
+    title: 'Threat analytics email notifications',
+    body:
+      'Threat analytics has its own email notification rule, created on the Threat analytics tab of Settings > Microsoft Defender XDR > General > Email notifications. It mails about new or updated threat reports, all of them or only a chosen report type or tag. Alert rules (device groups and severity) and vulnerability rules are different kinds that are not triggered by a threat report. Rule names accept letters and numbers only.',
+  },
+  {
     id: 'audit',
     keys: ['audit', 'purview', 'record type', 'airinvestigation', 'retention', 'premium', 'standard', 'unified audit log', 'search-unifiedauditlog', 'management activity api'],
     title: 'Microsoft Purview Audit',

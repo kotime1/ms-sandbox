@@ -5,11 +5,18 @@ import { launch } from './e2e-lib.mjs';
 const b = await launch();
 const { click, clickText, waitFor, evalJs, go, setValue, sleep, ok, okSoon } = b;
 
+// Start a lab and wait for its landing page. The card can be clicked while the Labs page is still re-rendering, which loses the click;
+// so click, wait briefly for the hash to change, and click again if it did not.
 const startLab = async (id, landing) => {
-  await go('#/home');
+  await go("#/home");
   await waitFor(`document.querySelector('[data-target="btn:start:${id}"]')`, `card ${id}`);
-  await click(`btn:start:${id}`);
-  await waitFor(`location.hash === '#/${landing}'`, `landing ${landing}`);
+  for (let i = 0; i < 4; i++) {
+    await click(`btn:start:${id}`);
+    const t = Date.now();
+    while (Date.now() - t < 2500) { if (await evalJs(`location.hash === "#/${landing}"`).catch(() => false)) break; await sleep(100); }
+    if (await evalJs(`location.hash === "#/${landing}"`).catch(() => false)) break;
+  }
+  await waitFor(`location.hash === "#/${landing}"`, `landing ${landing}`);
   await waitFor(`!document.querySelector('.loading')`, 'loaded');
 };
 const setIn = (sel, value) => setValue(sel, value);
@@ -20,14 +27,25 @@ const untilTrue = async (expr, label, ms = 8000) => {
   while (Date.now() - t < ms) { if (await evalJs(expr).catch(() => false) === true) return; await sleep(100); }
   throw new Error(`timeout waiting for: ${label}`);
 };
+const setSelect = (target, value) => untilTrue(`(() => {
+  if (document.querySelector('.loading')) return false;
+  const s = document.querySelector('[data-target="${target}"]');
+  if (!s) return false;
+  if (s.value !== ${JSON.stringify(value)}) { s.value = ${JSON.stringify(value)}; s.dispatchEvent(new Event('change')); return false; }
+  return true;
+})()`, `select ${target} = ${value}`);
 // Find, fill and submit the answer box in ONE evaluation, retrying until it succeeds: a page re-render between separate steps
 // (tier change, sign-in) otherwise removes the box after it was found.
-const answer = (text) => untilTrue(`(() => {
+// Fill the answer box (one value per field, in order) and press Submit in ONE evaluation. A lab with two questions has two fields; passing a
+// single string fills the first, an array fills them in turn.
+const answer = (values) => untilTrue(`(() => {
   if (document.querySelector(".loading")) return false;
   const btn = document.querySelector('[data-target="btn:submit-answer"]');
-  const i = btn?.closest("section")?.querySelector("input[type=text]");
-  if (!i) return false;
-  i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event("input")); btn.click(); return true;
+  const fields = [...(btn?.closest("section")?.querySelectorAll("input[type=text]") ?? [])];
+  const vals = ${JSON.stringify([].concat(values))};
+  if (!fields.length || fields.length < vals.length) return false;
+  vals.forEach((v, n) => { fields[n].value = v; fields[n].dispatchEvent(new Event("input")); });
+  btn.click(); return true;
 })()`, "answer box");
 // The audit page re-renders after some actions (tier change, sign-in), showing "Loading…" briefly. Each helper below finds its controls and
 // acts on them in ONE evaluation and retries until that succeeds, so it can never act on a half-rendered page.
@@ -250,7 +268,7 @@ try {
   // ================================================================ ingest-data
   await startLab('ingest-data', 'sentinel/connectors');
   await waitFor(`document.querySelector('[data-target="btn:open-connector:m365"]')`, 'connector gallery');
-  ok((await evalJs(`document.querySelectorAll('.cards .card').length`)) === 3, 'three connectors are offered');
+  ok((await evalJs(`document.querySelectorAll('.cards .card').length`)) === 5, 'five connectors are offered');
   // The distractor first: Defender for Office 365
   await click('btn:open-connector:mdo');
   await waitFor(`document.querySelector('.modal')`, 'mdo dialog');
@@ -385,7 +403,7 @@ try {
   await okSoon(`document.querySelector('.dn-sub') && document.querySelector('.dn-sub').innerText.includes('Analytics')`, 'opening a group shows its pages');
   await click('group:Microsoft Sentinel');
   await okSoon(`!document.querySelector('.dn-sub')`, 'it closes again');
-  await click('group:Identities');
+  await click('group:Cloud apps');
   await okSoon(`document.querySelector('#toasts').innerText.includes('not simulated')`, 'a group the sandbox does not simulate says so');
   await click('btn:dismiss:ignite');
   await okSoon(`!document.body.innerText.includes('Explore the latest security solutions')`, 'a banner can be dismissed');
@@ -424,6 +442,167 @@ try {
   ok(probe.otherClosed === 'false', 'only that group opens');
   ok(probe.noTarget === 'false', 'a non-menu target opens nothing');
   ok(probe.alias === 'true', 'an alias target (nav:sentinel/logs) opens the group that holds its menu entry');
+
+  // ================================================================ set 4: threat-analytics-notify
+  await startLab('threat-analytics-notify', 'defender/rules');
+  await waitFor(`document.querySelector('[data-target="tab:notif:Threat analytics"]')`, 'notification tabs');
+  ok(await evalJs(`document.body.innerText.includes('Settings > Microsoft Defender XDR > General > Email notifications')`), 'the Defender XDR notification path is shown, separate from the Endpoints one');
+  await click('tab:notif:Threat analytics');
+  await waitFor(`document.querySelector('[data-target="btn:create-notif:threatAnalytics"]')`, 'create button');
+  // a wrong-kind rule first (Vulnerabilities), then the right one
+  await click('tab:notif:Vulnerabilities');
+  await click('btn:create-notif:vulnerabilities');
+  await waitFor(`document.querySelector('.wizard input[type=text]')`, 'vuln wizard');
+  await setIn('.wizard input[type=text]', 'Vulns');
+  await click('btn:wizard-next');
+  await waitFor(`document.querySelector('.wizard input[aria-label="Recipient email address"]')`, 'vuln recipients');
+  await setIn('.wizard input[aria-label="Recipient email address"]', 'threatintel@contoso.com');
+  await click('btn:add-recipient');
+  await click('btn:wizard-finish');
+  await waitFor(`!document.querySelector('.wizard')`, 'vuln saved');
+  await click('tab:notif:Threat analytics');
+  await click('btn:create-notif:threatAnalytics');
+  await waitFor(`document.querySelector('.wizard input[type=text]')`, 'ta wizard');
+  await setIn('.wizard input[type=text]', 'RansomwareReports');
+  await click('btn:wizard-next');
+  await waitFor(`document.querySelector('[data-target="radio:some"]')`, 'reports step');
+  await click('radio:some');
+  await click('check:tag:Ransomware');
+  await click('btn:wizard-next');
+  await waitFor(`document.querySelector('.wizard input[aria-label="Recipient email address"]')`, 'ta recipients');
+  await setIn('.wizard input[aria-label="Recipient email address"]', 'threatintel@contoso.com');
+  await click('btn:add-recipient');
+  await click('btn:wizard-finish');
+  await waitFor(`!document.querySelector('.wizard')`, 'ta rule saved');
+  // A lost click is retried, but a click that DID land must not be repeated: a second publish of the ransomware report would send a second
+  // email and break the lab. So re-check the page for the effect before every re-click.
+  const publish = async (id, done) => {
+    for (let i = 0; i < 4; i++) {
+      await click("tab:notif:Threat analytics");
+      await click(`btn:publish:${id}`);
+      const t = Date.now();
+      while (Date.now() - t < 2500) { if (await evalJs(done).catch(() => false)) return; await sleep(100); }
+      // Not seen yet: check once more before clicking again, in case the page was just slow to repaint.
+      await sleep(600);
+      if (await evalJs(done).catch(() => false)) return;
+    }
+    throw new Error(`timeout waiting for: publish ${id}`);
+  };
+  await publish('ta-ransom', `document.body.innerText.includes('Threat analytics: Ransomware campaign')`);
+  await publish('ta-phish', `document.querySelectorAll('.objectives li.met').length === 2`);
+  await waitFor(`document.querySelectorAll('.objectives li.met').length === 2`, 'threat analytics lab complete');
+  ok(true, 'only the ransomware report sent an email, and the lab completes through the UI');
+
+  // ================================================================ set 4: cef-and-tables
+  await startLab('cef-and-tables', 'sentinel/connectors');
+  await waitFor(`document.querySelector('[data-target="btn:open-connector:cef"]')`, 'cef card');
+  await click('btn:open-connector:cef');
+  await waitFor(`document.querySelector('.modal')`, 'cef dialog');
+  await click('btn:connect');
+  await waitFor(`document.querySelector('.modal .form-error:not([hidden])')?.textContent.includes('Linux log forwarder')`, 'forwarder required');
+  ok(true, 'the CEF connector refuses to connect before a log forwarder exists');
+  await clickText('.modal button', 'Close');
+  await click('btn:deploy-forwarder');
+  await waitFor(`document.querySelector('.modal')`, 'forwarder dialog');
+  await setIn('.modal input[aria-label="Machine name"]', 'win-fwd');
+  await evalJs(`(() => { const s = document.querySelector('.modal select[aria-label="Operating system"]'); s.value = 'Windows'; s.dispatchEvent(new Event('change')); })()`);
+  await click('btn:save-forwarder');
+  await waitFor(`document.querySelector('.modal .form-error:not([hidden])')?.textContent.includes('Windows machine cannot')`, 'windows refused');
+  ok(true, 'a Windows machine is refused as a log forwarder');
+  await evalJs(`(() => { const s = document.querySelector('.modal select[aria-label="Operating system"]'); s.value = 'Linux'; s.dispatchEvent(new Event('change')); })()`);
+  await setIn('.modal input[aria-label="Machine name"]', 'cef-forwarder-01');
+  await click('btn:save-forwarder');
+  await waitFor(`!document.querySelector('.modal')`, 'forwarder saved');
+  await click('btn:open-connector:cef');
+  await waitFor(`document.querySelector('.modal')`, 'cef dialog 2');
+  await click('btn:connect');
+  await waitFor(`!document.querySelector('.modal')`, 'cef connected');
+  await click('btn:open-connector:entra-protect');
+  await waitFor(`document.querySelector('.modal')`, 'protect dialog');
+  await click('btn:connect');
+  await waitFor(`!document.querySelector('.modal')`, 'protect connected');
+  await go('#/defender/hunting');
+  await waitFor(`document.querySelector('textarea.kql')`, 'editor');
+  await setValue('textarea.kql', 'CommonSecurityLog | take 10');
+  await click('btn:run-query');
+  await waitFor(`document.querySelector('.result td')`, 'cef rows');
+  await setValue('textarea.kql', 'SecurityAlert | where AlertName == "Leaked credentials"');
+  await click('btn:run-query');
+  await waitFor(`document.querySelector('.result').innerText.includes('Leaked credentials')`, 'leaked credentials row');
+  await answer('SecurityAlert');
+  await waitFor(`document.querySelectorAll('.objectives li.met').length === 4`, 'cef lab complete');
+  ok(true, 'the CEF and Entra ID Protection lab completes through the UI');
+
+  // ================================================================ set 4: identity-response
+  await startLab('identity-response', 'defender/identities');
+  const BS = String.fromCharCode(92); // built from its char code so no escaping layer can eat it
+  const hrTarget = `btn:actions:CONTOSO${BS}hrsvc`;
+  await waitFor(`[...document.querySelectorAll('[data-target]')].some((e) => e.getAttribute('data-target') === ${JSON.stringify(hrTarget)})`, 'identities page');
+  await click(hrTarget);
+  await waitFor(`document.querySelector('.modal')`, 'actions menu');
+  await okSoon(`document.querySelector('[data-target="action:Revoke session"]').getAttribute('aria-disabled') === 'true'`, 'Revoke session is greyed out for an Active Directory account');
+  await okSoon(`document.querySelector('[data-target="action:Mark as compromised"]').getAttribute('aria-disabled') === 'true'`, 'Mark as compromised is greyed out too');
+  await click('action:Revoke session');
+  await waitFor(`document.querySelector('.modal .form-error:not([hidden])')?.textContent.includes('not available for Active Directory')`, 'revoke refused');
+  ok(true, 'choosing the greyed-out action explains why it cannot be used');
+  await click('action:Disable');
+  await waitFor(`!document.querySelector('.modal')`, 'disabled');
+  await okSoon(`document.body.innerText.includes('Disabled')`, 'the account shows as Disabled');
+  await click('btn:alert-report:mdi-1');
+  await okSoon(`document.querySelector('#toasts').innerText.includes('detailed-report.xlsx')`, 'the alert report downloads as a named file');
+  await click('btn:report:Modification to sensitive groups');
+  await waitFor(`document.querySelector('.modal')`, 'report dialog');
+  await click('btn:download-report');
+  await waitFor(`document.querySelector('.modal').innerText.includes('Enterprise Admins')`, 'report rows');
+  await okSoon(`document.querySelector('.modal').innerText.includes('Domain Admins') && !document.querySelector('.modal').innerText.includes('legacy')`, 'a 14-day download has the two recent rows and not the old one');
+  await clickText('.modal button', 'Close');
+  await answer(['XLSX', `CONTOSO${BS}tbarker`]);
+  await waitFor(`document.querySelectorAll('.objectives li.met').length === 4`, 'identity objectives');
+  ok(true, 'the account is stopped, the report is downloaded and the account is reported');
+
+  // ================================================================ set 5: attack-disruption
+  await startLab('attack-disruption', 'defender/disruption');
+  await waitFor(`document.querySelector('[data-target="select:discovery"]')`, 'disruption page');
+  await okSoon(`document.body.innerText.includes('Isolate device') && document.body.innerText.includes('Standard discovery')`, 'the status panel lists what can run and why Contain device cannot');
+  await okSoon(`document.querySelector('[data-target="row:cannot:Disable user"]')?.innerText.includes('action account')`, 'Disable user says its action account is not valid');
+  // The tempting shortcut first: opt a device group out of automated response
+  await setSelect('select:level:Workstations', 'No automated response');
+  ok(true, 'a device group can be opted out (the shortcut), which the restraint objective will then reject');
+  await setSelect('select:level:Workstations', 'Full - remediate threats automatically');
+  await setSelect('select:discovery', 'Standard');
+  await click('btn:fix:actionAccount');
+  await waitFor(`document.querySelectorAll('.objectives li.met').length === 3`, 'attack disruption lab complete');
+  ok(true, 'the attack disruption lab completes through the UI');
+
+  // ================================================================ set 5: arc-servers
+  await startLab('arc-servers', 'sentinel/connectors');
+  await waitFor(`document.querySelector('[data-target="btn:add-dcr-machines"]')`, 'machines section');
+  await click('btn:add-dcr-machines');
+  await waitFor(`document.querySelector('.modal')`, 'dcr dialog');
+  await okSoon(`document.querySelectorAll('.modal input[data-target^="check:machine:"]').length === 3`, 'the picker offers only the three Azure VMs');
+  await okSoon(`!document.querySelector('.modal').innerText.includes('ONPREM')`, 'no on-premises server is in the picker');
+  await clickText('.modal button', 'Cancel');
+  // Install the agent on every on-premises server. Each install re-renders the table, which can swallow the next click, so click whichever
+  // install button is present until none is left. A server that is already done has no button, so a repeat can never double-install.
+  await untilTrue(`(() => {
+    if (document.querySelector('.loading')) return false;
+    const b = document.querySelector('[data-target^="btn:install-arc:"]');
+    if (!b) return document.querySelectorAll('tbody tr').length >= 6;
+    b.click();
+    return false;
+  })()`, 'all servers Arc-enabled', 15000);
+  await click('btn:add-dcr-machines');
+  await waitFor(`document.querySelector('.modal')`, 'dcr dialog 2');
+  await okSoon(`document.querySelectorAll('.modal input[data-target^="check:machine:"]').length === 6`, 'after Azure Arc the picker offers all six');
+  await evalJs(`(() => { for (const i of document.querySelectorAll('.modal input[data-target^="check:machine:"]')) if (!i.checked) i.click(); const r = document.querySelector('.modal select[aria-label="Region"]'); r.value = 'westus'; r.dispatchEvent(new Event('change')); })()`);
+  await click('btn:save-dcr-machines');
+  await waitFor(`document.querySelector('.modal .form-error:not([hidden])')?.textContent.includes('same region')`, 'region refusal');
+  ok(true, 'a rule in the wrong region is refused with the workspace region named');
+  await evalJs(`(() => { const r = document.querySelector('.modal select[aria-label="Region"]'); r.value = 'eastus'; r.dispatchEvent(new Event('change')); })()`);
+  await click('btn:save-dcr-machines');
+  await waitFor(`!document.querySelector('.modal')`, 'rule saved');
+  await waitFor(`document.querySelectorAll('.objectives li.met').length === 3`, 'arc lab complete');
+  ok(true, 'the Arc lab completes through the UI');
 
   ok((await b.strayText('#app, body')) === 0, 'no stray "null"/"undefined" text on the last page');
   ok(b.errors.length === 0, `no console errors or CSP violations (${b.errors.length ? b.errors.join('; ') : 'none'})`);

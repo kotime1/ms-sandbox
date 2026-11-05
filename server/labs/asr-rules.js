@@ -13,7 +13,7 @@ export default {
   minutes: 10,
   topics: ['Attack surface reduction', 'ASR rules', 'Endpoint security policies', 'Exploit protection', 'Controlled folder access'],
   examObjective: '1.1 Deploy Microsoft Defender for Endpoint',
-  sourceQuestions: { set1: [], set2: [], set3: [1] },
+  sourceQuestions: { set1: [], set2: [], set3: [1], set4: [], set5: [] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'docs', note: 'Capabilities, platform support, rule names and the Warn limitations are from the Microsoft Learn attack surface reduction overview and ASR rules reference, checked 2026-11-02. The policy screens are simplified: the real wizard has more settings and per-rule exclusions.' },
   scenarios: [],

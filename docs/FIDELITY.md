@@ -219,3 +219,24 @@ Built against [custom-detection-rules](https://learn.microsoft.com/en-us/defende
 **Azure portal look (2026-11-03).** Matched to a screenshot of the portal from an exam lab, not to a live tenant: header, light theme, All services layout and the search box. The service list is a subset with invented two-letter marks instead of the real icons, the header icons do nothing, and the Defender portal is still the sandbox's own style.
 
 **Defender portal look (2026-11-03).** Matched to one screenshot of the Home page, not to a live tenant: header, left menu names and order, banners, promo card and card layout. Menu icons are plain glyphs, most groups are not simulated, the promo text is the real wording but its button does nothing, and the Home cards show sandbox counts rather than real posture data.
+
+## 9. Iteration 6: set 4 labs (2026-11-04)
+
+| Area | Status | Source / note |
+|---|---|---|
+| Threat analytics notification rule (path, tabs, name rule, all reports or a type/tag) | **Matches Learn** | defender-xdr/m365d-threat-analytics-notifications. The Vulnerabilities tab is modelled minimally; the report feed is invented |
+| CEF via AMA needs a Linux log forwarder; CommonSecurityLog | **Matches Learn** | azure/sentinel/connect-cef-syslog-ama. Agent install, DCR, Azure Arc and the installation script are not modelled |
+| Entra ID Protection detections land in SecurityAlert | **Unverified** | practice question only |
+| Defender for Identity actions per identity source, and Revoke session N/A for AD | **Matches Learn** | defender-for-identity/remediation-actions. Only Active Directory and Entra ID are modelled; role-based authorization is not |
+| Identity reports (names, path, 100,000-row cap) | **Matches Learn** | defender-for-identity/reports |
+| Detailed alert report downloads as XLSX | **Unverified** | practice questions only; the reports page does not state a format |
+| Automation rule Incident provider condition | **Not built** | Learn shows it only for workspaces not onboarded to the Defender portal, with two providers. The exam answer disagrees |
+
+## 10. Iteration 7: set 5 labs (2026-11-04)
+
+| Area | Status | Source / note |
+|---|---|---|
+| Attack disruption actions per product; prerequisites (Standard discovery, device group automation level, sensor on the DC, action account, auditing) | **Matches Learn** | defender-xdr/automatic-attack-disruption and configure-attack-disruption. The tenant is a small model: seven switches, no licensing, no exclusions |
+| "Advanced features in Microsoft Defender for Identity" as the setting name | **Unverified** | practice questions only; no such toggle appears in the pages I read |
+| Non-Azure machines need Azure Arc before an AMA connector; picker lists Azure VMs and Arc-enabled servers; the rule can be in any resource group in the tenant | **Matches Learn** | azure/sentinel/connect-services-windows-based. Six machines, not a fleet; the agent install is a button |
+| Rule region must match the workspace | **Simplified** | stated in the Logs Ingestion pages for DCRs; applied here to the connector rule |

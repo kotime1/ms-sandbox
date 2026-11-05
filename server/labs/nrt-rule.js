@@ -11,7 +11,7 @@ export default {
   minutes: 10,
   topics: ['Analytics rule types', 'NRT rules', 'Scheduled rules', 'Ingestion time'],
   examObjective: '1.4 Configure detections',
-  sourceQuestions: { set1: [], set2: [], set3: [20] },
+  sourceQuestions: { set1: [], set2: [], set3: [20], set4: [], set5: [20] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'docs', note: 'NRT facts (every minute, one-minute lookback, ingestion time, two-minute delay, 50 rule limit) and the scheduled limits (5 minutes to 14 days, lookback not shorter than the interval) are from Microsoft Learn, checked 2026-11-02. The sandbox does not execute the rules on a timer.' },
   scenarios: [],

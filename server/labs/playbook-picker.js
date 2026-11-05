@@ -13,7 +13,7 @@ export default {
   minutes: 15,
   topics: ['Sentinel automation', 'Azure RBAC', 'Azure Security Insights', 'Least privilege'],
   examObjective: '1.x Configure automation (playbook permissions for Sentinel)',
-  sourceQuestions: { set1: [5, 18], set2: [10, 18], set3: [5, 15] },
+  sourceQuestions: { set1: [5, 18], set2: [10, 18], set3: [5, 15], set4: [18], set5: [9] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "docs", note: "Matches Learn: Sentinel runs playbooks from automation rules as its own service account, needing the Automation Contributor role on the resource group; unavailable playbooks are greyed out with a Manage playbook permissions link (Owner needed). That a role on the playbook itself, or Logic App Contributor, does not help comes from the practice question; the docs only state the resource-group grant." },
   scenarios: ['playbook-picker'],

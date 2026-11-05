@@ -289,7 +289,8 @@ class Parser {
       if (this.peek(i).t !== 'id') return false;
       i++;
       if (this.isOp(',', i)) { i++; continue; }
-      return this.isOp(')', i) && this.isOp('=', i + 1);
+      // Only arg_max / arg_min return several columns, so only they can be assigned to a tuple. Anything else is a syntax error, as in Kusto.
+      return this.isOp(')', i) && this.isOp('=', i + 1) && ['arg_max', 'arg_min'].includes(String(this.peek(i + 2).v ?? '').toLowerCase());
     }
   }
   parseNamedList() {

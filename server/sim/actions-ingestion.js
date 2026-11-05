@@ -2,7 +2,8 @@
 
 import { idSpec } from '../core/validate.js';
 import { SimError, capCheck, enableTables } from './world.js';
-import { CATALOGUE, COLUMN_TYPES, MAX_COLUMNS, getConnector, connect, buildCustomTable, buildDcr, ingest } from './ingestion.js';
+import { pickerMachines, enableArc, applyCollectionRule } from './ingestion.js';
+import { CATALOGUE, COLUMN_TYPES, MAX_COLUMNS, FORWARDER_OS, getConnector, connect, buildCustomTable, buildDcr, buildForwarder, ingest } from './ingestion.js';
 
 const MIN = 60_000;
 const ago = (m) => new Date(Date.now() - m * MIN);
@@ -29,14 +30,14 @@ export const INGESTION_ACTIONS = {
     spec: { id: idSpec(), apps: { type: 'array', of: { type: 'string', min: 1, max: 20, pattern: /^[A-Za-z]+$/ }, max: 5, optional: true, default: [] } },
     run({ w }, p) {
       const c = getConnector(p.id);
-      const { apps } = connect(c, { apps: p.apps });
+      const { apps } = connect(c, { apps: p.apps, forwarders: w.sentinel.forwarders });
       const existing = w.sentinel.connectors.find((x) => x.id === c.id);
       const entry = existing ?? { id: c.id, name: c.name, status: 'Not connected', tables: [] };
       if (!existing) w.sentinel.connectors.push(entry);
       entry.status = 'Connected'; entry.tables = c.tables; entry.apps = apps;
       // Make the connector's tables queryable, and fill them from the apps the learner chose.
       for (const t of c.tables) {
-        if (w.tables.has(t) && ['OfficeActivity', 'EmailEvents'].includes(t)) enableTables(w, t);
+        if (w.tables.has(t) && ['OfficeActivity', 'EmailEvents', 'CommonSecurityLog'].includes(t)) enableTables(w, t);
       }
       if (c.id === 'm365') {
         const rows = w.tables.get('OfficeActivity').rows;
@@ -45,8 +46,51 @@ export const INGESTION_ACTIONS = {
           rows.push({ TimeGenerated: ago(30 + rows.length * 7), OfficeWorkload, Operation, UserId, ClientIP, OfficeObjectId, SiteUrl });
         }
       }
+      if (c.id === 'cef') {
+        const rows = w.tables.get('CommonSecurityLog').rows;
+        rows.length = 0;
+        rows.push(
+          { TimeGenerated: ago(12), DeviceVendor: 'Palo Alto Networks', DeviceProduct: 'PAN-OS', Activity: 'TRAFFIC', SourceIP: '192.0.2.31', DestinationIP: '198.51.100.7', LogSeverity: '3' },
+          { TimeGenerated: ago(9), DeviceVendor: 'Cisco', DeviceProduct: 'ASA', Activity: 'Deny inbound TCP', SourceIP: '203.0.113.9', DestinationIP: '192.0.2.50', LogSeverity: '7' },
+        );
+      }
+      if (c.id === 'entra-protect') {
+        // Entra ID Protection writes its detections into SecurityAlert, not into a table of its own (set 4 Q14).
+        const rows = w.tables.get('SecurityAlert').rows;
+        rows.push({ TimeGenerated: ago(25), SystemAlertId: 'ip-1', AlertName: 'Leaked credentials', AlertSeverity: 'High', ProviderName: 'IPC', CompromisedEntity: 'jamie.fox@contoso.com', IPAddress: '203.0.113.88', Description: 'The user credentials were found leaked (Microsoft Entra ID Protection).' });
+      }
       if (c.id === 'mdo') { const rows = w.tables.get('EmailEvents').rows; rows.length = 0; rows.push(...emailRows()); }
       return { connected: c.id, tables: c.tables };
+    },
+  },
+  // A machine the network devices send CEF/Syslog to. The CEF connector will not connect until a Linux one exists.
+  'sentinel.deployForwarder': {
+    spec: { name: label(40), os: { type: 'enum', values: FORWARDER_OS }, azureVm: { type: 'boolean', optional: true, default: true } },
+    run({ w }, p) {
+      const f = buildForwarder(p, { existing: w.sentinel.forwarders });
+      w.sentinel.forwarders.push(f);
+      return { forwarder: { name: f.name } };
+    },
+  },
+  // Install the Azure Connected Machine agent (Azure Arc) on a server that is not an Azure VM.
+  'sentinel.enableArc': {
+    spec: { machine: label(40) },
+    run({ w }, p) {
+      const i = w.sentinel.machines.findIndex((m) => m.name === p.machine);
+      const next = enableArc(w.sentinel.machines[i]);
+      w.sentinel.machines[i] = next;
+      return { machine: { name: next.name, arc: true } };
+    },
+  },
+  // Windows Security Events via AMA: create a data collection rule that targets machines from the Resources picker.
+  'sentinel.applyCollectionRule': {
+    spec: { machineNames: { type: 'array', of: label(40), max: 20, min: 1 }, location: { type: 'string', min: 2, max: 20, pattern: /^[a-z0-9]+$/ } },
+    run({ w }, p) {
+      const names = applyCollectionRule(p, { machines: w.sentinel.machines, dcrLocation: p.location, workspaceLocation: w.sentinel.workspaceLocation });
+      for (const m of w.sentinel.machines) if (names.includes(m.name)) m.collecting = true;
+      const conn = w.sentinel.connectors.find((c) => c.id === 'ama');
+      if (conn) { conn.status = 'Connected'; conn.tables = ['SecurityEvent']; }
+      return { collecting: names };
     },
   },
   'sentinel.listCatalogue': { // read-only: the connector gallery

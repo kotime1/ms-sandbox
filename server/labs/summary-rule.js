@@ -10,7 +10,7 @@ export default {
   minutes: 15,
   topics: ['Summary rules', 'High-volume tables', 'KQL performance'],
   examObjective: '3.2 Detect threats by using the Microsoft Sentinel platform',
-  sourceQuestions: { set1: [49], set2: [49, 50], set3: [50] },
+  sourceQuestions: { set1: [49], set2: [49, 50], set3: [50], set4: [49, 50], set5: [48, 49, 50] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "partial", note: "Summary rules write to a custom _CL Analytics-tier table. The real wizard has scheduling, preview and an existing-table option that are not modelled." },
   scenarios: ['high-volume-network'],

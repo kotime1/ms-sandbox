@@ -18,7 +18,9 @@ export async function launch() {
   const browserPath = CANDIDATES.find((p) => existsSync(p));
   if (!browserPath) { console.error('No Chromium-based browser found. Set BROWSER=<path>.'); process.exit(2); }
 
-  const server = http.createServer(createApp({ env: {} }));
+  // The default limit (240 requests a minute per session) is a security control and stays. The long browser scripts play a dozen labs in one
+  // session, so they raise it for THIS test server only, through the same RATE_LIMIT override the HTTP rate-limit test uses.
+  const server = http.createServer(createApp({ env: { RATE_LIMIT: '5000' } }));
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
   const dbgPort = 9300 + Math.floor(Math.random() * 500);

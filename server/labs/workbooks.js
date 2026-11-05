@@ -14,7 +14,7 @@ export default {
   minutes: 15,
   topics: ['Sentinel workbooks', 'Templates', 'Workbook roles', 'KQL render'],
   examObjective: '1.x Visualize data in Microsoft Sentinel',
-  sourceQuestions: { set1: [10, 11, 12], set2: [11, 12, 13], set3: [8] },
+  sourceQuestions: { set1: [10, 11, 12], set2: [11, 12, 13], set3: [8], set4: [7, 8, 9, 10, 11], set5: [10, 11] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The Templates / My workbooks flow (Save, View saved workbook, Edit, Save as, Done editing), the Security operations efficiency metric list and the Workbook Reader/Contributor prerequisite are from Microsoft Learn, checked 2026-11-02. The rule "Sentinel Contributor, or a lesser Sentinel role plus Workbook Contributor" comes from the practice question. The other template metric lists are summaries, and the editor is much simpler than the real workbook editor.' },
   scenarios: [],

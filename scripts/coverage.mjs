@@ -4,13 +4,14 @@
 //   node scripts/coverage.mjs           write docs/COVERAGE.md
 //   node scripts/coverage.mjs --check   exit 1 if the committed file is stale (used by a test)
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LABS } from '../server/labs/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SETS = ['set1', 'set2', 'set3']; // a new question file: add it here and a `setN: []` to each lab's sourceQuestions
+// Every question file on disk, in order. A new setN.txt needs only a `setN: []` key in each lab's sourceQuestions (a test enforces that).
+const SETS = readdirSync(path.join(root, 'question_sets')).filter((f) => /^set\d+\.txt$/.test(f)).map((f) => f.replace('.txt', '')).sort((a, b) => Number(a.slice(3)) - Number(b.slice(3)));
 const short = (k) => `S${k.replace('set', '')}`;
 
 function parse(file) {
@@ -46,8 +47,8 @@ const T_MDI = 'Defender for Identity and identity remediation';
 const T_XDR = 'Defender XDR portal: disruption, email notifications, incident aggregation';
 const T_CLOUD = 'Defender for Cloud: alerts and automation';
 const BACKLOG = {
-  'set1:1': T_XDR, 'set1:2': 'Defender for Endpoint: supported platforms (recall)', 
-  'set1:13': T_CONNECT, 'set1:14': T_CONNECT, 'set1:15': T_TI, 'set1:21': 'Analytics: MITRE ATT&CK coverage',
+  'set1:2': 'Defender for Endpoint: supported platforms (recall)', 
+  'set1:14': T_CONNECT, 'set1:15': T_TI, 'set1:21': 'Analytics: MITRE ATT&CK coverage',
   'set1:22': T_PURVIEW, 'set1:23': T_PURVIEW, 'set1:24': T_MDI, 'set1:26': T_XDR, 'set1:27': T_CLOUD, 'set1:28': T_MDI, 'set1:29': T_PURVIEW,
   'set1:37': T_PURVIEW, 'set1:46': 'Data lake: KQL jobs', 'set1:50': 'Data lake: Sentinel MCP server',
   'set2:14': T_CONNECT, 'set2:16': T_TI, 'set2:22': T_PURVIEW,
@@ -56,6 +57,11 @@ const BACKLOG = {
   // set 3 (labs in progress: each entry is deleted when its lab lands)
   'set3:26': T_MDI, 'set3:35': 'ASIM parsers',
   'set3:48': 'Sentinel graph and entity resolution',
+  // set 5
+  'set5:13': T_TI,
+  // set 4
+  'set4:5': 'Automation rules: Incident provider condition (docs: Sentinel or Defender XDR, independent of connectors)', 'set4:6': 'Playbooks: create the Logic App first',
+  
 };
 
 const labsFor = {};

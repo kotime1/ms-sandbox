@@ -17,7 +17,7 @@ export const WS_ID = `${RG}/providers/Microsoft.OperationalInsights/workspaces/l
 export const VM1_ID = `/subscriptions/${SUB}/resourceGroups/rg-workloads/providers/Microsoft.Compute/virtualMachines/VM1`;
 export const LEARNER = 'admin1@contoso.com';
 
-const MAX = { assignments: 200, automationRules: 50, suppression: 50, detections: 50, runs: 200, incidents: 500, alerts: 1000, indicators: 100, summaryRules: 20, customTables: 10, dcrs: 20, auditSearches: 40, analyticsRules: 100, notificationRules: 20, securityPolicies: 30, favorites: 50, bookmarks: 100, workbooks: 30, findings: 40 };
+const MAX = { assignments: 200, automationRules: 50, suppression: 50, detections: 50, runs: 200, incidents: 500, alerts: 1000, indicators: 100, summaryRules: 20, customTables: 10, dcrs: 20, auditSearches: 40, identityAccounts: 20, analyticsRules: 100, notificationRules: 20, kindRules: 20, securityPolicies: 30, favorites: 50, bookmarks: 100, workbooks: 30, findings: 40 };
 
 /** The identity Sentinel itself uses to run playbooks from incidents/automation rules. */
 export const ASI_PRINCIPAL = 'sp-azure-security-insights';
@@ -49,6 +49,7 @@ export function createWorld() {
     },
     sentinel: {
       workspace: 'law-sentinel',
+      workspaceLocation: 'eastus',
       connectors: [
         { id: 'entra', name: 'Microsoft Entra ID', status: 'Connected', tables: ['SigninLogs', 'AuditLogs'] },
         { id: 'azact', name: 'Azure Activity', status: 'Connected', tables: ['AzureActivity'] },
@@ -70,6 +71,8 @@ export function createWorld() {
       workbooks: [], // saved workbooks: { id, name, template, tiles[] }
       hunting: { queries: [], favorites: [], bookmarks: [] }, // queries are seeded by labs
       summaryRules: [], // { id, name, source, destination, query, binMinutes }
+      machines: [], // servers a data collection rule could target: { name, kind: 'Azure VM' | 'On-premises', arc, collecting }
+      forwarders: [], // CEF/Syslog log forwarders: { name, os, daemon, arc }
       customTables: [], // tables the learner created: { name }. Their rows/columns live in w.tables like any other table.
       dcrs: [], // data collection rules: { id, name, table, columns[{name,type}], stream }
     },
@@ -95,8 +98,16 @@ export function createWorld() {
       notificationRules: [],
       // Endpoint security > Attack surface reduction policies: { id, name, type, platform, deviceGroups[], rules[{rule, mode}] }
       securityPolicies: [],
+      // Threat analytics / Vulnerabilities notification rules (separate tabs from alert rules): { id, kind, name, description, enabled, recipients[], scope }
+      kindRules: [],
+      taReports: [], // threat analytics reports a lab can publish: { id, title, type, tags[] }
       outbox: [], // simulated emails: { id, ruleId, to, alertId, title, severity, device, at }. Nothing is ever sent.
     },
+    // Automatic attack disruption posture: seeded by a lab (default: nothing deployed).
+    disruption: { deployed: { mde: false, mdi: false, entra: false, mda: false }, discovery: 'Basic', groups: [], mdiSensorOnDc: false, mdiAuditing: false, actionAccountOk: false, mdaOfficeConnector: false },
+    disruptionLog: [],
+    // Defender for Identity: accounts, alerts, report rows and what the learner has done. Seeded by a lab.
+    identity: { accounts: [], alerts: [], reportRows: Object.create(null), downloads: [], actionLog: [] },
     // Microsoft Purview Audit: the unified audit log. `tier` is the licence the tenant has; records are seeded by labs.
     audit: { tier: 'standard', records: [], searches: [] },
     // People in the tenant. `actorId` is who the learner is signed in as for permission-gated settings (labs may change it).

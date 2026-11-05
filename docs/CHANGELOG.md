@@ -2,6 +2,49 @@
 
 One entry per iteration, newest first. **Every iteration must update the docs and add an entry here.**
 
+## Iteration 7: Question set 5, two labs, and a rewritten study guide (2026-11-04)
+
+**Summary.** Added `question_sets/set5.txt`. **Only 2 of its 50 questions are new**; 35 repeat questions that already have a lab, and 13 repeat older questions that had none. Instead of building for the 2 new ones alone, I ranked every question that still had no lab by how often you had missed it, and built the two highest-value labs. Coverage is now **185 of 250** questions across five sets (26 labs). Unit tests 288 -> **318**; browser checks in `e2e-labs3` 95 -> **104**.
+
+### New labs
+- **Contain the device and disable the account, automatically** (set 1 Q1, set 2 Q2, set 5 Q4; wrong 2 of 3 times). A status panel shows what automatic attack disruption can do and why each missing action cannot: Standard discovery for Contain device, the Defender for Identity sensor on the domain controller, a valid action account, auditing, and the device group automation level. Opting a group out of automated response is the tempting shortcut and fails the restraint objective.
+- **Why are my on-premises servers missing from the picker?** (set 1 Q13, set 2 Q15, set 5 Q14; wrong 2 of 3 times). The data collection rule's picker lists Azure VMs and Azure Arc-enabled servers only. The lab starts with three of each and the learner has to find that the Azure Connected Machine agent is the missing piece, not Windows Event Forwarding or a different region.
+- **Set 5 Q21** (keep `Timestamp` and `ReportId` through an aggregation) is covered by new tests on the existing detection lab rather than a new lab: `project` after `summarize` fails because the aggregation already removed the columns; `summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId), count() by DeviceId` keeps them.
+
+### Study guide rewritten from all five sets
+`sc200-study-guide.md` now leads with the real numbers, ranks topics by how often they are still missed, links each to its lab, and marks which facts are confirmed by Learn and which are only the exam's wording. The most important finding: **on questions that are new to you, your score has stayed between 36% and 52% in every set**. The climb from 48% to 82% is almost entirely repeats. 22 of 98 distinct questions are still wrong on the latest attempt.
+
+### Bugs found and fixed
+- **`(A, B)=count()` was accepted.** The tuple-assignment form I added to the KQL parser (for `arg_max`) skipped the tuple before any aggregate. It now accepts it only before `arg_max` / `arg_min`, as Kusto does. Found by a test written for Q21.
+- **The coverage generator had a hand-maintained list of sets.** The tests were fixed last round to read `question_sets/`, but `scripts/coverage.mjs` still listed them by hand, so adding set 5 produced a plausible-looking total that left set 5 out. It now reads the directory.
+- **I tagged a question to the wrong lab.** Set 1 Q28 looked like the Defender for Identity lab's skill, but it is about resetting MFA for a *cloud* identity at risk. It stays on the backlog.
+- **Browser tests:** more lost-update races (selects that vanish on re-render, a chain of three clicks). Each now finds and acts in one evaluation.
+
+### Still open
+Topics with no lab: Purview (insider risk, DLP, eDiscovery), MITRE ATT&CK coverage, ASIM parsers, blast radius / data lake, MCP, threat intelligence platform registration (set 5 Q13), automation rule Incident provider (set 4 Q5) and Logic App first (set 4 Q6). They are listed in the guide's section 3.
+- The exam's "**Advanced features in Microsoft Defender for Identity**" wording for attack disruption is not shown in the Learn pages I read. The lab teaches the documented prerequisites and labels the wording as the exam's.
+
+## Iteration 6: Question set 4 and three new labs (2026-11-04)
+
+**Summary.** Added `question_sets/set4.txt`. **41 of its 50 questions repeat sets 1 to 3 word for word**, so existing labs now cite them (28 map straight onto labs that already exist). The 9 new ones are covered by **3 new labs** (24 in all), which brings coverage to **143 of 200** questions (set 4: 38 of 50). The coverage test now reads the question files on disk, so a new set cannot be skipped by a hardcoded list. Unit tests 248 -> **288**; browser checks in `e2e-labs3` 95.
+
+### New labs
+- **Get told when a new threat report lands** (set 4 Q1). A second notification area: Settings > Microsoft Defender XDR > General > Email notifications, with Alerts / Vulnerabilities / Threat analytics tabs. The lab grades what actually happens: publishing a ransomware and a phishing report from a simulated feed must send exactly one email. A Vulnerabilities rule or an alert rule is easy to create and says nothing. Names take English letters and numbers only (from the docs).
+- **Firewall logs in, and where did Entra ID Protection go?** (Q13, Q14). The Common Event Format (CEF) via AMA connector refuses to connect until a **Linux** log forwarder exists (a Windows machine is refused). Entra ID Protection writes to `SecurityAlert`; the lab makes the learner find that in the data instead of guessing from the connector name.
+- **Stop a stolen service account, then find who changed Enterprise Admins** (Q25, Q26; set 1 Q24; set 3 Q26). Defender for Identity actions per identity source (**Revoke session is not available for Active Directory; Mark as compromised is Entra ID only**), the three identity reports under Reports > Identities > Report management, and a 14-day download whose window matters: 3 days or 60 days gives a different answer.
+
+### Not built
+- **Q5** (automation rule Incident provider) and **Q6** (create the Logic App first), by your choice. Q5's marked answer includes Microsoft Defender for Office 365, but the docs list only Microsoft Sentinel and Microsoft Defender XDR, and only for workspaces not onboarded to the Defender portal. If built, it will teach the docs and be labelled Unverified.
+
+### Corrections and findings
+- **I called your study guide wrong about where email notifications live, and that was too blunt.** There are two areas: alert rules under Settings > Endpoints > General > Email notifications (device group + severity), and Threat analytics / Vulnerabilities rules under Settings > Microsoft Defender XDR > General > Email notifications. The guide's "Defender XDR settings" is right for threat analytics. Set 1 Q17 asks about a custom detection rule's notifications, which the alert area serves.
+- **Test gap.** The two tests that validate `sourceQuestions` listed sets by hand, so set 4 would have passed unchecked. They now read `question_sets/`, and I broke a lab on purpose (a question 51, then a missing key) to confirm both are caught.
+- **A test that proved nothing.** My first "wrong rule kind" test only checked the outbox was empty, which also passes if the code crashes. Mutating the engine showed it. It now requires the publish to succeed.
+- **The answer was visible in the data.** The baseline already held Entra ID Protection alerts, so Q14 could be answered without connecting anything. The connector now adds its own, recognisable detection.
+- **The report download response would have named the answer** (XLSX) to a question that asks for it. It returns only a file name.
+- **Browser tests:** more lost-click races found and fixed (starting a lab, publishing a report). Retrying a click must not repeat a side effect that already happened.
+- Still unverified: the XLSX format of the detailed alert report (the Learn reports page does not say; it comes from the questions).
+
 ## Iteration 5: Question set 3 and seven new labs (2026-11-02)
 
 **Summary.** Added `question_sets/set3.txt`. **36 of its 50 questions repeat set 1 or 2 word for word**, so existing labs now also cite them; the 14 genuinely new questions are covered by **7 new labs** (21 total), which brings coverage to **103 of 150** questions (set 3: 35/50). 162 -> **248** unit tests; browser checks 16 + 37 + 33 + **60**. The coverage generator now handles any number of sets.

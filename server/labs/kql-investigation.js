@@ -10,7 +10,7 @@ export default {
   minutes: 25,
   topics: ['KQL', 'union', 'AzureActivity', 'Microsoft Graph activity logs'],
   examObjective: '2.3 / 3.2 Investigate activity and hunt with KQL',
-  sourceQuestions: { set1: [38, 39, 44, 47, 48], set2: [38, 43, 47, 48], set3: [38, 40, 44] },
+  sourceQuestions: { set1: [38, 39, 44, 47, 48], set2: [38, 43, 47, 48], set3: [38, 40, 44], set4: [38, 39, 40, 47], set5: [47] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "docs", note: "The Graph activity log example query is taken from Microsoft Learn. Table schemas are simplified." },
   scenarios: ['identity-and-graph-abuse'],

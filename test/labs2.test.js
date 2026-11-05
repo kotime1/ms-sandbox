@@ -6,6 +6,9 @@ import { perform } from '../server/sim/actions.js';
 import { RG, ASI_PRINCIPAL } from '../server/sim/world.js';
 import { LOB_HASH, MALWARE_HASH } from '../server/attacks/scenarios-extra.js';
 
+// Every question file on disk. A new set is validated automatically; a lab missing its key fails.
+import { readdirSync } from 'node:fs';
+const SET_KEYS = readdirSync(new URL('../question_sets/', import.meta.url)).filter((f) => /^set\d+\.txt$/.test(f)).map((f) => f.replace('.txt', '')).sort();
 const fresh = (labId) => { const s = new SessionStore({ env: {} }).create(); s.lab.start(labId); return s; };
 const met = (s, id) => s.lab.status().objectives.find((o) => o.id === id).met;
 const PB = `${RG}/providers/Microsoft.Logic/workflows/Play1`;
@@ -225,7 +228,9 @@ test('every lab: sourceQuestions use the {set1, set2, set3} shape, ids are uniqu
   const seen = new Set();
   for (const l of LABS) {
     assert.ok(!seen.has(l.id), `duplicate lab id ${l.id}`); seen.add(l.id);
-    assert.ok(['set1', 'set2', 'set3'].every((k) => Array.isArray(l.sourceQuestions[k])), `${l.id} sourceQuestions shape`);
+    assert.ok(SET_KEYS.length >= 4, 'question sets found on disk');
+    assert.ok(SET_KEYS.every((k) => Array.isArray(l.sourceQuestions[k])), `${l.id} sourceQuestions has a key for every question set (${SET_KEYS.join(', ')})`);
+    assert.deepEqual(Object.keys(l.sourceQuestions).sort(), SET_KEYS, `${l.id} has no key for a set that does not exist`);
     for (const sc of l.scenarios) assert.ok(Object.hasOwn(SCENARIOS, sc), `${l.id}: unknown scenario ${sc}`);
     assert.match(l.id, /^[a-z0-9][a-z0-9-]*$/);
   }
@@ -297,7 +302,7 @@ test('docs/COVERAGE.md is up to date with the labs (regenerate with: node script
 test('coverage: every lab question number exists in its set (no typos), and the sets have 50 questions each', async () => {
   const { readFileSync } = await import('node:fs');
   const { LABS } = await import('../server/labs/index.js');
-  for (const k of ['set1', 'set2', 'set3']) {
+  for (const k of SET_KEYS) {
     const text = readFileSync(new URL(`../question_sets/${k}.txt`, import.meta.url), 'utf8');
     assert.equal((text.match(/^Question \d+ of 50\s*$/gm) ?? []).length, 50, `${k} should have 50 questions`);
     for (const l of LABS) for (const n of l.sourceQuestions[k]) assert.ok(n >= 1 && n <= 50, `${l.id}: ${k} question ${n} out of range`);

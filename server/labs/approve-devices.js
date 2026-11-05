@@ -9,7 +9,7 @@ export default {
   minutes: 8,
   topics: ['Defender for Endpoint', 'Device onboarding', 'Configuration management'],
   examObjective: '2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint',
-  sourceQuestions: { set1: [], set2: [6], set3: [] },
+  sourceQuestions: { set1: [], set2: [6], set3: [], set4: [4], set5: [] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "exam", note: "The device approval flow comes from the practice question. No Microsoft Learn page confirming it was found." },
   scenarios: ['devices-pending-approval'],
