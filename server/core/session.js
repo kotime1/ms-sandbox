@@ -10,6 +10,7 @@ import { createWorld } from '../sim/world.js';
 import { LabAgent } from '../agents/lab-agent.js';
 import { AttackAgent } from '../agents/attack-agent.js';
 import { AssistantAgent } from '../agents/assistant-agent.js';
+import { ExamSession } from '../exam/session.js';
 
 const IDLE_MS = 2 * 60 * 60 * 1000;
 export const MAX_SESSIONS = 50;
@@ -36,6 +37,7 @@ export class SessionStore {
     s.attack = new AttackAgent({ bus: s.bus, getWorld: () => s.world });
     s.lab = new LabAgent({ bus: s.bus, getWorld: () => s.world, setWorld: (w) => { s.world = w; } });
     s.assistant = new AssistantAgent({ bus: s.bus, env: this.env });
+    s.exam = new ExamSession({ env: this.env });
     this.map.set(id, s);
     return s;
   }

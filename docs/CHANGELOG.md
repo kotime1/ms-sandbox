@@ -2,6 +2,35 @@
 
 One entry per iteration, newest first. **Every iteration must update the docs and add an entry here.**
 
+## Iteration 8: Practice exam tab (2026-11-05)
+
+**Summary.** A new top-level **Practice exam** tab builds an SC-200-style exam on request: 10 to 50 questions (default 50), four formats, scenario and performance-style items, domain weights from the October 2026 skills-measured list, and an explanation after every submitted question. Unit tests 318 -> **356**; new browser script `scripts/e2e-exam.mjs` (94 checks).
+
+### What was built
+- **Question bank**: 96 questions in `server/exam/bank/` (62 original, 34 adapted from the question sets). All 54 skills-measured bullets are covered. The bank is checked when the server starts; a bad question stops it from loading.
+- **Exam builder** (`server/exam/build.js`): largest-remainder split over the domain targets (42 / 38 / 20), then a type mix (about 55% single, 15% multi, 10% order, 20% dropdown). It prefers questions the session has not seen, and reports a shortfall instead of failing.
+- **Grading** (`server/exam/item.js`): options get opaque ids and are shuffled per exam. The answer key, `why` text and explanation are only returned after a question is submitted, and a question can be answered once. A malformed answer is refused without using up the question.
+- **Optional live questions** (`server/agents/exam-agent.js`): with an API key, about 40% of an exam is written by Claude. The prompt contains only server-chosen enums, so no text from the browser reaches it. Output is untrusted: it must be a JSON array and every question passes the same validator or is dropped. The model cannot choose the domain, id or source. If Claude fails, the exam starts from the bank and says so.
+- **UI** (`web/js/pages/exam.js`): ordering uses up/down buttons (keyboard and screen-reader friendly, focus stays on the moved step); leaving the tab and coming back resumes with the saved feedback; the results screen has a per-domain breakdown and reopens missed questions.
+
+### Answer shape (the requirement that mattered most)
+The validator (`server/exam/validate.js`) rejects: a correct answer that is clearly the longest; wide length spread between phrase-length options; a comma, "and", bracket, digit, semicolon, colon or trailing full stop that appears in exactly the correct (or exactly the wrong) options; an absolute word (always, never, only, must) only in wrong options; "all/none of the above" and "both"; and a correct answer that repeats stem words the wrong ones do not.
+- **Per-question rules were not enough.** My first 18 questions passed after fixes, but the correct answer was then the *shortest* 37% of the time and the longest 14%: I had overcorrected, and "never the longest" is a tell just like "always the longest". The bank now also fails to load if any length rank (longest to shortest) is further than 9 points from 25%. Final bank: 22% / 27% / 24% / 26%. Writing rule recorded in `AUTHORING_LABS.md`: decide the target rank first, then size the distractors around it.
+- The same mistake happened twice more while writing (the respond2 and hunt1 batches landed at 54% and 45% "correct is longest") and was caught each time by the validator, not by reading.
+- Two validator rules were relaxed after review, not just to make questions pass: "every hour" is a schedule, not a hedge; and length spread only applies to phrase-length options (30+ chars), because product names such as `Syslog` and `CommonSecurityLog` cannot be padded.
+
+### Research
+Skills measured, weights, the 100-minute format and the question types (active screen, build list, case study, drag and drop, hot area, multiple choice, labs) come from Microsoft Learn. **I could not read community accounts** (Reddit, search engines and exam-dump sites were blocked or returned nothing), so "what people are saying" is not reflected beyond what you told me about the sets: the question mix and scenario share are my estimate.
+
+### Decisions worth knowing
+- Study mode only (feedback after each question), as chosen. There is no timer and no scaled 700/1000 score; the results screen says the practice score does not predict it.
+- The question sets list only the right answer, not the wrong options, so none could be loaded as-is. The 34 adapted questions have new distractors.
+- Case studies (several questions about one long scenario) and hot-area/drag-and-drop with free positioning are not built; ordering uses arrows instead of drag. Labs (live portal tasks) are covered by the sandbox's labs, not this tab.
+
+### Known gaps
+- The bank is 96 questions, so two 50-question exams share roughly half their questions. More multi-select and ordering items are the cheapest way to add variety (7 each today).
+- Original questions were written from my knowledge of the products and the study guide, and have not been checked against a live tenant. A few facts (for example the default audit retention and some option names) should be verified against Microsoft Learn before relying on them.
+
 ## Iteration 7: Question set 5, two labs, and a rewritten study guide (2026-11-04)
 
 **Summary.** Added `question_sets/set5.txt`. **Only 2 of its 50 questions are new**; 35 repeat questions that already have a lab, and 13 repeat older questions that had none. Instead of building for the 2 new ones alone, I ranked every question that still had no lab by how often you had missed it, and built the two highest-value labs. Coverage is now **185 of 250** questions across five sets (26 labs). Unit tests 288 -> **318**; browser checks in `e2e-labs3` 95 -> **104**.

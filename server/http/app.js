@@ -14,6 +14,7 @@ import { perform, listScopes } from '../sim/actions.js';
 import { LABS, labSummary } from '../labs/index.js';
 import { getView } from './views.js';
 import { safeEqual } from '../core/util.js';
+import { ExamInputError } from '../exam/item.js';
 
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');
 const MAX_BODY = 16 * 1024;
@@ -66,6 +67,7 @@ export function createApp({ env = process.env, now = () => Date.now(), store } =
   const secure = env.COOKIE_SECURE === '1';
   const limiter = new RateLimiter(Number(env.RATE_LIMIT) || 240, 60_000, now);
   const askLimiter = new RateLimiter(20, 60_000, now);
+  const examStartLimiter = new RateLimiter(6, 60_000, now); // each start may call the Claude API
   const newSessionLimiter = new RateLimiter(30, 60_000, now);
 
   const allowedHosts = (port) => new Set(['localhost', '127.0.0.1', '[::1]'].flatMap((h) => [h, `${h}:${port}`]).concat((env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean)));
@@ -159,7 +161,7 @@ export function createApp({ env = process.env, now = () => Date.now(), store } =
           session = sessions.create();
         }
         const cookie = `${COOKIE}=${session.id}; Path=/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}; Max-Age=7200`;
-        return send(res, 200, { ok: true, data: { csrf: session.csrf, assistant: session.assistant.info(), labs: LABS.map(labSummary) } }, { 'Set-Cookie': cookie });
+        return send(res, 200, { ok: true, data: { csrf: session.csrf, assistant: session.assistant.info(), exam: session.exam.info(), labs: LABS.map(labSummary) } }, { 'Set-Cookie': cookie });
       }
 
       if (!session) return fail(res, 401, 'NoSession', 'Start a session first');
@@ -204,8 +206,25 @@ export function createApp({ env = process.env, now = () => Date.now(), store } =
         const q = await requireString(body, 'question', 600);
         return send(res, 200, { ok: true, data: await session.assistant.ask(q) });
       }
+      // ---- Practice exam. The answer key never leaves the server before a question is submitted.
+      if (pathname.startsWith('/api/exam/')) {
+        const sub = pathname.slice('/api/exam/'.length);
+        if (method === 'GET' && sub === 'summary') return send(res, 200, { ok: true, data: { summary: session.exam.summary() } });
+        if (method === 'GET' && /^question\/\d{1,3}$/.test(sub)) return send(res, 200, { ok: true, data: { question: session.exam.question(Number(sub.slice('question/'.length))) } });
+        if (method === 'POST' && sub === 'start') {
+          if (!examStartLimiter.allow(session.id)) return fail(res, 429, 'RateLimited', 'Starting exams too quickly. Wait a moment.');
+          if (body.count !== undefined && typeof body.count !== 'number') throw new HttpError(400, 'count must be a number');
+          if (body.includeLive !== undefined && typeof body.includeLive !== 'boolean') throw new HttpError(400, 'includeLive must be true or false');
+          return send(res, 200, { ok: true, data: await session.exam.start({ count: body.count, includeLive: body.includeLive }) });
+        }
+        if (method === 'POST' && sub === 'answer') {
+          if (!Number.isInteger(body.n)) throw new HttpError(400, 'n must be a whole number');
+          return send(res, 200, { ok: true, data: session.exam.answer(body.n, body.answer) });
+        }
+      }
       return fail(res, 404, 'NotFound', 'Unknown API route');
     } catch (err) {
+      if (err instanceof ExamInputError) return fail(res, 422, 'ExamInput', err.message);
       if (err instanceof HttpError) {
         if (err.status === 413) {
           res.once('finish', () => req.destroy());

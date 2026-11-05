@@ -355,3 +355,64 @@ body.p-home .card { background: #fff; border: 0; border-radius: 4px; box-shadow:
 body.p-home .card.current { box-shadow: 0 0 0 2px var(--accent), 0 1px 4px rgba(0, 0, 0, .18); }
 body.p-home .card h2 { font-size: 1.15rem; font-weight: 600; }
 body.p-home h1 { font-size: 1.9rem; }
+
+/* ---- Practice exam tab: light like the Labs tab, full width (no side menu, no lab coach) ---- */
+body.p-exam {
+  --bg: #f5f5f5; --surface: #fff; --text: #242424; --muted: #616161; --border: #e0e0e0;
+  --accent: #0f6cbd; --accent-text: #fff; --top: #3b3a39; --code-bg: #f5f5f5;
+  --ok: #107c10; --ok-bg: #dff6dd; --warn: #8a3c00; --warn-bg: #fff4ce; --err: #a4262c; --err-bg: #fde7e9;
+  color-scheme: light;
+}
+body.p-exam .topbar { height: 48px; background: #3b3a39; }
+body.p-exam .brand { font-size: 1.05rem; }
+body.p-exam .portal-tabs a { padding: .85rem .8rem; }
+body.p-exam .content { background: var(--bg); }
+body.p-exam .labpanel, body.p-exam .sidenav { display: none; }
+body.p-exam .layout { grid-template-columns: minmax(0, 1fr); align-content: start; }
+body.p-exam h1 { font-size: 1.9rem; }
+body.p-exam .page { max-width: 860px; margin: 0 auto; }
+body.p-exam .blade { border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .18); border-radius: 4px; }
+
+.exam-weights { margin: .3rem 0 0; padding-left: 1.2rem; line-height: 1.7; }
+.exam-head { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; }
+.exam-head .chips { flex: 1; margin: 0; }
+.exam-count { font-weight: 600; }
+.exam-progress { color: var(--muted); font-size: .85rem; }
+.exam-scenario { background: var(--bg); border-left: 3px solid var(--accent); padding: .6rem .9rem; margin-bottom: 1rem; border-radius: 0 4px 4px 0; }
+.exam-scenario h4 { margin: 0 0 .25rem; }
+.exam-scenario p { margin: 0; line-height: 1.5; }
+.exam-stem { font-size: 1.05rem; font-weight: 600; line-height: 1.45; margin: 0 0 .3rem; }
+.exam-options { display: grid; gap: .5rem; margin: .8rem 0; }
+.exam-option { display: grid; grid-template-columns: auto 1fr; gap: .7rem; align-items: start; padding: .65rem .8rem; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; background: var(--surface); line-height: 1.4; }
+.exam-option:hover { background: var(--bg); }
+.exam-option:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.exam-option input { margin-top: .2rem; }
+.exam-steps { list-style: decimal; padding-left: 1.6rem; display: grid; gap: .45rem; margin: .6rem 0; }
+.exam-step { padding: .5rem .7rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); }
+.exam-step::marker { font-weight: 600; color: var(--muted); }
+.exam-step { display: list-item; }
+.exam-step-text { display: inline-block; max-width: calc(100% - 6rem); vertical-align: middle; line-height: 1.4; }
+.exam-step-btns { float: right; display: inline-flex; gap: .3rem; }
+.exam-template { display: grid; gap: .55rem; margin: .8rem 0; line-height: 1.9; }
+.exam-template.code { font-family: Consolas, "Cascadia Mono", monospace; background: var(--code-bg); padding: .8rem; border-radius: 4px; font-size: .9rem; }
+.exam-line select { display: inline-block; width: auto; min-width: 9rem; max-width: 100%; margin: 0 .3rem; }
+.exam-next { margin-top: 1rem; }
+.exam-next[hidden] { display: none; }
+.exam-feedback { margin-top: 1rem; }
+.exam-verdict { padding: .6rem .9rem; border-radius: 4px; font-size: 1rem; }
+.exam-verdict.right { background: var(--ok-bg); color: var(--ok); }
+.exam-verdict.wrong { background: var(--err-bg); color: var(--err); }
+.exam-explain p { line-height: 1.55; margin: 0 0 .6rem; }
+.exam-review ul, .exam-review ol { list-style: none; padding: 0; margin: 0 0 .6rem; display: grid; gap: .35rem; }
+.exam-review ol { list-style: decimal; padding-left: 1.4rem; }
+.exam-review-row { padding: .45rem .7rem; border: 1px solid var(--border); border-radius: 4px; line-height: 1.4; }
+.exam-review-row.is-right { border-color: var(--ok); background: var(--ok-bg); }
+.exam-review-row.is-picked:not(.is-right) { border-color: var(--err); background: var(--err-bg); }
+.exam-mark { display: inline-block; min-width: 6.8rem; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.exam-why { margin-top: .2rem; padding-left: 7.2rem; }
+.exam-review li.is-right { color: var(--ok); }
+.exam-review li.is-wrong { color: var(--err); }
+.exam-blank { margin-bottom: .6rem; }
+.exam-score { font-size: 1.6rem; font-weight: 600; margin: 0 0 .3rem; }
+.exam-missed { list-style: none; padding: 0; display: grid; gap: .4rem; }
+@media (max-width: 720px) { .exam-why { padding-left: 0; } .exam-step-text { max-width: 100%; display: block; } .exam-step-btns { float: none; margin-top: .4rem; } }

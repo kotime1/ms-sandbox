@@ -68,6 +68,15 @@ Each lab shows a **verification level**: *Matches Microsoft Learn*, *Simplified 
 
 Labs are graded on the **outcome** (what changed in the environment), not the click order, so there are many valid paths, and "works but too broad" fails the least-privilege objectives on purpose. Investigation labs ask you to *report a finding* (who, how many); the expected value stays on the server.
 
+## Practice exam
+
+The **Practice exam** tab builds an SC-200-style exam on request (10 to 50 questions, 50 by default). Questions follow the published domain weights (Manage 40–45%, Respond 35–40%, Hunt 20–25%, so 21 / 19 / 10 for 50) and come in four formats: choose one, choose several, put steps in order, and complete dropdown selections (including Yes/No tables and KQL with blanks). Most carry a scenario. After you submit each question you see whether it was right, why, and why each wrong option is wrong, with a link to the lab that practises the topic.
+
+- The built-in bank is in [server/exam/bank/](server/exam/bank/): original questions written for this sandbox, plus some adapted from [question_sets/](question_sets/) (those files only record the right answers, so the wrong options are new). Every one of the 54 skills-measured bullets has at least one question.
+- **Answers cannot be guessed from their shape.** The bank refuses to load if a correct answer is distinguishable by length, punctuation, hedging or repeated stem words, and a bank-wide check keeps the correct option's length rank near 25% for each of longest to shortest. Option order is shuffled for every exam.
+- With `ANTHROPIC_API_KEY` set, a checkbox adds freshly written questions (about 40% of the exam). They pass the same checks or are discarded, are labelled "Written by Claude", and can contain mistakes. See [.env.example](.env.example).
+- Answers are held on the server for the session. Nothing is stored in the browser, and the answer key is never sent before you submit.
+
 ## Optional: Claude-powered assistant
 
 ```bash

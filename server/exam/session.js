@@ -1,0 +1,106 @@
+// Per-browser-session practice exam. Lives on the session object (in memory, like the lab world), so it is lost on
+// server restart or after the idle timeout. Holds the answer key; nothing here is sent to the browser except through
+// publicView() and the feedback returned by grade() after a question has been submitted.
+
+import { BANK } from './bank/index.js';
+import { DOMAINS, DOMAIN_KEYS } from './objectives.js';
+import { buildExam, apportion, TYPE_MIX, MIN_COUNT, MAX_COUNT, DEFAULT_COUNT } from './build.js';
+import { makeItem, publicView, grade, ExamInputError } from './item.js';
+import { ExamAgent } from '../agents/exam-agent.js';
+
+/** Share of each domain's quota we ask Claude to write when live generation is on. The rest comes from the bank. */
+const LIVE_SHARE = 0.4;
+
+export class ExamSession {
+  constructor({ env = process.env, bank = BANK, agent, rand = Math.random } = {}) {
+    this.bank = bank;
+    this.agent = agent ?? new ExamAgent({ env });
+    this.rand = rand;
+    this.seen = new Set(); // bank ids already used in this session, so the next exam prefers new questions
+    this.exam = null;
+    this.starting = false;
+  }
+
+  info() {
+    return { live: this.agent.available, bank: this.bank.length, min: MIN_COUNT, max: MAX_COUNT, count: DEFAULT_COUNT };
+  }
+
+  async start({ count = DEFAULT_COUNT, includeLive = false } = {}) {
+    const n = Math.round(Number(count));
+    if (!Number.isFinite(n) || n < MIN_COUNT || n > MAX_COUNT) throw new ExamInputError(`Choose between ${MIN_COUNT} and ${MAX_COUNT} questions.`);
+    if (this.starting) throw new ExamInputError('An exam is already being prepared.');
+    this.starting = true;
+    try {
+      const notes = [];
+      let extra = [];
+      if (includeLive) {
+        if (!this.agent.available) notes.push('Live question writing is not configured, so this exam uses the built-in bank.');
+        else {
+          const quota = apportion(n, Object.fromEntries(DOMAIN_KEYS.map((d) => [d, DOMAINS[d].target])));
+          const results = await Promise.all(DOMAIN_KEYS.map((d) => {
+            const want = Math.round(quota[d] * LIVE_SHARE);
+            const types = Object.entries(apportion(want, TYPE_MIX)).flatMap(([t, k]) => Array(k).fill(t));
+            return this.agent.generate(d, types);
+          }));
+          extra = results.flatMap((r) => r.questions);
+          const rejected = results.reduce((s, r) => s + r.rejected, 0);
+          if (extra.length === 0) notes.push('Claude did not return usable questions, so this exam uses the built-in bank.');
+          else if (rejected) notes.push(`${rejected} generated question(s) were discarded because they did not pass the quality checks.`);
+        }
+      }
+      const { questions, shortfall } = buildExam({ bank: this.bank, extra, count: n, seen: this.seen, rand: this.rand });
+      if (shortfall) notes.push(`The bank only has enough questions for ${questions.length} in this mix.`);
+      if (!questions.length) throw new ExamInputError('No questions are available.');
+      for (const q of questions) if (q.source !== 'live') this.seen.add(q.id);
+      const id = `x${Math.floor(this.rand() * 1e9).toString(36)}`;
+      this.exam = { id, items: questions.map((q) => makeItem(q, this.rand)), notes, startedAt: Date.now() };
+      return { examId: id, total: this.exam.items.length, notes, live: extra.length, question: this.question(1) };
+    } finally {
+      this.starting = false;
+    }
+  }
+
+  #item(n) {
+    if (!this.exam) throw new ExamInputError('Start an exam first.');
+    const i = Number(n);
+    if (!Number.isInteger(i) || i < 1 || i > this.exam.items.length) throw new ExamInputError('No such question.');
+    return this.exam.items[i - 1];
+  }
+
+  question(n) {
+    const item = this.#item(n);
+    const view = publicView(item, Number(n), this.exam.items.length);
+    // A question that was already submitted is shown with its feedback, so a page refresh does not lose it.
+    return item.answered ? { ...view, result: item.result } : view;
+  }
+
+  answer(n, answer) {
+    const item = this.#item(n);
+    if (item.answered) throw new ExamInputError('This question has already been answered.');
+    const result = grade(item, answer);
+    item.answered = true;
+    item.answer = answer;
+    item.result = result;
+    return { n: Number(n), ...result, summary: this.summary() };
+  }
+
+  summary() {
+    if (!this.exam) return null;
+    const by = Object.fromEntries(DOMAIN_KEYS.map((d) => [d, { label: DOMAINS[d].label, answered: 0, correct: 0, total: 0 }]));
+    const missed = [];
+    this.exam.items.forEach((item, i) => {
+      const row = by[item.q.domain];
+      row.total++;
+      if (item.answered) {
+        row.answered++;
+        if (item.result.correct) row.correct++;
+        else missed.push({ n: i + 1, objective: item.q.objective, stem: item.q.stem.slice(0, 160) });
+      }
+    });
+    const answered = Object.values(by).reduce((s, r) => s + r.answered, 0);
+    const correct = Object.values(by).reduce((s, r) => s + r.correct, 0);
+    return { examId: this.exam.id, total: this.exam.items.length, answered, correct, domains: by, missed, notes: this.exam.notes, done: answered === this.exam.items.length };
+  }
+}
+
+export { ExamInputError };

@@ -1,0 +1,172 @@
+// Domain 2 (part 2): Defender for Endpoint response and Microsoft 365 investigation (Purview Audit, eDiscovery, Graph activity logs).
+import { ok, no, st } from './dsl.js';
+
+export default [
+  {
+    id: 'r018', domain: 'respond', objective: 'Perform actions on the device, including live response and collecting investigation packages', type: 'single', source: 'set1:Q30', labId: 'triage-ws23',
+    scenario: 'An alert on WS-23 shows a suspicious scheduled task. The user is in a customer meeting and must not lose network access or be interrupted. You need a snapshot of running processes, network connections and scheduled tasks for later analysis.',
+    stem: 'Which action should you take from the device page?',
+    options: [
+      no('Isolate the device from the network', 'Isolation cuts the network connection and interrupts the user.'),
+      no('Start a live response session on it', 'Live response is an interactive session, not a silent snapshot.'),
+      ok('Collect an investigation package'),
+      no('Run an antivirus scan on the device', 'A scan looks for malware and does not return a record of processes and connections.'),
+    ],
+    explanation: 'Collect investigation package gathers a ZIP of forensic data such as processes, connections, scheduled tasks and autoruns without interrupting the user. Isolation disrupts them, live response is interactive and a scan is a different job.',
+  },
+  {
+    id: 'r019', domain: 'respond', objective: 'Perform actions on the device, including live response and collecting investigation packages', type: 'single', source: 'set5:Q33', labId: 'triage-ws23',
+    scenario: 'A file with an unknown reputation was found on several devices. You must find out safely what it does, and make sure that devices block it in future if it proves malicious.',
+    stem: 'Which two actions together achieve this, in the order given?',
+    options: [
+      no('Isolate the devices, then add the hash as an incident entity', 'Isolation contains devices, and recording an entity neither analyses nor blocks the file.'),
+      ok('Submit the file for deep analysis, then add the hash as a block indicator'),
+      no('Run live response on each device, then delete the file by hand', 'This is manual per device and does not give a behaviour report or stop reappearance.'),
+      no('Collect an investigation package, then run a full scan on each device', 'The package is a snapshot of the device and a scan will not tell you what this file does.'),
+    ],
+    explanation: 'Deep analysis detonates the file in a sandbox and returns a behaviour report. Adding the file hash as an indicator with a block action makes devices block it from then on. Entities in an incident only record the file.',
+  },
+  {
+    id: 'r020', domain: 'respond', objective: 'Investigate device timelines', type: 'single', source: 'bank',
+    scenario: 'You are reviewing the device timeline of a laptop with thousands of events. You want to show only the events that you have flagged, together with the events that occurred just before the first flagged one.',
+    stem: 'What should you do on the timeline?',
+    options: [
+      no('Export the timeline to a CSV file then filter the rows in a spreadsheet', 'Export is unnecessary because the timeline can filter flagged events itself.'),
+      no('Create a custom detection rule from the event type then run it on a schedule', 'A rule creates alerts in future and does not change how this timeline is displayed.'),
+      ok('Flag the key events then enable Only flagged events plus the time bar'),
+      no('Open the device inventory page then sort the device list by its risk level', 'Inventory sorting changes the device list and not the events on a timeline.'),
+    ],
+    explanation: 'The timeline supports flagging events, a filter that shows only flagged events, and a time bar for expanding the surrounding period. This produces a clean breach timeline without leaving the portal.',
+  },
+  {
+    id: 'r021', domain: 'respond', objective: 'Perform evidence and entity investigation', type: 'single', source: 'bank',
+    scenario: 'During an investigation, you find a suspicious file hash. You want to learn which devices in the tenant have seen the file, when it first appeared, and which processes created it.',
+    stem: 'Where do you get this information quickly?',
+    options: [
+      no('The Secure Score page and its improvement actions list', 'Secure Score lists improvement actions, not file prevalence.'),
+      ok('The page for the file entity in the Defender portal'),
+      no('The vulnerability management software inventory page', 'This inventory lists installed software and vulnerabilities and not the spread of a single file.'),
+      no('The exposure management initiatives dashboard page', 'This dashboard tracks security programme goals and not file activity.'),
+    ],
+    explanation: 'A file entity page shows details such as the file prevalence, first and last seen, associated alerts and the devices where it was observed. The other views serve other purposes.',
+  },
+  {
+    id: 'r022', domain: 'respond', objective: 'Investigate and remediate incidents identified by automatic attack disruption', type: 'single', source: 'set1:Q1', labId: 'attack-disruption',
+    scenario: 'Automatic attack disruption contained a device and disabled an account in a ransomware incident. After the analysts confirm the attack was stopped, they must restore the user\'s access.',
+    stem: 'Where do the analysts release the contained device and enable the account again?',
+    options: [
+      no('The device inventory page, by editing the device group of the device', 'Editing a group does not undo a disruption action.'),
+      ok('The Action center, by using the undo option on the disruption action'),
+      no('The Entra admin center, by deleting the sign-in risk policy for the user', 'Deleting a policy would weaken protection and not release the specific action.'),
+      no('The advanced hunting page, by running the release query for the device', 'Hunting is read-only and has no release query.'),
+    ],
+    explanation: 'Actions taken by automatic attack disruption appear in the Action center history, from which analysts can release a contained device or user once they have verified that the threat is gone.',
+  },
+  {
+    id: 'r023', domain: 'respond', objective: 'Perform actions on the device, including live response and collecting investigation packages', type: 'multi', select: 2, source: 'bank',
+    scenario: 'You open a live response session to a Windows device that you suspect is running a malicious process. Your role includes the permission to use live response.',
+    stem: 'Which two tasks can you perform in the live response session?',
+    options: [
+      ok('Run a command to list the running processes'),
+      ok('Download a suspicious file from the device'),
+      no('Change the sign-in policy of the tenant', 'Live response runs on the device. It does not change tenant sign-in settings.'),
+      no('Publish a new antivirus signature for all devices', 'Signatures are delivered by Microsoft and cannot be published from a session.'),
+      no('Edit the retention settings of the workspace', 'Workspace retention is configured in the workspace, not on a device.'),
+    ],
+    explanation: 'Live response is an interactive command-line session on the device. You can run commands, collect files and run scripts from the library. It cannot change tenant policy, deliver signatures or alter workspace retention.',
+  },
+  {
+    id: 'r024', domain: 'respond', objective: 'Investigate threats by using Microsoft Purview Audit', type: 'single', source: 'set2:Q39', labId: 'audit-log',
+    scenario: 'You are investigating mailbox access by a former contractor. The activity took place 11 months ago. Your organization has Microsoft 365 E5 with the default audit retention. The relevant record types are Exchange, SharePoint and OneDrive.',
+    stem: 'How far back can you search the audit log by default?',
+    options: [
+      no('Thirty days', 'Thirty days is not the default for E5 audit retention.'),
+      no('Ninety days', 'Ninety days is a legacy figure and is not what Premium retains by default.'),
+      no('Six months', 'Audit (Standard) keeps about six months, but Audit (Premium) keeps these records longer.'),
+      ok('One year'),
+    ],
+    explanation: 'Audit (Premium), included with E5, keeps Exchange, SharePoint, OneDrive and Entra ID records for one year by default. Audit (Standard) keeps 180 days, and a single search covers at most 180 days.',
+  },
+  {
+    id: 'r025', domain: 'respond', objective: 'Investigate threats by using Microsoft Purview Audit', type: 'single', source: 'set1:Q36', labId: 'audit-log',
+    scenario: 'You need to find the audit records that Microsoft Defender XDR created when an automated investigation was started and remediation was carried out.',
+    stem: 'Which record type should you filter on in the audit log search?',
+    options: [
+      no('ComplianceDLPExchange', 'This record type covers data loss prevention events for Exchange.'),
+      ok('AirInvestigation'),
+      no('AzureActiveDirectory', 'This record type covers Entra ID directory events.'),
+      no('SharePointFileOperation', 'This record type covers file actions in SharePoint.'),
+    ],
+    explanation: 'AirInvestigation is the record type for automated investigation and response activity in Defender XDR. Other record types cover cmdlets, sign-ins and Exchange administration.',
+  },
+  {
+    id: 'r026', domain: 'respond', objective: 'Investigate threats by using Microsoft Purview Audit', type: 'dropdown', source: 'bank', labId: 'audit-log',
+    stem: 'For each investigation question, select the source that answers it best.',
+    template: 'Which files did the user share externally last week? {{a}}\nFrom which IP address and with which method did the user authenticate? {{b}}\nWho created a new app registration in the tenant? {{c}}',
+    blanks: [
+      { id: 'a', options: [ok('Purview Audit log'), no('Entra sign-in logs', 'Sign-in logs record authentication and not file sharing.'), no('Entra audit logs', 'These logs record directory changes and not file sharing.'), no('Cloud Apps policies', 'Policies alert on conditions you define. They are not a record of past sharing.')] },
+      { id: 'b', options: [no('Purview Audit log', 'The audit log records activity and not the detail of the authentication method.'), ok('Entra sign-in logs'), no('Entra audit logs', 'These logs record directory changes rather than sign-ins.'), no('Cloud Apps policies', 'Policies alert on conditions and do not hold sign-in details.')] },
+      { id: 'c', options: [no('Purview Audit log', 'Directory changes are recorded in Entra audit logs.'), no('Entra sign-in logs', 'Sign-in logs record authentication and not changes to the directory.'), ok('Entra audit logs'), no('Cloud Apps policies', 'Policies alert on conditions and are not a record of directory changes.')] },
+    ],
+    explanation: 'What a user did in Microsoft 365 services is in the Purview Audit log. How and where they authenticated is in the Entra sign-in logs. Changes to the directory, such as creating an app registration, are in the Entra audit logs.',
+  },
+  {
+    id: 'r027', domain: 'respond', objective: 'Investigate threats by using Content search in Microsoft Purview eDiscovery', type: 'single', source: 'set2:Q33',
+    scenario: 'A content search in Microsoft Purview eDiscovery fails with the error CS007 because the search is too large or too complex.',
+    stem: 'What should you do?',
+    options: [
+      no('Wait for the search to complete in the background of the portal', 'CS007 indicates the search cannot complete as designed, so waiting will not help.'),
+      no('Remove the keyword conditions so the search covers more content', 'Removing conditions makes the search larger.'),
+      ok('Split the search into smaller searches by location or date range'),
+      no('Increase the retention period of the mailboxes that are in the search', 'Retention does not change the size limits of a search.'),
+    ],
+    explanation: 'CS007 means the search exceeds size or complexity limits. Splitting it into several smaller searches, for example by date range or custodian, brings each one inside the limits.',
+  },
+  {
+    id: 'r028', domain: 'respond', objective: 'Investigate threats by using Microsoft Graph activity logs', type: 'single', source: 'bank',
+    scenario: 'A service principal made unexpected Microsoft Graph calls that read mailboxes. You want to see the exact API requests, the HTTP status and the caller IP address for those calls.',
+    stem: 'Which log source should you query?',
+    options: [
+      no('The Entra audit logs about application changes', 'These show configuration changes to the app and not each API request.'),
+      no('The Exchange message trace data for the mailboxes', 'Message trace shows mail flow, not Graph API requests.'),
+      no('The Purview Audit log filtered to mailbox sign-ins', 'The audit log records user activity and does not hold every Graph API request.'),
+      ok('The Microsoft Graph activity logs in the workspace'),
+    ],
+    explanation: 'Microsoft Graph activity logs record each API request made to Microsoft Graph, including the path, method, response code and caller IP. Send them to a workspace with a diagnostic setting to query them.',
+  },
+  {
+    id: 'r029', domain: 'respond', objective: 'Investigate threats by using Microsoft Graph activity logs', type: 'single', source: 'bank',
+    scenario: 'You are correlating a Graph API call with the sign-in that produced its token. The GraphAPIAuditEvents record has a SignInActivityId value.',
+    stem: 'Which field in the sign-in logs should you match it against?',
+    options: [
+      no('CorrelationId', 'CorrelationId groups related events but is not the key used to tie a Graph request to a sign-in.'),
+      ok('UniqueTokenIdentifier'),
+      no('ConditionalAccessStatus', 'This field reports a policy result and not an identifier of the sign-in.'),
+      no('AppDisplayName', 'The application name is not unique to a single sign-in.'),
+    ],
+    explanation: 'The SignInActivityId in Graph activity logs matches the UniqueTokenIdentifier of the sign-in log entry that issued the token, which links the API call to the sign-in.',
+  },
+  {
+    id: 'r030', domain: 'respond', objective: 'Investigate threats by using Microsoft Purview Audit', type: 'order', source: 'bank', labId: 'audit-log',
+    stem: 'You must find out who deleted files from a SharePoint site last month. Arrange the steps in the order that you should perform them.',
+    steps: [
+      st('Confirm that auditing is turned on for the organization'),
+      st('Open the audit search and set the date range and the SharePoint activities'),
+      st('Narrow the results by site URL and review the user and IP address columns'),
+      st('Export the matching records and attach them to the incident'),
+    ],
+    explanation: 'Confirm that there is audit data to search, run the search with the right scope, narrow it to the site and examine who and from where, and then preserve the results with the incident record.',
+  },
+  {
+    id: 'r031', domain: 'respond', objective: 'Investigate and remediate security alerts from Microsoft Defender for Identity', type: 'single', source: 'bank',
+    scenario: 'Defender for Identity raises a pass-the-ticket alert for a user. The same account\'s Kerberos ticket was used from two different devices in a short time, and one of them is not in the user\'s normal pattern.',
+    stem: 'What does this alert most likely indicate?',
+    options: [
+      ok('A Kerberos ticket was stolen and replayed from another device'),
+      no('A user forgot the password and the account was locked out', 'A lockout produces failed sign-ins and not a reused ticket.'),
+      no('An administrator reset the user password in the directory', 'A reset changes credentials and does not produce a reused ticket.'),
+      no('A conditional access policy blocked the sign-in from a new location', 'A block is a policy result and is unrelated to ticket reuse.'),
+    ],
+    explanation: 'Pass-the-ticket means an attacker obtains a valid Kerberos ticket and replays it from another machine to impersonate the user. Remediate by disabling the account or resetting its credentials and investigating the source device.',
+  },
+];

@@ -84,6 +84,24 @@ When a feature has a documented rule set (automation rules, custom detections), 
 3. Give clickable controls a `data-target` such as `btn:something` / `nav:area/page` / `row:Name` so the coach can highlight them.
 4. Read data via `ctx.view('<name>')` (add the whitelist in `server/http/views.js`), write via `ctx.act(type, params)`.
 
+## Add practice-exam questions
+
+Questions live in `server/exam/bank/*.js` (one default-exported array per file, registered in `bank/index.js`). The format is documented at the top of `server/exam/schema.js`; use the `ok()`, `no()` and `st()` helpers from `bank/dsl.js`. Four types: `single`, `multi` (stem says "two"/"three" and `select` matches), `order` (list the steps in the CORRECT order; the builder shuffles) and `dropdown` (`{{a}}` blanks in a `template`; also used for Yes/No tables and KQL with `code: true`).
+
+- `objective` must be one of the skills-measured bullets in `server/exam/objectives.js`, copied exactly (a test fails otherwise). Put the facts a question needs in the `scenario`.
+- Every wrong option needs a `why` (what the learner reads if they pick it). `explanation` says why the right answer is right.
+- Use `source: 'setN:QM'` when a question is adapted from `question_sets/`. Those files list only the right answer, not the wrong options, so you must write the distractors yourself.
+- Add `labId` when a sandbox lab practises the topic, so the feedback links to it.
+
+**Answer shape must not reveal the answer.** The bank refuses to load if it does, and `node --test test/exam.test.js` checks it. The rules, and why:
+
+- Write every option in a set at about the same length, in the same grammar, with the same punctuation. Do not make the correct one the longest, the most detailed, the only one with a comma, "and", brackets or digits, or the only one without an absolute word (always, never, only, must).
+- Do not overcorrect either. Across the whole bank the correct option must be the longest about 25% of the time, the shortest about 25%, and so on (each rank within 9 points). A bank where the answer is "never the longest" is just as guessable. Decide the target rank first and rotate it; then size the distractors around the answer, not the other way round.
+- Put specifics in the scenario, not in the answer. If the correct option needs a qualifier ("on the resource group"), give each distractor an equally concrete qualifier.
+- No "all of the above", "none of the above" or "both A and B". Do not repeat distinctive words from the stem more in the correct option than in the wrong ones.
+- Short options that are product names (tables, roles, record types) cannot be padded; the length-spread rule only applies to phrase-length options.
+- Fixing one question changes the bank-level histogram. Run `node scripts/e2e-exam.mjs` for the UI, and `node --test test/exam.test.js` for the rules.
+
 ## Add a study note for the assistant
 
 `server/knowledge/concepts.js`: original paraphrase (do not paste Microsoft text), with trigger `keys`.

@@ -16,11 +16,13 @@ const PORTALS = {
   home: { label: 'Labs', cls: 'p-home', start: 'home' },
   defender: { label: 'Microsoft Defender portal', cls: 'p-defender', start: 'defender/home' },
   azure: { label: 'Azure portal', cls: 'p-azure', start: 'azure/services' },
+  exam: { label: 'Practice exam', cls: 'p-exam', start: 'exam/home' },
 };
-const portalOf = (key) => (key === 'home' ? 'home' : isAzure(key) ? 'azure' : 'defender');
+const portalOf = (key) => (key === 'home' ? 'home' : key.startsWith('exam/') ? 'exam' : isAzure(key) ? 'azure' : 'defender');
 
 const PAGES = {
   home: () => import('./pages/home.js'),
+  'exam/home': () => import('./pages/exam.js'),
   'azure/services': () => import('./pages/azure-services.js'),
   'azure/resources': () => import('./pages/azure-resources.js'),
   'azure/iam': () => import('./pages/azure-iam.js'),
@@ -73,9 +75,10 @@ async function renderPage() {
     // A lab that asks for a finding gets its answer box on whatever page the learner is on. Pages that render their own
     // (the query editor, Incidents & alerts) keep it where it fits; any other page gets it here, so no objective is unreachable.
     const answers = ctx.lab?.briefing?.answers;
-    if (answers?.length && portal !== 'home' && !page.querySelector('[data-target="btn:submit-answer"]')) answerBox(page, answers);
+    const labPage = portal !== 'home' && portal !== 'exam';
+    if (answers?.length && labPage && !page.querySelector('[data-target="btn:submit-answer"]')) answerBox(page, answers);
     clear(shell.main).append(page);
-    if (ctx.lab && portal !== 'home') api.post('/api/action', { type: 'ui.visit', params: { page: path } }).then(() => ctx.refresh());
+    if (ctx.lab && labPage) api.post('/api/action', { type: 'ui.visit', params: { page: path } }).then(() => ctx.refresh());
   } catch (e) {
     if (token !== renderToken) return;
     clear(shell.main).append(h('div', { class: 'page' }, h('div', { class: 'form-error', role: 'alert' }, e.message || 'This page failed to load.')));
@@ -87,7 +90,7 @@ function renderChrome(portal, path) {
   shell.top.classList.toggle('az-top', portal === 'azure');
   shell.top.classList.toggle('df-top', portal === 'defender');
   shell.nav.classList.toggle('df-nav', portal === 'defender');
-  const tabs = h('nav', { class: 'portal-tabs', 'aria-label': 'Portals' }, ['home', 'defender', 'azure'].map((p) => h('a', {
+  const tabs = h('nav', { class: 'portal-tabs', 'aria-label': 'Portals' }, ['home', 'defender', 'azure', 'exam'].map((p) => h('a', {
     href: `#/${PORTALS[p].start}`, class: p === portal ? 'active' : '', 'aria-current': p === portal ? 'page' : undefined,
   }, PORTALS[p].label)));
   if (portal === 'azure') clear(shell.top).append(...azureHeader(tabs));
@@ -100,7 +103,7 @@ function renderChrome(portal, path) {
   );
   clear(shell.nav);
   // The Azure All services page has its own category list, as in the real portal, so the sandbox's blade menu is hidden there.
-  shell.nav.hidden = portal === 'home' || path === 'azure/services';
+  shell.nav.hidden = portal === 'home' || portal === 'exam' || path === 'azure/services';
   if (shell.nav.hidden) return;
   if (portal === 'defender') { renderDefenderNav(shell.nav, path); return; }
   for (const sec of [AZURE]) {
@@ -159,6 +162,7 @@ async function boot() {
   try {
     const s = await api.startSession();
     ctx.assistant = s.assistant;
+    ctx.exam = s.exam;
     ctx.labs = s.labs;
   } catch (e) {
     app.replaceChildren(h('div', { class: 'page' }, h('div', { class: 'form-error' }, e.message)));
