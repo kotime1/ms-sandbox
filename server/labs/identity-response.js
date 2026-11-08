@@ -12,7 +12,7 @@ export default {
   minutes: 15,
   topics: ['Defender for Identity', 'Remediation actions', 'Identity reports', 'Credential theft'],
   examObjective: '2.1 Respond to alerts and incidents in Microsoft Defender XDR',
-  sourceQuestions: { set1: [24], set2: [], set3: [26], set4: [25, 26], set5: [23, 25] },
+  sourceQuestions: { set1: [24], set2: [], set3: [26], set4: [25, 26], set5: [23, 25], set6: [23, 24] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The remediation actions and which identity sources each supports (Revoke session is not available for Active Directory; Mark as compromised is Entra ID only) and the three identity reports with their path are from Microsoft Learn (defender-for-identity/remediation-actions and /reports), checked 2026-11-04. The Excel (XLSX) format of the detailed alert report comes from the practice questions: the reports page I could read does not say. The report data is invented.' },
   scenarios: [],

@@ -1,6 +1,6 @@
 // IBM Consulting Advantage (ICA) chat client, shared by the assistant-agent and the exam-agent.
 // ICA is OpenAI-compatible: POST {base}/chat-models/chat/completions with a Bearer developer key (ICA UI > Settings >
-// API Keys > ICA APIs). The model is an ICA chat-model id; list them with `node scripts/ica-models.mjs`.
+// API Keys > ICA APIs). The model is an ICA chat-model id; list them with `node scripts/probe-ica.mjs models`.
 //
 // Security properties:
 //  - The key comes from the environment only. It is sent in the Authorization header to one fixed https origin

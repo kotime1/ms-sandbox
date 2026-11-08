@@ -12,7 +12,7 @@ export default {
   minutes: 12,
   topics: ['Data connectors', 'CEF', 'Log forwarder', 'Azure Monitor Agent', 'SecurityAlert'],
   examObjective: '1.3 Ingest data into the Microsoft Sentinel SIEM and platform',
-  sourceQuestions: { set1: [], set2: [], set3: [], set4: [13, 14], set5: [12] },
+  sourceQuestions: { set1: [], set2: [], set3: [], set4: [13, 14], set5: [12], set6: [] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The Linux log forwarder prerequisite, the CEF via AMA connector and the CommonSecurityLog table are from Microsoft Learn (connect-cef-syslog-ama), checked 2026-11-04. That Entra ID Protection detections land in SecurityAlert is from the practice question. The agent install, data collection rule and Azure Arc steps are not modelled.' },
   scenarios: [],

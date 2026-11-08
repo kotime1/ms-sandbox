@@ -6,7 +6,6 @@
 
 import { SimError } from './world-errors.js';
 
-export const SOURCES = ['Active Directory', 'Microsoft Entra ID'];
 export const ACTIONS = ['Disable', 'Enable', 'Revoke session', 'Mark as compromised', 'Force password change'];
 
 /** Which identity sources each action supports (from the Supported actions table, restricted to the two sources the sandbox has). */

@@ -80,6 +80,20 @@ export const CONCEPTS = [
       'With the UEBA behaviours layer, behaviour metadata (title, description, categories) is in one table and the entities involved (users, IPs, devices) in another. Combine them with a join on the shared behaviour id. join matches rows between two tables; union just stacks them. Columns that exist on both sides get a numeric suffix on the right.',
   },
   {
+    id: 'ueba-sources',
+    keys: ['ueba', 'entity behavior', 'entity behavior analytics', 'user and entity behavior', 'data sources', 'behavior analytics'],
+    title: 'UEBA data sources',
+    body:
+      'User and Entity Behavior Analytics is turned on in Sentinel settings (Entity behavior configuration). After it is on, the page lists the UEBA data sources you have not connected yet: Azure Activity and Security Events. Microsoft 365, Syslog and Common Event Format are not UEBA data sources on that page, even though they carry user activity. UEBA also uses Microsoft Entra ID for user profiles, which is a separate sync step.',
+  },
+  {
+    id: 'mcp-workspace',
+    keys: ['mcp', 'model context protocol', 'sentinel mcp', 'list_sentinel_workspaces', 'x-mcp-client-tenant-id', 'notebook', 'visual studio code', 'workspace id', 'guest'],
+    title: 'Sentinel MCP server: tenant versus workspace',
+    body:
+      'Two separate controls. The x-mcp-client-tenant-id header in the MCP server definition decides which tenant tool calls authenticate to, which matters when you sign in with a guest account. The workspace a call queries is chosen by the workspace ID in the prompt, which you find with the list_sentinel_workspaces tool. The header does not pick a workspace, and using default as the workspace ID does not pin one when there are several.',
+  },
+  {
     id: 'arc-servers',
     keys: ['azure arc', 'connected machine agent', 'on-premises', 'resource picker', 'data collection rule', 'windows security events', 'ama', 'azure monitor agent', 'windows event forwarding'],
     title: 'Azure Arc and the data collection rule picker',

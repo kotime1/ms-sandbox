@@ -11,7 +11,7 @@ export default {
   minutes: 10,
   topics: ['Azure Arc', 'Azure Monitor Agent', 'Data collection rules', 'Windows Security Events'],
   examObjective: '1.3 Ingest data into the Microsoft Sentinel SIEM and platform',
-  sourceQuestions: { set1: [13], set2: [15], set3: [], set4: [], set5: [14] },
+  sourceQuestions: { set1: [13], set2: [15], set3: [], set4: [], set5: [14], set6: [13] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'docs', note: 'That a system that is not an Azure VM must have Azure Arc installed and enabled before an Azure Monitor Agent connector works, that the resource picker lists Azure VMs and Azure Arc-enabled servers, and that the rule may sit in any resource group in the same tenant, are from Microsoft Learn (connect-services-windows-based), checked 2026-11-04. The sandbox models six machines, not a full fleet, and none of the agent installation itself.' },
   scenarios: [],

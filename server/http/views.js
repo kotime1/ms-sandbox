@@ -14,6 +14,8 @@ import { TEMPLATES } from '../sim/workbooks.js';
 import { CATALOGUE, COLUMN_TYPES, pickerMachines } from '../sim/ingestion.js';
 import { RECORD_TYPES, canSearchAudit } from '../sim/audit.js';
 import { TAGS as TA_TAGS, REPORT_TYPES as TA_REPORT_TYPES } from '../sim/ta-notifications.js';
+import { describe as describeUeba } from '../sim/ueba.js';
+import { describe as describeMcp } from '../sim/mcp.js';
 import { assess as assessDisruption, PRODUCTS as DIS_PRODUCTS, LEVELS as DIS_LEVELS } from '../sim/disruption.js';
 import { ACTIONS as ID_ACTIONS, REPORTS as ID_REPORTS, REPORT_PATH, unavailableReason, canAuthenticate } from '../sim/identity.js';
 import { canManageSecuritySettings, isGlobalAdmin, SEVERITIES as ALERT_SEVERITIES } from '../sim/notifications.js';
@@ -202,6 +204,12 @@ const identity = (w) => ({
   alerts: w.identity.alerts.map((x) => ({ id: x.id, title: x.title, account: x.account, severity: x.severity, reportDownloaded: Boolean(x.reportDownloaded) })),
 });
 
+// Sentinel > Settings > Entity behavior configuration: whether UEBA is on and which data sources feed it.
+const ueba = (w) => describeUeba(w.ueba);
+
+// The notebook and its Sentinel MCP server definition: sign-in kind, tenant header, discovered workspaces and the tool calls so far.
+const mcp = (w) => describeMcp(w.mcp);
+
 // Settings > Microsoft Defender XDR > Automatic attack disruption: the posture and what it currently allows (with the reason for each gap).
 const disruption = (w) => {
   const a = assessDisruption(w.disruption);
@@ -262,6 +270,8 @@ export const VIEWS = {
   'defender-files': defenderFiles,
   notifications,
   disruption,
+  ueba,
+  mcp,
   identity,
   'defender-home': defenderHome,
   audit,

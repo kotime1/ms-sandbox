@@ -75,7 +75,6 @@ export const SERVICES = [
 ];
 
 const BY_NAME = new Map(SERVICES.map((s) => [s.name.toLowerCase(), s]));
-export const getService = (name) => BY_NAME.get(String(name).toLowerCase()) ?? null;
 
 /** Case-insensitive match on the service name (and its category, so "monitor" finds the Monitor group). */
 export function searchServices(q, limit = 8) {

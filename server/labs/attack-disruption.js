@@ -12,7 +12,7 @@ export default {
   minutes: 12,
   topics: ['Automatic attack disruption', 'Defender for Identity', 'Device groups', 'Prerequisites'],
   examObjective: '2.1 Respond to alerts and incidents in Microsoft Defender XDR',
-  sourceQuestions: { set1: [1], set2: [2], set3: [], set4: [], set5: [4] },
+  sourceQuestions: { set1: [1], set2: [2], set3: [], set4: [], set5: [4], set6: [3] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The actions per product, the prerequisites (products deployed, Standard discovery, device group automation level, Defender for Identity sensor on the domain controller, valid action account, auditing) and how disable user works for Active Directory accounts are from Microsoft Learn (automatic-attack-disruption and configure-attack-disruption), checked 2026-11-04. The practice questions call the setting "Advanced features in Microsoft Defender for Identity"; the pages I could read do not show a toggle by that name, so that wording is the exam\'s, not the docs\'.' },
   scenarios: [],

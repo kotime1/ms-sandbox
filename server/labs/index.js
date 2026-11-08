@@ -24,12 +24,14 @@ import cefAndTables from './cef-and-tables.js';
 import identityResponse from './identity-response.js';
 import attackDisruption from './attack-disruption.js';
 import arcServers from './arc-servers.js';
+import uebaSources from './ueba-sources.js';
+import mcpWorkspace from './mcp-workspace.js';
 
 // Ordered easiest to hardest within each area so the catalogue reads as a learning path.
 export const LABS = [
   suppressApp1, unblockLob1, approveDevices, sentinelRbac, huntingFavorites,
   playbookPermissions, playbookPicker, entityMapping, detectAndIsolate, kqlInvestigation, uebaJoin, summaryRule, triageWs23,
-  followTheToken, troubleshootingMode, nrtRule, emailNotifications, asrRules, workbooksLab, ingestData, auditLog, threatAnalyticsNotify, cefAndTables, identityResponse, attackDisruption, arcServers,
+  followTheToken, troubleshootingMode, nrtRule, emailNotifications, asrRules, workbooksLab, ingestData, auditLog, threatAnalyticsNotify, cefAndTables, identityResponse, attackDisruption, arcServers, uebaSources, mcpWorkspace,
 ];
 const BY_ID = new Map(LABS.map((l) => [l.id, l]));
 export const getLab = (id) => (typeof id === 'string' ? BY_ID.get(id) ?? null : null);

@@ -26,7 +26,7 @@ Trust boundaries: browser ↔ HTTP layer; HTTP layer ↔ simulator; simulator �
 | 5 | XSS | No `innerHTML`/`eval`/inline script or style anywhere; DOM built with `createElement`/text nodes; strict CSP (`default-src 'none'; script-src 'self'; style-src 'self'; frame-ancestors 'none'`...) | web-static (11 tests), http: *CSP*, e2e: *HTML in query output is rendered as text* |
 | 6 | Clickjacking / sniffing / leakage | `X-Frame-Options`, `frame-ancestors`, `nosniff`, `Referrer-Policy: no-referrer`, COOP/CORP, `Cache-Control: no-store` | http: *security headers* |
 | 7 | Path traversal | Static files resolved against `web/` then prefix-checked; `..`, `\`, NUL, encoded forms refused; extension allowlist | http: *static serving* |
-| 8 | Request flooding / slowloris | 16 KiB body cap (413 with clean close), header/request timeouts, per-session rate limit (240/min), assistant limit (20/min), new-session limit | http: *oversized*, *rate limiting* |
+| 8 | Request flooding / slowloris | 16 KiB body cap (413 with clean close), header/request timeouts, per-session rate limit (240/min), assistant limit (20/min), exam start (6/min) and tutor (12/min) limits, new-session limit | http: *oversized*, *rate limiting* |
 | 9 | Prototype pollution / key confusion | Validators build null-prototype objects from a whitelist of keys; actions, views, labs, KQL functions/aggregates all resolved with `Object.hasOwn` | http: *prototype-pollution*; kql: *prototype-ish names* |
 | 10 | Injection via input | Declarative validation per action: type, length, pattern, enum; control characters rejected; unknown keys dropped | http: *parameters are validated* |
 | 11 | Query DoS | KQL: length/depth/step/row/group caps; no regex; no recursion beyond depth cap | kql: *limits* |
@@ -37,9 +37,12 @@ Trust boundaries: browser ↔ HTTP layer; HTTP layer ↔ simulator; simulator �
 | 16 | Attack simulation escaping the sandbox | Scenarios only append synthetic records in memory: no sockets, processes or files; attack-agent only runs scenarios the active lab allows | labs: *attack-agent refuses* |
 | 17 | Lab truth leaking through a view | Views are whitelists: file verdicts and sandbox behaviours are only sent after deep analysis has run; the incident view omits `investigable`; findings are never returned; hidden tables are not listed. Parameterised views (`device/<id>`) validate the id | http: *views do not leak lab truth* |
 | 18 | `null`/`undefined` rendered as text, or DOM-injection via helper misuse | Pages receive a container whose `append` skips null/false like `h()`; the shared helper calls the native method so it cannot recurse | e2e (caught a literal "null" on the Rules page) |
+| 19 | Summary-rule / join as a resource-exhaustion vector | Join output capped at 100k rows; summary queries are validated, bounded by the engine's step limit, and the destination name must match `^[A-Za-z][A-Za-z0-9_]*_CL$` and not already exist; summary tables, indicators, favorites, workbooks and findings all have entity caps | labs2: *summary-rule*, *findings.report is validated and bounded*; kql: *join* |
 | 20 | Nested input (automation rules, detection rules) smuggling keys or markup | The validator now supports nested `object` specs (depth-limited to 4), every level builds a null-prototype object from a whitelist of keys, arrays have min/max, and names/titles use an allow-list pattern that excludes `< > " ` $ { }` (dynamic text allows `{{ }}` only in alert titles/descriptions, where it is replaced with a column value and rendered as text). Rule, condition, action, custom-detail and entity counts are capped | automation: *input to saveAutomationRule is validated as nested data*, *rule names accept normal punctuation but never markup*; detections: *wizard input is validated...* |
 | 21 | Automation or detection rules used to loop or flood | Update-trigger cascades are capped at 5 levels so two rules cannot undo each other forever; a detection run raises at most 150 alerts; rule counts are capped per world | automation: *loops are bounded*; detections: *each run raises at most 150 alerts* |
-| 19 | Summary-rule / join as a resource-exhaustion vector | Join output capped at 100k rows; summary queries are validated, bounded by the engine's step limit, and the destination name must match `^[A-Za-z][A-Za-z0-9_]*_CL$` and not already exist; summary tables, indicators, favorites, workbooks and findings all have entity caps | labs2: *summary-rule*, *findings.report is validated and bounded*; kql: *join* |
+| 22 | The practice exam leaking its answers | The answer key, per-choice explanations and sources are held on the server and returned only after a question is submitted, once per question; the question view carries none of them. Option order is shuffled per exam with opaque ids | exam: *the public view never carries the answer key*, *no key before submitting* |
+| 23 | Model output (generated exam questions, tutor replies) used as markup or as instructions | Generated questions must be a JSON array that passes the same structure and answer-shape validator or are dropped; the model cannot choose the domain, id, source or links (sources come from a fixed table of Microsoft Learn pages, and the page only links `https://learn.microsoft.com/`); replies render as text. The tutor is limited to 600 characters a message, 12 questions per item and 12 messages a minute | exam-tutor tests, exam: *live questions*, e2e: *markup in a reply is shown as text* |
+| 24 | The MCP notebook and UEBA labs as an attack surface | Both are simulations of settings and tool calls held as plain data in the session world: no MCP server is started, no notebook or model runs, and no tenant or workspace is contacted | mcp, ueba |
 
 ## Assistant agent
 
@@ -65,7 +68,7 @@ Not recommended. If you must (e.g. a shared study server): set `ALLOW_REMOTE=1`,
 
 ## Known limitations
 
-- In-memory sessions: restart loses progress (by design for iteration 1).
+- In-memory sessions: a restart loses progress (by design; nothing is stored in the browser or on disk).
 - Rate limits are per process and per session/IP; no distributed limiting.
 - No automated dependency scanning is needed today because there are **zero runtime or dev dependencies**; revisit if that changes.
-- The e2e script (`scripts/e2e.mjs`) launches a local browser and is not run by `npm test`.
+- The browser scripts (`npm run e2e`) launch a local browser and are not run by `npm test`.

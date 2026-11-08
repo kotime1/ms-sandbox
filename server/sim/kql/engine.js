@@ -1,5 +1,5 @@
 // Mini-KQL: a small, safe interpreter for the subset of Kusto Query Language that the
-// SC-200 labs need. It is NOT a faithful KQL implementation (see docs/ARCHITECTURE.md).
+// SC-200 labs need. It is NOT a faithful KQL implementation (see "Mini-KQL" in docs/DEVELOPING.md).
 //
 // Security notes:
 //  - No eval/Function; queries are parsed to an AST and interpreted.

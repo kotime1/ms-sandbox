@@ -6,9 +6,9 @@ import { perform } from '../server/sim/actions.js';
 import { RG, ASI_PRINCIPAL } from '../server/sim/world.js';
 import { LOB_HASH, MALWARE_HASH } from '../server/attacks/scenarios-extra.js';
 
-// Every question file on disk. A new set is validated automatically; a lab missing its key fails.
-import { readdirSync } from 'node:fs';
-const SET_KEYS = readdirSync(new URL('../question_sets/', import.meta.url)).filter((f) => /^set\d+\.txt$/.test(f)).map((f) => f.replace('.txt', '')).sort();
+// Every set in questions/questions.json. A new set is validated automatically; a lab missing its key fails.
+import { setKeys, numbersIn } from '../server/knowledge/questions.js';
+const SET_KEYS = setKeys();
 const fresh = (labId) => { const s = new SessionStore({ env: {} }).create(); s.lab.start(labId); return s; };
 const met = (s, id) => s.lab.status().objectives.find((o) => o.id === id).met;
 const PB = `${RG}/providers/Microsoft.Logic/workflows/Play1`;
@@ -293,19 +293,18 @@ test('DeviceEvents is hidden until a lab enables it', () => {
   assert.match(perform(s.ctx, 'query.run', { surface: 'defender', text: 'DeviceEvents | take 1' }).error.message, /Failed to resolve/);
 });
 
-test('docs/COVERAGE.md is up to date with the labs (regenerate with: node scripts/coverage.mjs)', async () => {
-  const { build } = await import('../scripts/coverage.mjs');
-  const { readFileSync } = await import('node:fs');
-  assert.equal(readFileSync(new URL('../docs/COVERAGE.md', import.meta.url), 'utf8'), build());
+test('every practice question has a lab or a recorded backlog topic, and no backlog entry is stale (node scripts/coverage.mjs)', async () => {
+  const { analyse } = await import('../scripts/coverage.mjs');
+  const { problems, perSet } = analyse();
+  assert.deepEqual(problems, []);
+  for (const k of Object.keys(perSet)) assert.equal(perSet[k].total, 50, `${k} has 50 questions`);
 });
 
 test('coverage: every lab question number exists in its set (no typos), and the sets have 50 questions each', async () => {
-  const { readFileSync } = await import('node:fs');
   const { LABS } = await import('../server/labs/index.js');
   for (const k of SET_KEYS) {
-    const text = readFileSync(new URL(`../question_sets/${k}.txt`, import.meta.url), 'utf8');
-    assert.equal((text.match(/^Question \d+ of 50\s*$/gm) ?? []).length, 50, `${k} should have 50 questions`);
-    for (const l of LABS) for (const n of l.sourceQuestions[k]) assert.ok(n >= 1 && n <= 50, `${l.id}: ${k} question ${n} out of range`);
+    assert.deepEqual(numbersIn(k), Array.from({ length: 50 }, (_, i) => i + 1), `${k} should have questions 1 to 50, each once`);
+    for (const l of LABS) for (const n of l.sourceQuestions[k]) assert.ok(numbersIn(k).includes(n), `${l.id}: ${k} question ${n} does not exist`);
   }
 });
 

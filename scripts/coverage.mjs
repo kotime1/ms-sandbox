@@ -1,157 +1,90 @@
-// Generates docs/COVERAGE.md from the labs' `sourceQuestions` and the question files, so the matrix
-// can never drift from the code.
+// Which practice questions have a lab, and which do not. Reads questions/questions.json and each lab's `sourceQuestions`.
 //
-//   node scripts/coverage.mjs           write docs/COVERAGE.md
-//   node scripts/coverage.mjs --check   exit 1 if the committed file is stale (used by a test)
+//   node scripts/coverage.mjs            per-lab and per-set summary, then the questions with no lab grouped by topic
+//   node scripts/coverage.mjs --check    exit 1 if a question has no lab and no BACKLOG entry (used by a test)
+//
+// A question that repeats an earlier one is reported once, under its earliest set.
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LABS } from '../server/labs/index.js';
+import { loadQuestions, setKeys } from '../server/knowledge/questions.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// Every question file on disk, in order. A new setN.txt needs only a `setN: []` key in each lab's sourceQuestions (a test enforces that).
-const SETS = readdirSync(path.join(root, 'question_sets')).filter((f) => /^set\d+\.txt$/.test(f)).map((f) => f.replace('.txt', '')).sort((a, b) => Number(a.slice(3)) - Number(b.slice(3)));
+const SETS = setKeys();
 const short = (k) => `S${k.replace('set', '')}`;
 
-function parse(file) {
-  const t = readFileSync(file, 'utf8').replace(/\r/g, '');
-  const parts = t.split(/^Question (\d+) of 50$/m);
-  const out = [];
-  for (let i = 1; i < parts.length; i += 2) {
-    const body = parts[i + 1];
-    const stem = body.split(/\nYour Answer\n/)[0].replace(/\s+/g, ' ').trim();
-    const correct = /\nCorrect Answer\n([^\n]+)/.exec(body)?.[1]?.trim() ?? /\nYour Answer\n([^\n]+)/.exec(body)?.[1]?.trim() ?? '';
-    out.push({ n: Number(parts[i]), stem, correct });
-  }
-  return out;
-}
-
-const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter((w) => w.length > 3);
-const jaccard = (a, b) => {
-  const A = new Set(norm(a)), B = new Set(norm(b));
-  let i = 0;
-  for (const x of A) if (B.has(x)) i++;
-  return i / (A.size + B.size - i);
-};
-
-// Backlog: the topic of every question that has no lab yet. Hand-written because it is a judgement about the
-// exam, not about code. Keyed by "set:number". A question that is a word-for-word repeat of another is
-// reported once (under set 1). The generator FAILS if an uncovered question has no entry here, so the backlog
-// can never silently hold a mislabelled or missing item.
-const T_WORKBOOKS = 'Sentinel workbooks and visualisation';
+// Backlog: the topic of every question that has no lab yet. Hand-written because it is a judgement about the exam, not about code.
+// Keyed by "set:number" of the question's FIRST appearance. build() FAILS if an uncovered question has no entry here, so the backlog can
+// never silently hold a mislabelled or missing item. Delete an entry when a lab covers the question.
 const T_CONNECT = 'Data connectors: AMA, Azure Arc, DCRs, Azure Policy, regions';
 const T_TI = 'Threat intelligence ingestion';
 const T_PURVIEW = 'Purview: insider risk, DLP, audit, eDiscovery';
 const T_MDI = 'Defender for Identity and identity remediation';
 const T_XDR = 'Defender XDR portal: disruption, email notifications, incident aggregation';
 const T_CLOUD = 'Defender for Cloud: alerts and automation';
-const BACKLOG = {
-  'set1:2': 'Defender for Endpoint: supported platforms (recall)', 
+export const BACKLOG = {
+  'set1:2': 'Defender for Endpoint: supported platforms (recall)',
   'set1:14': T_CONNECT, 'set1:15': T_TI, 'set1:21': 'Analytics: MITRE ATT&CK coverage',
-  'set1:22': T_PURVIEW, 'set1:23': T_PURVIEW, 'set1:24': T_MDI, 'set1:26': T_XDR, 'set1:27': T_CLOUD, 'set1:28': T_MDI, 'set1:29': T_PURVIEW,
-  'set1:37': T_PURVIEW, 'set1:46': 'Data lake: KQL jobs', 'set1:50': 'Data lake: Sentinel MCP server',
-  'set2:14': T_CONNECT, 'set2:16': T_TI, 'set2:22': T_PURVIEW,
-  'set2:26': 'Security Copilot', 'set2:33': T_PURVIEW, 'set2:34': T_PURVIEW, 'set2:35': T_PURVIEW,
+  'set1:22': T_PURVIEW, 'set1:23': T_PURVIEW, 'set1:26': T_XDR, 'set1:27': T_CLOUD, 'set1:28': T_MDI, 'set1:29': T_PURVIEW,
+  'set1:37': T_PURVIEW, 'set1:46': 'Data lake: KQL jobs',
+  'set2:14': T_CONNECT, 'set2:22': T_PURVIEW,
+  'set2:26': 'Security Copilot', 'set2:35': T_PURVIEW,
   'set2:45': 'Sentinel graph and entity resolution',
-  // set 3 (labs in progress: each entry is deleted when its lab lands)
-  'set3:26': T_MDI, 'set3:35': 'ASIM parsers',
+  'set3:35': 'ASIM parsers',
   'set3:48': 'Sentinel graph and entity resolution',
-  // set 5
-  'set5:13': T_TI,
-  // set 4
   'set4:5': 'Automation rules: Incident provider condition (docs: Sentinel or Defender XDR, independent of connectors)', 'set4:6': 'Playbooks: create the Logic App first',
-  
+  'set5:13': T_TI,
+  'set6:6': 'Defender for Endpoint: deception rules',
+  'set6:30': 'Defender XDR portal: entity pages from incident evidence',
+  'set6:37': T_PURVIEW,
 };
 
-const labsFor = {};
-for (const l of LABS) for (const k of SETS) for (const n of l.sourceQuestions[k] ?? []) (labsFor[`${k}:${n}`] ??= []).push(l.id);
+/** Everything the report needs, computed from the questions and the labs. */
+export function analyse() {
+  const questions = loadQuestions().questions;
+  const labsFor = {};
+  for (const l of LABS) for (const k of SETS) for (const n of l.sourceQuestions[k] ?? []) (labsFor[`${k}:${n}`] ??= []).push(l.id);
 
-function backlogTopic(key) {
-  const t = BACKLOG[key];
-  if (!t) throw new Error(`Question ${key} has no lab and no entry in BACKLOG (scripts/coverage.mjs). Add a lab or a topic.`);
-  return t;
-}
-
-export function build() {
-  const sets = Object.fromEntries(SETS.map((k) => [k, parse(path.join(root, 'question_sets', `${k}.txt`))]));
-  const lines = [];
-  const w = (s = '') => lines.push(s);
-
-  w('# Coverage');
-  w();
-  w('> Generated by `node scripts/coverage.mjs` from each lab\'s `sourceQuestions`. Do not edit by hand; a test fails if it is stale.');
-  w();
-  const total = SETS.reduce((n, k) => n + sets[k].length, 0);
-  const covered = SETS.reduce((n, k) => n + sets[k].filter((q) => labsFor[`${k}:${q.n}`]).length, 0);
-  w(`**${LABS.length} labs** cover **${covered} of ${total}** practice questions (${SETS.map((k) => `${k}: ${sets[k].filter((q) => labsFor[`${k}:${q.n}`]).length}/${sets[k].length}`).join(', ')}).`);
-  w();
-
-  // Duplicates: a question that is word-for-word the same as one in an EARLIER set. Its "home" is the earliest match.
-  const home = new Map(); // "set3:5" -> "set1:5"
-  SETS.forEach((k, idx) => {
-    for (const q of sets[k]) {
-      let best = { j: 0, key: '' };
-      for (const earlier of SETS.slice(0, idx)) {
-        for (const p of sets[earlier]) { const j = jaccard(q.stem, p.stem); if (j > best.j) best = { j, key: `${earlier}:${p.n}` }; }
-      }
-      if (best.j >= 0.95) home.set(`${k}:${q.n}`, best.key);
+  const perSet = Object.fromEntries(SETS.map((k) => [k, { total: 0, covered: 0 }]));
+  const uncovered = new Map(); // topic -> ["S1:2", ...]
+  const problems = [];
+  for (const q of questions) {
+    const first = `set${q.appearances[0].set.slice(1)}:${q.appearances[0].n}`;
+    for (const a of q.appearances) {
+      const key = `set${a.set.slice(1)}:${a.n}`;
+      perSet[`set${a.set.slice(1)}`].total++;
+      if (labsFor[key]) perSet[`set${a.set.slice(1)}`].covered++;
     }
-  });
-  w('## Duplicates between sets');
-  w();
-  const dupRows = [];
-  for (const k of SETS.slice(1)) {
-    const mine = [...home].filter(([key]) => key.startsWith(`${k}:`));
-    w(`${mine.length} of the ${sets[k].length} questions in ${k.replace('set', 'set ')} are word-for-word repeats of an earlier set, so they share a lab. ${sets[k].length - mine.length} are new.`);
-    w();
-    for (const [key, h] of mine) dupRows.push([key, h]);
+    const covered = q.appearances.some((a) => labsFor[`set${a.set.slice(1)}:${a.n}`]);
+    if (covered) continue;
+    const topic = BACKLOG[first];
+    if (!topic) { problems.push(`Question ${first} has no lab and no entry in BACKLOG (scripts/coverage.mjs). Add a lab or a topic.`); continue; }
+    if (!uncovered.has(topic)) uncovered.set(topic, []);
+    uncovered.get(topic).push(`${short(first.split(':')[0])}:${first.split(':')[1]}`);
   }
-  const label = (key) => `${short(key.split(':')[0])}:${key.split(':')[1]}`;
-  w('| Question | = Earlier question |');
-  w('|---|---|');
-  for (const [key, h] of dupRows) w(`| ${label(key)} | ${label(h)} |`);
-  w();
-
-  w('## Labs');
-  w();
-  w(`| Lab | Level | ${SETS.map((k) => k.replace('set', 'Set ')).join(' | ')} | Practices |`);
-  w(`|---|---|${SETS.map(() => '---').join('|')}|---|`);
-  for (const l of LABS) w(`| \`${l.id}\` | ${l.level} | ${SETS.map((k) => (l.sourceQuestions[k] ?? []).join(', ') || '—').join(' | ')} | ${l.topics.join(', ')} |`);
-  w();
-
-  w('## Not yet covered (backlog)');
-  w();
-  w('Grouped by topic. These are candidates for the next iteration.');
-  w();
-  const groups = new Map();
-  for (const k of SETS) {
-    for (const q of sets[k]) {
-      if (labsFor[`${k}:${q.n}`]) continue;
-      if (home.has(`${k}:${q.n}`)) continue; // a repeat is reported once, under its earliest set
-      const t = backlogTopic(`${k}:${q.n}`);
-      if (!groups.has(t)) groups.set(t, []);
-      groups.get(t).push(`${short(k)}:${q.n}`);
-    }
+  // A backlog entry for a question that now has a lab (or that does not exist) is stale and hides progress.
+  const firsts = new Set(questions.map((q) => `set${q.appearances[0].set.slice(1)}:${q.appearances[0].n}`));
+  for (const key of Object.keys(BACKLOG)) {
+    const q = questions.find((x) => `set${x.appearances[0].set.slice(1)}:${x.appearances[0].n}` === key);
+    if (!firsts.has(key)) problems.push(`BACKLOG has ${key}, which is not the first appearance of any question.`);
+    else if (q.appearances.some((a) => labsFor[`set${a.set.slice(1)}:${a.n}`])) problems.push(`BACKLOG has ${key}, but a lab now covers it. Delete the entry.`);
   }
-  w('| Topic | Questions |');
-  w('|---|---|');
-  for (const [t, qs] of [...groups].sort((a, b) => b[1].length - a[1].length)) w(`| ${t} | ${qs.join(', ')} |`);
-  w();
-  w('Duplicates are listed once. A question that repeats an earlier one appears only under the earlier number.');
-  w();
-  return `${lines.join('\n')}\n`;
+  return { questions, perSet, uncovered, problems };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const out = path.join(root, 'docs', 'COVERAGE.md');
-  const text = build();
+  const { questions, perSet, uncovered, problems } = analyse();
   if (process.argv.includes('--check')) {
-    const cur = existsSync(out) ? readFileSync(out, 'utf8') : '';
-    if (cur !== text) { console.error('docs/COVERAGE.md is stale. Run: node scripts/coverage.mjs'); process.exit(1); }
-    console.log('docs/COVERAGE.md is up to date');
+    if (problems.length) { console.error(problems.join('\n')); process.exit(1); }
+    console.log('every question has a lab or a recorded backlog topic');
   } else {
-    writeFileSync(out, text);
-    console.log(`wrote ${path.relative(root, out)}`);
+    const total = SETS.reduce((n, k) => n + perSet[k].total, 0);
+    const covered = SETS.reduce((n, k) => n + perSet[k].covered, 0);
+    console.log(`${LABS.length} labs cover ${covered} of ${total} practice questions (${SETS.map((k) => `${k}: ${perSet[k].covered}/${perSet[k].total}`).join(', ')}).`);
+    console.log(`${questions.length} distinct questions; ${questions.filter((q) => q.labs.length).length} have a lab.\n`);
+    console.log('Labs and the questions they practise:');
+    for (const l of LABS) console.log(`  ${l.id.padEnd(24)} ${SETS.map((k) => (l.sourceQuestions[k]?.length ? `${short(k)}:${l.sourceQuestions[k].join(',')}` : '')).filter(Boolean).join('  ')}`);
+    console.log('\nQuestions with no lab, by topic (a repeat is listed once, under its earliest set):');
+    for (const [t, qs] of [...uncovered].sort((a, b) => b[1].length - a[1].length)) console.log(`  ${String(qs.length).padStart(2)}  ${t}: ${qs.join(', ')}`);
+    if (problems.length) { console.error(`\n${problems.join('\n')}`); process.exit(1); }
   }
 }

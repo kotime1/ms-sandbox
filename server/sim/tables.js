@@ -1,6 +1,6 @@
 // Table schemas and baseline telemetry for the simulated workspace.
 //
-// Schemas are SIMPLIFIED versions of the real ones (see docs/ARCHITECTURE.md "Fidelity").
+// Schemas are SIMPLIFIED versions of the real ones (see "Tables" in docs/DEVELOPING.md).
 // All data is synthetic; IPs come from RFC 5737 documentation ranges, domains are contoso.com.
 // Baseline data is generated from a seeded RNG so every learner sees the same dataset.
 

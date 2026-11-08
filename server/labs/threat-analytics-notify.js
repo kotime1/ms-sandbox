@@ -13,7 +13,7 @@ export default {
   minutes: 10,
   topics: ['Threat analytics', 'Email notifications', 'Defender XDR settings'],
   examObjective: '3.1 Detect threats by using Microsoft Defender XDR',
-  sourceQuestions: { set1: [], set2: [], set3: [], set4: [1], set5: [1] },
+  sourceQuestions: { set1: [], set2: [], set3: [], set4: [1], set5: [1], set6: [2] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The Threat analytics tab, its path (Settings > Microsoft Defender XDR > General > Email notifications), the name rule (letters and numbers only) and the choice of all reports or a type/tag are from Microsoft Learn, checked 2026-11-04. The Vulnerabilities tab is modelled minimally, from the practice question. The report feed is invented.' },
   scenarios: [],

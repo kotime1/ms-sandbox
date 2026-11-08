@@ -1,5 +1,5 @@
-// Parser for the raw practice-test result pages (the pasted question_sets/setN.txt files). Used ONCE by scripts/consolidate-questions.mjs
-// to build questions/questions.json; after that the raw files are no longer needed.
+// Parser for a pasted practice-test results page (50 questions). Used by scripts/add-set.mjs to add an attempt to questions/questions.json;
+// the pasted pages themselves are not kept.
 //
 // A block looks like:
 //   Question 8 of 50

@@ -9,7 +9,7 @@ export default {
   minutes: 12,
   topics: ['Analytics rule types', 'Entity mapping', 'Investigation graph'],
   examObjective: '1.4 Configure detections',
-  sourceQuestions: { set1: [19, 20], set2: [19, 20, 21], set3: [16, 17, 18, 19], set4: [19, 20], set5: [18, 19] },
+  sourceQuestions: { set1: [19, 20], set2: [19, 20, 21], set3: [16, 17, 18, 19], set4: [19, 20], set5: [18, 19], set6: [19, 20] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "partial", note: "Entity mapping on scheduled rules matches Learn. \"Only scheduled and NRT\" is from the practice question; the Learn page covers scheduled rules." },
   scenarios: ['rule-types-incidents'],
