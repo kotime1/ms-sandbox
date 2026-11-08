@@ -72,6 +72,9 @@ if (which === 'on') await run('tutor ON', { env: { ICA_API_KEY: 'k', ICA_MODEL: 
   await b.ok(links.every((l) => l.text.length > 8), 'links have readable titles');
   await b.ok(await b.evalJs(`document.querySelector('.exam-sources').closest('.exam-card-sub').compareDocumentPosition(document.querySelector('.exam-tutor')) & Node.DOCUMENT_POSITION_FOLLOWING`), 'the tutor card sits below the sources card');
   await b.ok(await b.evalJs(`document.querySelector('.exam-explain').compareDocumentPosition(document.querySelector('.exam-sources')) & Node.DOCUMENT_POSITION_FOLLOWING`), 'the cards sit under the explanation');
+  await b.ok(await b.evalJs(`!!document.querySelector('.exam-card .exam-verdict') && !!document.querySelector('.exam-card .exam-explain') && !!document.querySelector('.exam-card .exam-options, .exam-card .exam-steps, .exam-card .exam-template')`), 'the choices, verdict and explanation share one card');
+  await b.ok(await b.evalJs(`!document.querySelector('.exam-card').contains(document.querySelector('.exam-tutor')) && !document.querySelector('.exam-card').contains(document.querySelector('.exam-sources'))`), 'Sources and the tutor are separate cards, outside the question card');
+  await b.ok(await b.evalJs(`document.querySelector('.exam-tutor').compareDocumentPosition(document.querySelector('[data-target="btn:exam-next"]')) & Node.DOCUMENT_POSITION_FOLLOWING`), 'Next question comes after both cards');
 
   // ---- tutor
   await b.waitFor(`document.querySelector('.exam-chat-form') && !document.querySelector('.exam-chat-form').hidden`, 'chat form');

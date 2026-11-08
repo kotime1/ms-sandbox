@@ -25,7 +25,7 @@ const EXAMPLE = {
   scenario: 'A user reports that WS-12 is slow. Defender for Endpoint shows a suspicious scheduled task on the device. The user is in a meeting and must not lose access to the machine.',
   stem: 'You need a forensic snapshot of the processes, connections and scheduled tasks on WS-12 without a live session. What should you do?',
   options: [
-    { text: 'Collect an investigation package from the device page', correct: true },
+    { text: 'Collect an investigation package from the device page', correct: true, why: 'It gathers a ZIP of processes, connections and scheduled tasks without interrupting the user or opening a session.' },
     { text: 'Isolate the device from the network from the device page', why: 'Isolation contains the device and disrupts the user. It does not collect a snapshot.' },
     { text: 'Open a live response session from the device page', why: 'Live response is an interactive session, which the requirement rules out.' },
     { text: 'Submit the scheduled task file for deep analysis', why: 'Deep analysis detonates one file in a sandbox. It does not capture the device state.' },
@@ -36,10 +36,11 @@ const EXAMPLE = {
 
 const SCHEMA_NOTES = [
   'Each question is a JSON object with: domain, objective (copied EXACTLY from the list for that domain), type, optional scenario, stem, explanation, learn (a Microsoft Learn page TITLE, never a URL).',
-  'type "single": options = 4 or 5 objects { text, correct: true } or { text, why }. Exactly one correct. Every WRONG option has a "why" (15-300 chars) saying why it is wrong.',
+  'EVERY option (right or wrong) and every ordering step needs a "why" of 15 to 300 characters. The learner reads it under that choice after answering: on the right option it says why it is right, on a wrong option why it is wrong, on a step why it belongs at that position. Do not just repeat the option text.',
+  'type "single": options = 4 or 5 objects { text, why } with exactly one also marked correct: true.',
   'type "multi": options = 5 or 6 objects as above, 2 or 3 correct, "select" = the number correct, and the stem says "two" or "three".',
-  'type "order": steps = 3 to 6 objects { text } listed in the CORRECT order. The stem asks to arrange them.',
-  'type "dropdown": template = text containing {{a}}, {{b}} ... blanks (each exactly once); blanks = [{ id: "a", options: [{ text, correct: true }, { text, why }] }, ...], 2-5 options each, exactly one correct. Use it for Yes/No statement tables, completing a KQL query (set "code": true) or choosing portal settings.',
+  'type "order": steps = 3 to 6 objects { text, why } listed in the CORRECT order. The stem asks to arrange them. Each why explains why that step comes at that position, usually by what depends on it or what it depends on.',
+  'type "dropdown": template = text containing {{a}}, {{b}} ... blanks (each exactly once); blanks = [{ id: "a", options: [{ text, correct: true, why }, { text, why }] }, ...], 2-5 options each, exactly one correct. Use it for Yes/No statement tables, completing a KQL query (set "code": true) or choosing portal settings.',
 ].join('\n');
 
 const RULES = [

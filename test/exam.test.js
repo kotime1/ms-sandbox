@@ -12,7 +12,7 @@ import { ExamSession } from '../server/exam/session.js';
 import { ExamAgent } from '../server/agents/exam-agent.js';
 import { getLab } from '../server/labs/index.js';
 
-const ok = (text) => ({ text, correct: true });
+const ok = (text) => ({ text, correct: true, why: 'This is right for a reason that is spelled out.' });
 const no = (text, why = 'This is wrong for a reason that is spelled out.') => ({ text, why });
 const proto = { id: 'x-001', domain: 'manage', objective: 'Specify Microsoft Sentinel roles', source: 'bank', explanation: 'A sufficiently long explanation of why the right answer is right and the others are not.' };
 const single = (options, extra = {}) => ({ ...proto, type: 'single', stem: 'Which option should you choose for this requirement?', options, ...extra });
@@ -401,7 +401,7 @@ test('includeLive without an API key falls back to the bank and says so', async 
 const liveQuestion = (extra = {}) => ({
   objective: 'Investigate device timelines', type: 'single', scenario: 'A laptop shows a burst of process creation events at 02:00 and the user was offline at that time.',
   stem: 'Which view helps you see the order of events on this device?',
-  options: [{ text: 'The device timeline', correct: true }, { text: 'The software inventory', why: 'Inventory lists installed software and not event order.' }, { text: 'The exposure score card', why: 'The score summarises risk and not event order.' }, { text: 'The device group list', why: 'Groups define scope and do not show events.' }],
+  options: [{ text: 'The device timeline', correct: true, why: 'It lists the events on a device in time order, which is what the question asks for.' }, { text: 'The software inventory', why: 'Inventory lists installed software and not event order.' }, { text: 'The exposure score card', why: 'The score summarises risk and not event order.' }, { text: 'The device group list', why: 'Groups define scope and do not show events.' }],
   explanation: 'The device timeline lists the events on a device in time order so you can follow what happened.', ...extra,
 });
 const fakeFetch = (reply, seen = []) => async (url, init) => {
@@ -423,7 +423,7 @@ test('ExamAgent is unavailable without a key and never calls the network', async
 
 test('ExamAgent: keeps valid questions, drops invalid ones, forces domain/source/id, and keeps the key in the header only', async () => {
   const seen = [];
-  const bad = liveQuestion({ options: [{ text: 'The device timeline view that shows every event on the device in order', correct: true }, { text: 'Inventory', why: 'Inventory lists installed software.' }, { text: 'Score', why: 'The score summarises risk and nothing else.' }, { text: 'Groups', why: 'Groups define scope and show no events.' }] });
+  const bad = liveQuestion({ options: [{ text: 'The device timeline view that shows every event on the device in order', correct: true, why: 'It lists the events on a device in time order, which is what the question asks for.' }, { text: 'Inventory', why: 'Inventory lists installed software.' }, { text: 'Score', why: 'The score summarises risk and nothing else.' }, { text: 'Groups', why: 'Groups define scope and show no events.' }] });
   const a = new ExamAgent({ env: { ICA_API_KEY: 'sk-secret', EXAM_MODEL: 'exam-model' }, fetchImpl: fakeFetch(`Here you go:\n${JSON.stringify([liveQuestion(), bad, { nonsense: true }, liveQuestion({ domain: 'manage', source: 'bank', id: 'm001' })])}`, seen) });
   const r = await a.generate('respond', ['single', 'single']);
   assert.ok(r.error === null);

@@ -171,7 +171,7 @@
 
 ## Labs
 
-| Lab | Level | Set 1 | Set 2 | Set 3 | Set 4 | Set 5 | Practises |
+| Lab | Level | Set 1 | Set 2 | Set 3 | Set 4 | Set 5 | Practices |
 |---|---|---|---|---|---|---|---|
 | `suppress-app1` | Beginner | 3, 25 | 4 | 23 | — | — | Defender for Endpoint, Alert tuning, Suppression rules |
 | `unblock-lob1` | Beginner | 4 | 1, 5 | 2 | — | 2 | Defender for Endpoint, File indicators, Automated remediation, Device groups |

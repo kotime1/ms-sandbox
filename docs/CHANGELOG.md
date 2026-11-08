@@ -12,6 +12,29 @@ One entry per iteration, newest first. **Every iteration must update the docs an
 - **Unchanged guarantees**: key only in the header, `redirect: 'error'`, timeouts, reply size cap, no response body in errors, offline fallback on any failure. `ICA_BASE_URL` must be https or Claude stays off.
 - **Not verified against the real service.** All tests use a mocked `fetch` shaped from the ICA docs (OpenAI-compatible). The docs I saw show the endpoint list, not the request/response schemas, so: confirm `max_tokens` is accepted, that the reply is `choices[0].message.content`, and that the chosen model follows the "reply with ONE JSON array" instruction. The assistant's `/chat-models` endpoint was chosen because the exam writer needs a raw model; the `/assistants` and `/agents` namespaces would add ICA-side behaviour.
 
+## Iteration 9c: An explanation under every choice and every step (2026-11-08)
+
+**Summary.** The explanation of why the answer is right was a single block at the bottom. Now each choice shows its own explanation directly under it, the correct one included, and every ordering step says why it belongs at its position. Unit tests 383 -> **393**; `e2e-exam.mjs` 145 -> **170** checks.
+
+- **Data:** 148 new explanations written by hand: 84 for right choices (single and multiple), 33 for the right pick in each dropdown blank, 31 for ordering steps. They live in `server/exam/bank/reasons-*.js` and are merged into the questions at load time. The schema now requires a `why` on every option and every step, so the bank refuses to load without one, and a Claude-written question has to include them or it is discarded. The generator prompt and example were updated, and I checked against the real model that it writes them (3 of 4 questions accepted, reasons 73 to 104 characters at the shortest).
+- **Layout:** the old closing "Why" block is now "In short", a summary after the verdict. For Yes/No and KQL dropdowns, a right pick says why it is right; a wrong pick says what is wrong with it, then names the right answer and why.
+- **Guard rails, each shown to fire:** the merge rejects a missing reason, a typo in the option text, a reason for a blank that does not exist, a missing blank reason, the wrong number of step reasons, a too-short reason, and reasons for a question that is not in the bank (8 cases tried).
+- **A weakness I found by checking:** 15 Yes/No blanks showed nearly the same sentence under "Yes" and under "No", because the old wrong-side text and my new right-side text both stated the same fact. I rewrote 14 of the wrong-side reasons to say what is wrong with that pick; 3 pairs still share key terms because they describe one fact, but they now say different things.
+- **Mistakes of mine, caught by running things:** the first version of the merge reported every other file's reasons as unmatched (the check belonged across all files, not per file); a CSS rule I added would have shown dropdown notes before submitting (fixed before it shipped); and the escape trap in script-made edits bit again in three throwaway scripts. A leak test I wrote compared a 30-character prefix, which false-alarmed on a phrase the scenario also contains; it now compares the whole reason.
+- **Not verified:** the 148 explanations are my own wording from my knowledge of the products and your study guide. They were not checked against a live tenant, and a few facts (default audit retention, some option names) are worth confirming on Microsoft Learn.
+
+## Iteration 9b: Feedback lives in the answer card (2026-11-08)
+
+**Summary.** After submitting, the feedback was a block of its own under the choices, and it repeated every choice in a second "Every option" list. It is now part of the answer card: the choices you picked from are marked where they are, then the verdict and explanation. Sources and the tutor stay separate cards below. Unit tests unchanged at **383**; \`e2e-exam.mjs\` 96 -> **145** checks, \`e2e-exam-cards.mjs on\` 29 -> **32**.
+
+- **Single and multiple choice:** the right choice turns green ("Correct answer"), your wrong pick turns red ("Your choice · not correct"), and each wrong choice keeps its reason underneath. The second list is gone.
+- **Ordering:** the list shows your order, each step marked, with "belongs at step N" on a misplaced one. The arrows disappear once you submit.
+- **Dropdowns:** each dropdown is marked beside itself; a wrong one names the right answer and why the picked one is wrong.
+- **Under the card:** Sources and references, Ask the tutor, then Next question. A reloaded question rebuilds the same view from the saved result (the ordering view uses your saved order).
+- **Tests:** the browser script now checks that the verdict and explanation are inside the question card, that the two cards are outside it, and that no second list exists.
+- **My mistake, caught by running it:** I patched a regex through a script and the backslash in \`\\d\` was lost inside a template literal, so one check could never match. That is the third time this has bitten me in this project; check the file text after any script-made edit that contains a regex.
+- **Not changed:** an ordering answer is all-or-nothing and marks every step wrong when the whole sequence is shifted by one. Separately, on a 390px screen the top tab bar crops the "Practice exam" tab; I did not touch it.
+
 ## Iteration 9: Sources and an AI tutor under each answer (2026-11-05)
 
 **Summary.** After you submit a practice-exam answer, two cards appear under the explanation: **Sources and references** and **Ask the tutor**. Unit tests 362 -> **383**; new browser scripts `e2e-exam-cards.mjs on|off` (29 + 4 checks).

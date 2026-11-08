@@ -140,9 +140,9 @@ export default [
     stem: 'For each statement about advanced hunting in the Defender portal, select Yes or No.',
     template: 'You can query data from DeviceEvents and EmailEvents in a single query by using a join: {{a}}\nThe default retention of advanced hunting data is 30 days: {{b}}\nA query can use the TimeGenerated column of DeviceProcessEvents: {{c}}',
     blanks: [
-      { id: 'a', options: [ok('Yes'), no('No', 'Advanced hunting can join tables from across Defender products.')] },
-      { id: 'b', options: [ok('Yes'), no('No', 'Advanced hunting keeps 30 days of raw data.')] },
-      { id: 'c', options: [no('Yes', 'Defender XDR tables use Timestamp. TimeGenerated belongs to Log Analytics tables.'), ok('No')] },
+      { id: 'a', options: [ok('Yes'), no('No', 'Saying the tables cannot be combined is wrong: Defender products share one schema, so a join across them works.')] },
+      { id: 'b', options: [ok('Yes'), no('No', 'The statement is true, so No is wrong. Advanced hunting does not keep raw data for longer or shorter than that.')] },
+      { id: 'c', options: [no('Yes', 'TimeGenerated would only work on a Log Analytics or Sentinel table. The Defender XDR table has no such column.'), ok('No')] },
     ],
     explanation: 'Defender XDR tables share one schema and can be joined. Advanced hunting retains 30 days, and its time column is Timestamp rather than TimeGenerated.',
   },

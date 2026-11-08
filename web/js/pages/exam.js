@@ -77,8 +77,19 @@ function showQuestionData(host, q) {
   ui.view = 'running';
   const state = answerState(q);
   const body = h('div', { class: 'exam-body' });
+  // `feedback` is inside the question card (verdict + explanation, with the choices marked in place above it).
+  // `after` sits below the card: the Sources card, the tutor card, then Next question.
   const feedback = h('div', { class: 'exam-feedback', 'aria-live': 'polite' });
+  const after = h('div', { class: 'exam-after' });
   const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
+  const reveal = (r) => {
+    state.lock();
+    state.reveal(r);
+    submit.hidden = true;
+    showResult(feedback, after, q, r);
+    after.append(nextBar);
+    nextBar.hidden = false;
+  };
   const submit = h('button', { class: 'btn primary', type: 'button', 'data-target': 'btn:exam-submit', onclick: async () => {
     const answer = state.read();
     if (!answer) { err.textContent = state.hint; err.hidden = false; return; }
@@ -86,10 +97,7 @@ function showQuestionData(host, q) {
     submit.disabled = true;
     const out = await api.post('/api/exam/answer', { n: q.n, answer });
     if (!out.ok) { submit.disabled = false; err.textContent = out.error.message; err.hidden = false; return; }
-    state.lock();
-    submit.hidden = true;
-    showResult(feedback, q, out.data);
-    nextBar.hidden = false;
+    reveal(out.data);
     updateProgress(progress, out.data.summary);
   } }, 'Submit answer');
   const nextBar = h('div', { class: 'exam-next', hidden: true }, nextButton(host, q.n));
@@ -111,16 +119,12 @@ function showQuestionData(host, q) {
       q.scenario ? h('div', { class: 'exam-scenario' }, h('h4', null, 'Scenario'), h('p', null, q.scenario)) : null,
       h('p', { class: 'exam-stem' }, q.stem),
       h('p', { class: 'muted small' }, TYPE_LABEL[q.type] + (q.type === 'multi' ? ` (select ${q.select})` : '')),
-      body, err, h('div', { class: 'row' }, submit), feedback, nextBar),
+      body, err, h('div', { class: 'row' }, submit), feedback),
+    after,
     q.live ? h('p', { class: 'muted small' }, 'This question was written by Claude when you started the exam. Verify surprising claims on Microsoft Learn.') : null);
 
-  if (q.result) {
-    // Reloaded after submitting: show the saved feedback again, locked.
-    state.lock();
-    submit.hidden = true;
-    showResult(feedback, q, q.result);
-    nextBar.hidden = false;
-  }
+  // Reloaded after submitting: show the saved feedback again, locked.
+  if (q.result) reveal(q.result);
   api.get('/api/exam/summary').then((s) => { if (s.ok) updateProgress(progress, s.data.summary); });
 }
 
@@ -145,26 +149,47 @@ function answerState(q) {
   return dropdownInput(q);
 }
 
+// After submitting, the same controls are marked in place: green for a correct choice, red for a wrong one that was
+// picked, with the reason under each. `reveal(result)` is called with the server's graded result.
+function markChoice(label, o) {
+  const picked = o.picked;
+  label.classList.add(o.correct ? 'is-right' : 'is-wrong');
+  if (picked) label.classList.add('is-picked');
+  const tag = o.correct ? (picked ? 'Correct answer · your choice' : 'Correct answer') : (picked ? 'Your choice · not correct' : null);
+  // Every choice carries its own explanation, the right one included, directly under it.
+  label.querySelector('.exam-opt-body').append(
+    tag ? h('span', { class: 'exam-mark' }, tag) : null,
+    o.why ? h('span', { class: 'exam-why' }, o.why) : null);
+}
+
+function choiceRows(q, inputs) {
+  return q.options.map((o, i) => h('label', { class: 'exam-option', 'data-opt': o.id }, inputs[i], h('span', { class: 'exam-opt-body' }, h('span', { class: 'exam-opt-text' }, o.text))));
+}
+
 function singleInput(q) {
   const name = `q${q.n}`;
   const inputs = q.options.map((o) => h('input', { type: 'radio', name, value: o.id }));
+  const rows = choiceRows(q, inputs);
   return {
     hint: 'Choose one answer.',
-    node: h('div', { class: 'exam-options', role: 'radiogroup' }, q.options.map((o, i) => h('label', { class: 'exam-option' }, inputs[i], h('span', null, o.text)))),
+    node: h('div', { class: 'exam-options', role: 'radiogroup' }, rows),
     read: () => { const c = inputs.find((i) => i.checked); return c ? { choice: c.value } : null; },
     lock: () => inputs.forEach((i) => { i.disabled = true; }),
+    reveal: (r) => r.options.forEach((o) => markChoice(rows[q.options.findIndex((x) => x.id === o.id)], o)),
   };
 }
 
 function multiInput(q) {
   const inputs = q.options.map((o) => h('input', { type: 'checkbox', value: o.id }));
+  const rows = choiceRows(q, inputs);
   const count = h('div', { class: 'hint-text' }, `0 of ${q.select} selected`);
   inputs.forEach((i) => i.addEventListener('change', () => { count.textContent = `${inputs.filter((x) => x.checked).length} of ${q.select} selected`; }));
   return {
     hint: `Select exactly ${q.select}.`,
-    node: h('div', { class: 'exam-options' }, q.options.map((o, i) => h('label', { class: 'exam-option' }, inputs[i], h('span', null, o.text))), count),
+    node: h('div', { class: 'exam-options' }, rows, count),
     read: () => { const c = inputs.filter((i) => i.checked).map((i) => i.value); return c.length === q.select ? { choices: c } : null; },
     lock: () => inputs.forEach((i) => { i.disabled = true; }),
+    reveal: (r) => { count.textContent = r.detail; r.options.forEach((o) => markChoice(rows[q.options.findIndex((x) => x.id === o.id)], o)); },
   };
 }
 
@@ -173,13 +198,21 @@ function orderInput(q) {
   let order = q.steps.map((s) => s.id);
   const text = Object.fromEntries(q.steps.map((s) => [s.id, s.text]));
   let locked = false;
+  let result = null; // the graded steps, once submitted: the learner's order is then shown with each step marked
   const list = h('ol', { class: 'exam-steps' });
   const draw = (focusId, dir) => {
     clear(list);
     order.forEach((id, i) => {
+      const s = result?.find((x) => x.id === id);
+      const right = s && s.position === i + 1;
       const up = h('button', { class: 'btn small', type: 'button', 'aria-label': `Move up: ${text[id]}`, disabled: locked || i === 0, onclick: () => move(id, -1, 'up') }, '↑');
       const down = h('button', { class: 'btn small', type: 'button', 'aria-label': `Move down: ${text[id]}`, disabled: locked || i === order.length - 1, onclick: () => move(id, 1, 'down') }, '↓');
-      list.append(h('li', { class: 'exam-step' }, h('span', { class: 'exam-step-text' }, text[id]), h('span', { class: 'exam-step-btns' }, up, down)));
+      list.append(h('li', { class: `exam-step${s ? (right ? ' is-right' : ' is-wrong') : ''}` },
+        h('span', { class: 'exam-step-text' }, text[id],
+          s ? h('span', { class: 'exam-mark' }, right ? 'Correct position' : `Not correct · belongs at step ${s.position}`) : null,
+          // Why this step belongs where it does. For a misplaced step it explains the position it should have had.
+          s?.why ? h('span', { class: 'exam-why' }, `Step ${s.position}: ${s.why}`) : null),
+        s ? null : h('span', { class: 'exam-step-btns' }, up, down)));
       if (id === focusId) (dir === 'up' && up.disabled ? down : dir === 'down' && down.disabled ? up : dir === 'up' ? up : down).dataset.refocus = '1';
     });
     list.querySelector('[data-refocus]')?.focus();
@@ -197,17 +230,27 @@ function orderInput(q) {
     node: h('div', null, h('p', { class: 'hint-text' }, 'Use the arrows to move each step. The first item in the list happens first.'), list),
     read: () => ({ order: [...order] }),
     lock: () => { locked = true; draw(); },
+    // A reloaded question has no local order, so show the learner's own order from the graded result.
+    reveal: (r) => {
+      locked = true;
+      result = r.steps;
+      order = [...r.steps].sort((a, b) => a.yourPosition - b.yourPosition).map((s) => s.id);
+      draw();
+    },
   };
 }
 
 function dropdownInput(q) {
   const selects = new Map();
+  const notes = new Map(); // blank id -> element that explains the answer after submitting
   const parts = q.template.split(/(\{\{[a-z0-9]{1,3}\}\})/);
   const blank = (id) => {
     const b = q.blanks.find((x) => x.id === id);
     const sel = h('select', { 'aria-label': `Selection ${id}` }, h('option', { value: '' }, 'Select…'), b.options.map((o) => h('option', { value: o.id }, o.text)));
     selects.set(id, sel);
-    return sel;
+    const note = h('span', { class: 'exam-blank-note', hidden: true });
+    notes.set(id, note);
+    return h('span', { class: 'exam-blank' }, sel, note);
   };
   // Keep line breaks: a Yes/No table has one statement per line.
   const lines = [[]];
@@ -225,26 +268,35 @@ function dropdownInput(q) {
       return { picks };
     },
     lock: () => selects.forEach((s) => { s.disabled = true; }),
+    // Each dropdown is marked beside itself: right, or wrong with the correct choice and the reason for the one picked.
+    reveal: (r) => r.blanks.forEach((b) => {
+      const sel = selects.get(b.id);
+      const note = notes.get(b.id);
+      const picked = b.options.find((o) => o.picked);
+      const right = b.options.find((o) => o.correct);
+      sel.value = picked?.id ?? '';
+      sel.classList.add(b.right ? 'is-right' : 'is-wrong');
+      // A right pick explains why it is right. A wrong pick says what is wrong with it, then names the right answer and why.
+      clear(note).append(b.right
+        ? h('span', null, h('span', { class: 'exam-mark ok' }, '✓ Correct'), right.why ? h('span', { class: 'exam-why' }, ` ${right.why}`) : null)
+        : h('span', null,
+          h('span', { class: 'exam-mark bad' }, '✗ Not correct'), picked?.why ? h('span', { class: 'exam-why' }, ` ${picked.why}`) : null,
+          h('span', { class: 'exam-right-answer' }, h('span', { class: 'exam-mark ok' }, 'Answer: '), h('strong', null, right.text), right.why ? h('span', { class: 'exam-why' }, ` ${right.why}`) : null)));
+      note.hidden = false;
+    }),
   };
 }
 
 // ---- feedback --------------------------------------------------------------------------------
-function showResult(el, q, r) {
+// The choices above were marked in place by state.reveal(); here the verdict and the explanation are added to the same
+// card, and the Sources and tutor cards go below it.
+function showResult(el, after, q, r) {
   clear(el);
-  const head = h('div', { class: `exam-verdict ${r.correct ? 'right' : 'wrong'}`, role: 'status' },
-    h('strong', null, r.correct ? 'Correct' : 'Incorrect'), r.detail ? h('span', null, ` — ${r.detail}`) : null);
-  el.append(head, h('div', { class: 'exam-explain' }, h('h4', null, 'Why'), h('p', null, r.explanation)));
-
-  if (r.options) {
-    el.append(h('div', { class: 'exam-review' }, h('h4', null, 'Every option'), h('ul', null, r.options.map((o) => reviewRow(o.text, o, q.type === 'single' ? 'chose' : 'selected')))));
-  } else if (r.steps) {
-    el.append(h('div', { class: 'exam-review' }, h('h4', null, 'Correct order'), h('ol', null, r.steps.map((s) => h('li', { class: s.position === s.yourPosition ? 'is-right' : 'is-wrong' },
-      s.text, s.position === s.yourPosition ? null : h('span', { class: 'muted small' }, ` (you put this at ${s.yourPosition})`))))));
-  } else if (r.blanks) {
-    el.append(h('div', { class: 'exam-review' }, h('h4', null, 'Each selection'), r.blanks.map((b) => h('div', { class: 'exam-blank' },
-      h('strong', null, `Selection ${b.id}: `), b.right ? 'right' : 'wrong', h('ul', null, b.options.map((o) => reviewRow(o.text, o, 'chose')))))));
-  }
-  el.append(sourcesCard(r), tutorCard(q));
+  el.append(
+    h('div', { class: `exam-verdict ${r.correct ? 'right' : 'wrong'}`, role: 'status' },
+      h('strong', null, r.correct ? 'Correct' : 'Incorrect'), r.detail ? h('span', null, ` — ${r.detail}`) : null),
+    h('div', { class: 'exam-explain' }, h('h4', null, 'In short'), h('p', null, r.explanation)));
+  clear(after).append(sourcesCard(r), tutorCard(q));
 }
 
 // ---- sources: curated Microsoft Learn pages for this question's skill, plus the matching lab -----
@@ -259,7 +311,7 @@ function sourcesCard(r) {
       ? h('ul', { class: 'exam-sources' }, refs.map((x) => h('li', null,
         h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.title), h('span', { class: 'muted small' }, ' · Microsoft Learn'))))
       : h('p', { class: 'muted small' }, 'No reference pages are listed for this skill yet.'),
-    lab ? h('p', { class: 'small' }, 'Practise it in the sandbox: ', h('a', { href: '#/home' }, lab.title)) : null,
+    lab ? h('p', { class: 'small' }, 'Practice it in the sandbox: ', h('a', { href: '#/home' }, lab.title)) : null,
     h('p', { class: 'muted small' }, 'Pages are chosen for the skill this question tests. Microsoft Learn is the source of truth for product behaviour.'));
 }
 
@@ -303,13 +355,6 @@ function tutorCard(q) {
   // Enter sends; Shift+Enter makes a new line.
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
   return card;
-}
-
-function reviewRow(text, o, verb) {
-  const mark = o.correct ? 'Correct answer' : 'Not correct';
-  return h('li', { class: `exam-review-row ${o.correct ? 'is-right' : ''} ${o.picked ? 'is-picked' : ''}` },
-    h('div', null, h('span', { class: 'exam-mark' }, mark), ' ', text, o.picked ? h('em', { class: 'muted small' }, ` (you ${verb} this)`) : null),
-    !o.correct && o.why ? h('div', { class: 'muted small exam-why' }, o.why) : null);
 }
 
 // ---- results ---------------------------------------------------------------------------------

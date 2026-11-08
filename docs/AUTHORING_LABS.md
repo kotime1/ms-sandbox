@@ -89,9 +89,11 @@ When a feature has a documented rule set (automation rules, custom detections), 
 Questions live in `server/exam/bank/*.js` (one default-exported array per file, registered in `bank/index.js`). The format is documented at the top of `server/exam/schema.js`; use the `ok()`, `no()` and `st()` helpers from `bank/dsl.js`. Four types: `single`, `multi` (stem says "two"/"three" and `select` matches), `order` (list the steps in the CORRECT order; the builder shuffles) and `dropdown` (`{{a}}` blanks in a `template`; also used for Yes/No tables and KQL with `code: true`).
 
 - `objective` must be one of the skills-measured bullets in `server/exam/objectives.js`, copied exactly (a test fails otherwise). Put the facts a question needs in the `scenario`.
-- Every wrong option needs a `why` (what the learner reads if they pick it). `explanation` says why the right answer is right.
+- **Every option needs a `why`, the right one too**, and so does every ordering step. After submitting, each choice shows its own explanation under it, so the right one says why it is right and a wrong one says why it is wrong; an ordering step says why it belongs at that position (what it depends on, or what depends on it). `explanation` is then only a short summary of the whole question. The bank will not load if any is missing.
+- **Where the reasons for right choices live.** Wrong options carry their `why` in the question file. The reasons for right options, ordering steps and Yes/No blanks live in `bank/reasons-*.js`, keyed by question id and merged by `bank/index.js`. The merge refuses a reason with a typo'd option text, a reason for a blank that does not exist, a wrong number of step reasons, a reason under 15 characters, or reasons for a question that is not in the bank.
+- **Write each reason as that choice's own verdict.** In a Yes/No statement the right and the wrong side must not show the same sentence: the right one confirms why it is true or false, the wrong one says what is wrong with picking it. `node scripts/inspect-overlap.mjs` lists blanks where the two read almost alike.
 - Use `source: 'setN:QM'` when a question is adapted from `question_sets/`. Those files list only the right answer, not the wrong options, so you must write the distractors yourself.
-- Add `labId` when a sandbox lab practises the topic, so the feedback links to it.
+- Add `labId` when a sandbox lab practices the topic, so the feedback links to it.
 
 **Answer shape must not reveal the answer.** The bank refuses to load if it does, and `node --test test/exam.test.js` checks it. The rules, and why:
 

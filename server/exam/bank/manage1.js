@@ -83,10 +83,10 @@ export default [
     stem: 'For each statement about Microsoft Sentinel automation rules, select Yes or No.',
     template: 'An automation rule can be triggered when an incident is updated: {{a}}\nAutomation rules run in order, starting with the lowest order number: {{b}}\nAn automation rule can change the query of the analytics rule that raised the incident: {{c}}\nAn automation rule can run a playbook that uses the entity trigger: {{d}}',
     blanks: [
-      { id: 'a', options: [ok('Yes'), no('No', 'Automation rules support incident created, incident updated and alert created triggers.')] },
-      { id: 'b', options: [ok('Yes'), no('No', 'The order number sets execution sequence, lowest first. Later rules can act on changes made by earlier ones.')] },
-      { id: 'c', options: [no('Yes', 'Automation rules act on incidents. Rule queries are edited in the analytics rule itself.'), ok('No')] },
-      { id: 'd', options: [no('Yes', 'Entity-trigger playbooks are run by hand from an entity, not from an automation rule.'), ok('No')] },
+      { id: 'a', options: [ok('Yes'), no('No', 'An update trigger does exist, so this is wrong: the rule can run when an incident is created, when it is updated, or when an alert is created.')] },
+      { id: 'b', options: [ok('Yes'), no('No', 'The statement is true, so No is wrong. The order number decides the sequence, and the lowest number runs first.')] },
+      { id: 'c', options: [no('Yes', 'This mixes up two objects: the automation rule changes the incident, and only the analytics rule has a query to edit.'), ok('No')] },
+      { id: 'd', options: [no('Yes', 'An automation rule cannot start an entity-trigger playbook, because that kind is only ever started manually from an entity.'), ok('No')] },
     ],
     explanation: 'Automation rules react to incident created, incident updated and alert created. They execute in order number sequence. They change incidents (owner, status, severity, tags, tasks) and run incident- or alert-trigger playbooks, but they cannot edit analytics rule queries or run entity-trigger playbooks.',
   },
@@ -145,7 +145,7 @@ export default [
     template: 'IP address and URL indicators require Custom network indicators to be turned on in Advanced features: {{a}}\nIP address and URL indicators are enforced on a device where Network protection is not in block mode: {{b}}\nA file hash indicator can block a file on a device where cloud-delivered protection is turned off: {{c}}',
     blanks: [
       { id: 'a', options: [ok('Yes'), no('No', 'Custom network indicators is the advanced feature that makes IP and URL indicators work.')] },
-      { id: 'b', options: [no('Yes', 'Network protection must be in block mode for the IP and URL blocks to be enforced on the device.'), ok('No')] },
+      { id: 'b', options: [no('Yes', 'Enforcement is not automatic. With Network protection in audit mode or off, the device would not block the address.'), ok('No')] },
       { id: 'c', options: [no('Yes', 'File indicator enforcement depends on cloud-delivered protection being on.'), ok('No')] },
     ],
     explanation: 'Network indicators need the Custom network indicators feature and Network protection in block mode on the device. File indicators rely on Microsoft Defender Antivirus with cloud-delivered protection enabled, plus the Block or allow file feature.',

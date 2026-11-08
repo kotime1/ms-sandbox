@@ -106,7 +106,7 @@ export default [
     blanks: [
       { id: 'a', options: [ok('Purview Audit log'), no('Entra sign-in logs', 'Sign-in logs record authentication and not file sharing.'), no('Entra audit logs', 'These logs record directory changes and not file sharing.'), no('Cloud Apps policies', 'Policies alert on conditions you define. They are not a record of past sharing.')] },
       { id: 'b', options: [no('Purview Audit log', 'The audit log records activity and not the detail of the authentication method.'), ok('Entra sign-in logs'), no('Entra audit logs', 'These logs record directory changes rather than sign-ins.'), no('Cloud Apps policies', 'Policies alert on conditions and do not hold sign-in details.')] },
-      { id: 'c', options: [no('Purview Audit log', 'Directory changes are recorded in Entra audit logs.'), no('Entra sign-in logs', 'Sign-in logs record authentication and not changes to the directory.'), ok('Entra audit logs'), no('Cloud Apps policies', 'Policies alert on conditions and are not a record of directory changes.')] },
+      { id: 'c', options: [no('Purview Audit log', 'It records what users do in Microsoft 365 services, so a change to the directory itself is not where you look.'), no('Entra sign-in logs', 'Sign-in logs record authentication and not changes to the directory.'), ok('Entra audit logs'), no('Cloud Apps policies', 'Policies alert on conditions and are not a record of directory changes.')] },
     ],
     explanation: 'What a user did in Microsoft 365 services is in the Purview Audit log. How and where they authenticated is in the Entra sign-in logs. Changes to the directory, such as creating an app registration, are in the Entra audit logs.',
   },
