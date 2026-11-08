@@ -12,7 +12,7 @@ export default {
   minutes: 12,
   topics: ['Defender XDR settings', 'Email notifications', 'Device groups', 'Roles and permissions'],
   examObjective: '2.1 Respond to alerts and incidents in Microsoft Defender XDR',
-  sourceQuestions: { set1: [17], set2: [], set3: [3, 4], set4: [2, 16], set5: [3, 5] },
+  sourceQuestions: { set1: [17], set2: [], set3: [3, 4], set4: [2, 16], set5: [3, 5], set6: [4, 16] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'partial', note: 'The rule fields (name, devices, severity, recipients), the Settings > Endpoints > General > Email notifications path and the permissions are from Microsoft Learn, checked 2026-11-02. That Microsoft 365 role groups count as well as Entra roles comes only from the practice question; the Learn permissions page lists Entra roles only.' },
   scenarios: ['bruteforce-alerts'],

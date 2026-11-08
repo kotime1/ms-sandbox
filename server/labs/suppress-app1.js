@@ -12,7 +12,7 @@ export default {
   minutes: 10,
   topics: ['Defender for Endpoint', 'Alert tuning', 'Suppression rules'],
   examObjective: '2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint',
-  sourceQuestions: { set1: [3, 25], set2: [4], set3: [23], set4: [], set5: [] },
+  sourceQuestions: { set1: [3, 25], set2: [4], set3: [23], set4: [], set5: [], set6: [] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: "docs", note: "Alert tuning matches the docs (hide/resolve; conditions from alert evidence). The wizard is simplified." },
   scenarios: ['app1-clears-logs'],

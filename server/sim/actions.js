@@ -24,6 +24,8 @@ import { AUDIT_ACTIONS } from './actions-audit.js';
 import { TA_ACTIONS } from './actions-ta.js';
 import { IDENTITY_ACTIONS } from './actions-identity.js';
 import { DISRUPTION_ACTIONS } from './actions-disruption.js';
+import { UEBA_ACTIONS } from './actions-ueba.js';
+import { MCP_ACTIONS } from './actions-mcp.js';
 import { DETECTION_ACTIONS } from './actions-detections.js';
 
 const LEARNER_ID = 'u-admin1';
@@ -217,7 +219,7 @@ export const ACTIONS = {
   },
 };
 
-Object.assign(ACTIONS, EXTRA_ACTIONS, AUTOMATION_ACTIONS, DETECTION_ACTIONS, NOTIFICATION_ACTIONS, SECURITY_POLICY_ACTIONS, WORKBOOK_ACTIONS, INGESTION_ACTIONS, AUDIT_ACTIONS, TA_ACTIONS, IDENTITY_ACTIONS, DISRUPTION_ACTIONS);
+Object.assign(ACTIONS, EXTRA_ACTIONS, AUTOMATION_ACTIONS, DETECTION_ACTIONS, NOTIFICATION_ACTIONS, SECURITY_POLICY_ACTIONS, WORKBOOK_ACTIONS, INGESTION_ACTIONS, AUDIT_ACTIONS, TA_ACTIONS, IDENTITY_ACTIONS, DISRUPTION_ACTIONS, UEBA_ACTIONS, MCP_ACTIONS);
 
 export const ROLE_CATALOG = ROLES.map(({ name: n, description, privileged }) => ({ name: n, description, privileged }));
 

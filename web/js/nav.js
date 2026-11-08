@@ -31,6 +31,8 @@ export const SECTIONS = [
       { id: 'sentinel/analytics', label: 'Configuration > Analytics' },
       { id: 'sentinel/automation', label: 'Configuration > Automation' },
       { id: 'sentinel/summary', label: 'Configuration > Summary rules' },
+      { id: 'sentinel/ueba', label: 'Configuration > Settings > Entity behavior' },
+      { id: 'sentinel/mcp', label: 'Data lake > Notebook (MCP server)' },
     ],
   },
   { title: 'Identities', icon: '▣', items: [{ id: 'defender/identities', label: 'Identities and reports' }] },

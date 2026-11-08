@@ -12,7 +12,7 @@ export default {
   minutes: 15,
   topics: ['Microsoft Purview Audit', 'Audit (Standard) vs Premium', 'Record types', 'Audit retention'],
   examObjective: '2.3 Investigate Microsoft 365 activities to identify threats',
-  sourceQuestions: { set1: [36], set2: [39], set3: [34, 39], set4: [33, 34, 35], set5: [39] },
+  sourceQuestions: { set1: [36], set2: [39], set3: [34, 39], set4: [33, 34, 35], set5: [39], set6: [33, 39] },
   // How well this lab is backed by Microsoft documentation. Shown to the trainee. Never claims a live-tenant check.
   verification: { level: 'exam', note: 'Unverified in part. Retention (180 days Standard; one year for Entra ID, Exchange, SharePoint and OneDrive in Premium), the 180-day maximum search range and the Audit Logs / View-Only Audit Logs roles are from Microsoft Learn, checked 2026-11-02. The AirInvestigation record type, and which Entra roles can search, come from the practice questions: the Learn pages I could read did not confirm them.' },
   scenarios: [],

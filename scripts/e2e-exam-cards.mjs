@@ -1,5 +1,5 @@
 // Browser check of the two cards under an answer's explanation: Sources and references, and Ask the tutor.
-// The model is a fake ICA responder, so this is fast and spends no tokens (scripts/probe-tutor.mjs checks the real service).
+// The model is a fake ICA responder, so this is fast and spends no tokens (node --env-file=.env scripts/probe-ica.mjs tutor checks the real service).
 //
 //   node scripts/e2e-exam-cards.mjs on         tutor switched on (fake model)
 //   node scripts/e2e-exam-cards.mjs off        no ICA settings: tutor off, sources still work

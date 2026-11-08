@@ -104,3 +104,19 @@ test('a bank with a missing reason cannot load', () => {
   const stripped = { ...q, options: q.options.map((o) => (o.correct ? { text: o.text, correct: true } : o)) };
   assert.throws(() => loadBank({ f: [stripped] }), /every option needs a 'why'/);
 });
+
+test('in a Yes/No statement the right and the wrong side do not show nearly the same sentence', () => {
+  // Each choice must carry its own verdict: one confirms why it is true or false, the other says what is wrong with picking it.
+  const words = (s) => new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter((x) => x.length > 3));
+  const alike = [];
+  for (const q of BANK.filter((x) => x.type === 'dropdown')) for (const b of q.blanks) {
+    const right = b.options.find((o) => o.correct);
+    const a = words(right.why);
+    for (const o of b.options.filter((x) => !x.correct)) {
+      const c = words(o.why);
+      const ratio = [...a].filter((x) => c.has(x)).length / Math.min(a.size, c.size);
+      if (ratio > 0.8) alike.push(`${q.id} blank ${b.id} (${Math.round(ratio * 100)}%): "${right.why}" / "${o.why}"`);
+    }
+  }
+  assert.deepEqual(alike, []);
+});

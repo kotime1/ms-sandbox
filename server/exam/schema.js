@@ -9,7 +9,7 @@
 //                items carry it; knowledge/performance items may not. Put the specificity here, never in an answer option.
 //   stem         the question. 20-600 chars
 //   explanation  why the right answer is right, 40-900 chars. Shown after the learner submits
-//   source       'bank' (original), 'setN:QM' (adapted from question_sets/setN.txt question M) or 'live'
+//   source       'bank' (original), 'setN:QM' (adapted from practice attempt N, question M, in questions/questions.json) or 'live'
 //   labId        optional. A lab in server/labs/ that practices this
 //   learn        optional. Title of a Microsoft Learn page to read (a title, never a URL)
 //

@@ -18,7 +18,6 @@ const BY_ID = new Map(CATALOGUE.map((c) => [c.id, c]));
 export const getConnector = (id) => BY_ID.get(id) ?? null;
 
 export const COLUMN_TYPES = ['string', 'datetime', 'long', 'real', 'boolean', 'dynamic'];
-export const MAX_CUSTOM_TABLES = 10;
 export const MAX_COLUMNS = 30;
 const NAME = /^[A-Za-z][A-Za-z0-9_]{0,44}$/;
 const RESERVED = new Set(['_resourceid', 'id', '_subscriptionid', 'tenantid', 'type', 'uniqueid', 'title']);
@@ -131,8 +130,6 @@ export function ingest(dcr, records, table) {
 //    enable the Azure Monitor Agent-based connector" (Windows servers on physical machines, on-premises VMs, VMs in non-Azure clouds).
 //   The DCR Resources picker lists "Azure virtual machines and Azure Arc-enabled servers". The DCR itself may sit in any resource group or
 //   subscription, as long as it is in the same tenant.
-export const MACHINE_KINDS = ['Azure VM', 'On-premises'];
-export const MAX_MACHINES = 60;
 
 /** The machines a DCR's Resources picker offers: Azure VMs always, anything else only once Arc-enabled. */
 export const pickerMachines = (machines) => machines.filter((m) => m.kind === 'Azure VM' || m.arc);

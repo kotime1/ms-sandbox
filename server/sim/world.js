@@ -106,6 +106,12 @@ export function createWorld() {
     // Automatic attack disruption posture: seeded by a lab (default: nothing deployed).
     disruption: { deployed: { mde: false, mdi: false, entra: false, mda: false }, discovery: 'Basic', groups: [], mdiSensorOnDc: false, mdiAuditing: false, actionAccountOk: false, mdaOfficeConnector: false },
     disruptionLog: [],
+    // UEBA (Settings > Entity behavior configuration): off until the learner turns it on and connects data sources.
+    ueba: { enabled: false, sources: [], entraSync: false },
+    uebaLog: [],
+    // Microsoft Sentinel MCP server definition and the notebook's tool calls (Visual Studio Code). Seeded by a lab.
+    mcp: { signIn: 'member', tenantHeader: '', discovered: false, calls: [] },
+    mcpLog: [],
     // Defender for Identity: accounts, alerts, report rows and what the learner has done. Seeded by a lab.
     identity: { accounts: [], alerts: [], reportRows: Object.create(null), downloads: [], actionLog: [] },
     // Microsoft Purview Audit: the unified audit log. `tier` is the licence the tenant has; records are seeded by labs.

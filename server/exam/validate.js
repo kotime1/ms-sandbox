@@ -138,29 +138,3 @@ export function bankBiasProblems(bank, tolerance = 0.09) {
   const names = ['longest', 'second longest', 'second shortest', 'shortest'];
   return share.flatMap((s, i) => (Math.abs(s - 0.25) > tolerance ? [`the correct option is the ${names[i]} ${(s * 100).toFixed(0)}% of the time (target 25% +/- ${(tolerance * 100).toFixed(0)})`] : []));
 }
-
-/**
- * Bank-level statistics for the "can you guess it without reading?" test.
- * longestRate: how often the correct option is (one of) the longest, against the chance rate for the same questions.
- */
-export function biasStats(bank) {
-  let n = 0;
-  let longest = 0;
-  let chance = 0;
-  let wordsLongest = 0;
-  const sets = bank.flatMap((q) => optionSets(q).filter((s) => s.kind !== 'multi' && s.options.length >= 3)).filter((s) => s.options.filter((o) => o.correct).length === 1);
-  for (const s of sets) {
-    const lens = s.options.map((o) => o.text.trim().length);
-    const wl = s.options.map((o) => o.text.trim().split(/\s+/).length);
-    const c = s.options.findIndex((o) => o.correct);
-    const topLen = Math.max(...lens);
-    const ties = lens.filter((l) => l === topLen).length;
-    // A tie for longest counts fractionally, so equal-length options are not penalised.
-    if (lens[c] === topLen) longest += 1 / ties;
-    const topW = Math.max(...wl);
-    if (wl[c] === topW) wordsLongest += 1 / wl.filter((l) => l === topW).length;
-    chance += 1 / s.options.length;
-    n++;
-  }
-  return { sets: n, longestRate: n ? longest / n : 0, wordsLongestRate: n ? wordsLongest / n : 0, chanceRate: n ? chance / n : 0 };
-}

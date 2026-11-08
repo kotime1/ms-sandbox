@@ -29,4 +29,3 @@ export function safeEqual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-export const clone = (v) => structuredClone(v);
