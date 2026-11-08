@@ -1,0 +1,1558 @@
+Question 1 of 50
+You have a Microsoft 365 E5 subscription.
+
+You plan to deploy Microsoft Defender for Endpoint to meet the following requirements:
+
+Block executable content from email messages.
+Block unsigned processes that run from USB drives.
+Which Defender for Endpoint capability should you use?
+
+Your Answer
+Attack surface reduction
+
+This answer is correct.
+Correct Answer
+Attack surface reduction
+
+This answer is correct.
+Correct: Attack surface reduction –– Provides rules to target certain software behaviors, such as launching executable files and scripts and running unsigned processes.
+
+Incorrect: Block at first site –– A threat protection feature that detects new malware and blocks it within seconds.
+
+Incorrect: Controlled folder access –– Protects data by checking apps against a list of known and trusted apps.
+
+Incorrect: Exploit protection –– Helps protect against malware that uses exploits to infect devices and spread.
+
+Understand attack surface reduction - Training | Microsoft Learn
+
+Microsoft Defender for Endpoint deployment overview | Microsoft Learn
+
+Question 2 of 50
+You have a Microsoft 365 E5 subscription that uses Microsoft Defender for Endpoint.
+
+You need to be notified when new or updated threat analytics information is added to Microsoft Defender XDR.
+
+Which method can you use?
+
+Your Answer
+Configure a threat analytics email notification rule.
+
+This answer is correct.
+Correct Answer
+Configure a threat analytics email notification rule.
+
+This answer is correct.
+Vulnerabilities email notification rule specifically notifies you about events related to discovered vulnerabilities in your environment, such as new public exploits or newly found zero-day vulnerabilities. To be notified about new or updated threat analytics information, you must create a separate rule under the Threat analytics tab in the Microsoft Defender portal.
+While advanced hunting custom detection rules can be configured to generate alerts and notifications, they are designed to monitor activity data (like processes and network connections) rather than metadata about the Threat analytics platform itself.
+
+An alert email notification rule will email an alert to the configured recipient.
+
+A vulnerabilities email notification rule will email device and software vulnerability information to the configured recipient.
+
+A Microsoft Sentinel automation rule will not send an alert about new threat analytics information in the Microsoft Defender portal.
+
+Analyze reports - Training | Microsoft Learn
+
+Question 3 of 50
+You have a hybrid environment that includes an on-premises Active Directory Domain Services (AD DS) domain, a Microsoft Entra tenant, and a Microsoft 365 E5 subscription.
+
+All Windows 11 devices are onboarded to Microsoft Defender for Endpoint.
+
+You deploy Microsoft Defender for Identity sensors to domain controllers.
+
+You need to enable automatic attack disruption in Microsoft Defender XDR. The solution must meet the following requirements:
+
+During an active attack, affected devices must be contained automatically, and compromised user accounts must be disabled.
+User disruptions must be minimized.
+What should you configure?
+
+Your Answer
+Advanced features in Microsoft Defender for Identity
+
+This answer is correct.
+Correct Answer
+Advanced features in Microsoft Defender for Identity
+
+This answer is correct.
+The correct configuration is to enable automatic attack disruption under the Advanced features of Microsoft Defender for Identity. This feature integrates with Microsoft Defender for Endpoint to automatically isolate compromised devices and with Microsoft Entra/AD DS to disable compromised accounts. Device isolation alone only addresses devices, indicators are for blocking files or IPs, and ASR rules are preventive but do not provide automatic real-time disruption.
+
+Introduction
+
+Question 4 of 50
+You have a Microsoft 365 E5 subscription that contains the following users:
+
+User1:
+
+Microsoft Entra role: Global Administrator
+Microsoft 365 role group: Security Administrator
+User2:
+
+Microsoft Entra role: Security Administrator
+Microsoft 365 role group: Security Reader
+User3:
+
+Microsoft Entra role: Security Reader
+Microsoft 365 role group: Security Reader
+Which users can modify the security settings in Microsoft Defender XDR?
+
+Your Answer
+User1 and User2 only
+
+This answer is correct.
+Correct Answer
+User1 and User2 only
+
+This answer is correct.
+Both User1 and User2 can modify security settings in Microsoft Defender XDR. User1 has the Global Administrator role and the Security Administrator role group, both of which provide full control. User2 has the Security Administrator role in Microsoft Entra, which is also sufficient to modify Defender XDR security settings. User3 has only Security Reader roles, which provide read-only access.
+
+Explore Microsoft Defender for Endpoint
+
+Question 5 of 50
+Your company has the following devices:
+
+A Windows 11 device named Device1
+An iOS device named Device2
+An Android device named Device3
+Which devices can be onboarded and protected by using Microsoft Defender for Endpoint?
+
+Your Answer
+Device1, Device2, and Device3
+
+This answer is correct.
+Correct Answer
+Device1, Device2, and Device3
+
+This answer is correct.
+You can onboard the following endpoints to Defender for Endpoint: Windows client, Windows Server, macOS, Linux Server, iOS, and Android. Because of this, you can onboard and protect Device1, Device2, Device3, and Device4 by using Defender for Endpoint.
+
+Deploy the Microsoft Defender for Endpoint environment - Training | Microsoft Learn
+
+Question 6 of 50
+Your company uses Microsoft Defender XDR.
+
+You need to use Microsoft Defender XDR deception rules to detect attacks as early as possible.
+
+What Microsoft Defender XDR service should you use to create the deception rules?
+
+Your Answer
+Microsoft Defender for Endpoint
+
+This answer is correct.
+Correct Answer
+Microsoft Defender for Endpoint
+
+This answer is correct.
+The correct answer is Microsoft Defender for Endpoint, because this service now includes deception rules that deploy decoy files, credentials, processes, and network shares on endpoints. When attackers interact with these decoys, an alert is triggered at the earliest stages of compromise. Defender for Identity does support honeytoken accounts, but these are not managed through the “deception rules” feature in Microsoft Defender XDR. Defender for Cloud Apps and Defender for Office 365 do not provide deception capabilities.
+
+Introduction
+Investigate DLP alerts in Microsoft Defender XDR
+Introduction
+
+Question 7 of 50
+You have a Microsoft Sentinel workspace and a playbook named Playbook1.
+
+You need to ensure that you can manually run Playbook1 from an incident investigation. The solution must ensure that Playbook1 is available from Actions on the incident information window.
+
+What should you do?
+
+Your Answer
+Add the Microsoft Sentinel Automation Contributor role to Playbook1.
+
+This answer is incorrect.
+Correct Answer
+Update Playbook1 to use the incident trigger.
+
+This answer is correct.
+The playbook receives incident objects, including entities and alerts. Using this trigger allows the playbook to be attached to an automation rule, so it can be triggered when an incident is created (and now, updated as well) in Microsoft Sentinel, and all the benefits of automation rules can be applied to the incident.
+
+Updating the playbook to use the alert trigger is advisable for playbooks that need to be run on alerts manually from the Microsoft Sentinel portal, or for scheduled analytics rules that do not generate incidents for their alerts.
+
+Changing authentication on the playbook will not correct the issue.
+
+Threat response with Microsoft Sentinel playbooks - Training | Microsoft Learn
+
+Question 8 of 50
+You have a Microsoft Sentinel workspace.
+
+You need to create a playbook that will run automatically in response to a Microsoft Sentinel incident.
+
+What should you create first?
+
+Your Answer
+a logic app
+
+This answer is correct.
+Correct Answer
+a logic app
+
+This answer is correct.
+Microsoft Sentinel integrates with Azure Logic Apps, enabling you to create automated workflows, or playbooks, in response to events.
+
+How Microsoft Sentinel works - Training | Microsoft Learn
+
+Question 9 of 50
+You have an Azure subscription that contains a resource group named RG1 and a Microsoft Sentinel workspace.
+
+In RG1, you create a playbook named Play1.
+
+You need to ensure that the Azure Security Insights identity can run Play1. The solution must follow the principle of least privilege.
+
+What should you do?
+
+Your Answer
+Delegate the Logic App Contributor role on RG1.
+
+This answer is incorrect.
+Correct Answer
+Delegate the Microsoft Sentinel Automation Contributor role on RG1.
+
+This answer is correct.
+Microsoft Sentinel must be granted explicit permissions to run playbooks based on the incident trigger, whether manually or from automation rules. If a playbook on the drop-down list is unavailable, it means that Microsoft Sentinel does not have permission to that playbook’s resource group. You must delegate Microsoft Sentinel Automation Contributor role to the Azure Security Insights identity on the resource group in which the playbook is deployed. If you delegate a role on the playbook itself or delegate the Logic App Contributor role, the playbook still cannot be selected in Microsoft Sentinel (it is unavailable).
+
+Use playbooks with automation rules in Microsoft Sentinel | Microsoft Learn
+
+Threat response with Microsoft Sentinel playbooks - Training | Microsoft Learn
+
+Question 10 of 50
+You have an Azure subscription that contains a Microsoft Sentinel workspace and a resource group named RG1. The workspace is deployed to RG1. The subscription is linked to a Microsoft Entra tenant that contains four users named User1, User2, User3, and User4.
+
+The users are assigned the following roles for RG1:
+
+User1 is assigned the Owner role.
+User2 is assigned the Microsoft Sentinel Responder role.
+User3 is assigned the Microsoft Sentinel Contributor role.
+User4 is assigned the Microsoft Sentinel Reader and Workbook Contributor roles.
+You need to delegate the addition of workbooks to the workspace.
+
+Which user can add the workbook?
+
+Your Answer
+User1, User3, and User4 only
+
+This answer is correct.
+Correct Answer
+User1, User3, and User4 only
+
+This answer is correct.
+To create and delete a Microsoft Sentinel workbook, the user needs either the Microsoft Sentinel Contributor role or a lesser Microsoft Sentinel role, together with the Workbook Contributor Azure Monitor role. This role is not necessary for using workbooks, only for creating and deleting workbooks. Owner has full control and can also create workbooks in Microsoft Sentinel. As such, only User1, User3, and User4 can add workbooks to Microsoft Sentinel.
+
+Roles and permissions in Microsoft Sentinel | Microsoft Learn
+
+Understand Microsoft Sentinel permissions and roles - Training | Microsoft Learn
+
+Question 11 of 50
+You have an Azure subscription and a Microsoft SharePoint Online site named Site1.
+
+You are implementing Microsoft Sentinel.
+
+You need to collect events from Site1.
+
+Which data connector should you add to Microsoft Sentinel?
+
+Your Answer
+Microsoft 365
+
+This answer is correct.
+Correct Answer
+Microsoft 365
+
+This answer is correct.
+After you onboard Microsoft Sentinel to your workspace, you can use data connectors to start ingesting data into Microsoft Sentinel. Microsoft Sentinel includes more than 120 data connectors for Microsoft and third-party data sources.
+
+Microsoft 365 is one of the available Microsoft Sentinel data connectors. The connector ingests data from Microsoft 365, which includes Microsoft Teams, Exchange Online, and SharePoint Online.
+
+Microsoft Sentinel data connectors | Microsoft Learn
+
+Connect data to Microsoft Sentinel using data connectors - Training | Microsoft Learn
+
+Question 12 of 50
+You have a Microsoft Sentinel workspace.
+
+You need to enable User and Entity Behavior Analytics (UEBA) in Microsoft Sentinel.
+
+Which two data sources support the use of UEBA? Each correct answer presents a complete solution.
+
+Your Answer
+Microsoft 365
+
+This answer is incorrect.
+Security Events
+
+This answer is correct.
+Correct Answer
+Azure Activity
+
+This answer is correct.
+Security Events
+
+This answer is correct.
+On the Entity behavior settings page, you can see a list of UEBA-supported data sources that you have not yet connected. The following two data sources are on the list: Azure Activity and Security Events.
+
+Use entity behavior analytics to detect advanced threats | Microsoft Learn
+
+Security incident management in Microsoft Sentinel - Training | Microsoft Learn
+
+Question 13 of 50
+You have a Microsoft Sentinel workspace.
+
+Your environment contains the following virtual machines that run Windows Server:
+
+150 Azure virtual machines
+50 on-premises virtual machines
+You plan to use the Windows Security Events via AMA data connector to collect events from the virtual machines.
+
+The 50 on-premises machines do NOT appear in the resource picker when you creating a data collection rule (DCR).
+
+You need to ensure that the on-premises virtual machines can be selected in the DCR.
+
+What should you do on the on-premises virtual machines?
+
+Your Answer
+Install the Azure Connected Machine agent.
+
+This answer is correct.
+Correct Answer
+Install the Azure Connected Machine agent.
+
+This answer is correct.
+Objective:
+
+1.3 Ingest data into the Microsoft Sentinel SIEM and platform
+
+What This Item Tests:
+
+Configure collection of Windows Security events by using Windows Security Events via AMA, including data collection rules
+
+Additional Reading:
+
+Windows security events
+Connect using the Windows Security Events via AMA Connector
+Connect using the Security Events via Legacy Agent Connector
+Plan for Windows hosts security events connector Completed
+Rationale:
+
+On-premises servers must be onboarded as Azure resources by using Azure Arc-enabled servers, so they can be targeted by DCRs and the Windows Security Events via AMA connector in Microsoft Sentinel. After the Azure Connected Machine agent is installed, the machines appear in the resource picker, and Azure Monitor Agent can be deployed through the connector workflow. The Azure File Sync agent is used by File Sync and installing the agent does not enable you to select the servers in the DCR. Windows Event Forwarding represents a different ingestion architecture and does not meet the requirement to use the AMA connector and DCR. Changing where the DCR is created does not cause on-premises machines to appear as selectable resources.
+
+Question 14 of 50
+You have a Microsoft Sentinel workspace.
+
+You have an Azure subscription that contains 25 Azure key vaults. New key vaults are created frequently.
+
+You need to ensure that all the existing and future key vaults automatically send diagnostic logs to Microsoft Sentinel. The solution must minimize administrative effort.
+
+What should you configure?
+
+Your Answer
+an Azure policy
+
+This answer is correct.
+Correct Answer
+an Azure policy
+
+This answer is correct.
+Objective:
+
+1.3 Ingest data into the Microsoft Sentinel SIEM and platform
+
+What This Item Tests:
+
+Configure collection of Azure activities by using Azure Policy and resource diagnostic settings
+
+Additional Reading:
+
+Design solutions to support centralized logging and auditing
+Troubleshoot pushing subscription level Activity Logs to Sentinel
+Rationale:
+
+The Azure Key Vault Microsoft Sentinel connector supports an Azure Policy-based deployment of diagnostic settings. Assigning the built-in policy from the connector page automatically configures diagnostic settings for both existing and future key vaults and can remediate existing resources when a remediation task is enabled. Manually configuring diagnostic settings on each key vault does not meet the requirement to avoid manual configuration and does not address future resources. The Azure Monitor Agent and data collection rules (DCRs) are not used for Key Vault platform logs. An Automation account is a cloud-based service for automating, managing, and updating Azure and on-premises resources by using PowerShell/Python scripts (runbooks) and configuration management (DSC).
+
+Question 15 of 50
+You have a Microsoft Sentinel workspace that ingests Microsoft Defender XDR incidents and Azure Activity logs.
+
+Your company has the required premium license for Microsoft's curated threat intelligence.
+
+You need to ingest Microsoft-curated threat indicators into the workspace by using a built-in connector and confirm that ingestion is enabled. The solution must minimize configuration effort.
+
+What should you do?
+
+Your Answer
+Install the Threat Intelligence solution, and then enable and connect the Premium Defender Threat Intelligence connector.
+
+This answer is correct.
+Correct Answer
+Install the Threat Intelligence solution, and then enable and connect the Premium Defender Threat Intelligence connector.
+
+This answer is correct.
+Objective:
+
+1.3 Ingest data into the Microsoft Sentinel SIEM and platform
+
+What This Item Tests:
+
+Ingest threat indicators into Microsoft Sentinel
+
+Additional Reading:
+
+Plan for threat intelligence connectors
+
+Create and manage threat intelligence
+
+Manage threat intelligence
+
+Rationale:
+
+Installing the Threat Intelligence solution from Content hub and enabling the Premium Defender Threat Intelligence connector enables Microsoft Sentinel to ingest Microsoft-curated indicators directly, with minimal configuration. The TAXII connector is used for external threat intelligence platforms and requires the configuration of a TAXII server and collections. The Threat Intelligence Upload API requires custom development to submit STIX indicators. The Threat Intelligence Platforms connector requires integration with external sources by using the Microsoft Graph indicators API and involves additional configuration.
+
+Question 16 of 50
+Your company uses Microsoft Defender XDR.
+
+You need to create a custom detection rule that will send email notifications to a distribution group when an alert is triggered. The solution must minimize administrative effort.
+
+What should you do?
+
+Your Answer
+From the Microsoft Defender portal, configure the Microsoft Defender XDR settings.
+
+This answer is correct.
+Correct Answer
+From the Microsoft Defender portal, configure the Microsoft Defender XDR settings.
+
+This answer is correct.
+The correct action is to configure the custom detection rule within the Microsoft Defender portal using the Microsoft Defender XDR settings. This is where you can create and manage rules and define email notifications to distribution groups when alerts are triggered. Email & collaboration settings apply to mail protection, while the Microsoft 365 admin center Org settings are for tenant service and compliance configuration, not detection notifications.
+
+Configure the Microsoft Defender portal
+
+Question 17 of 50
+Your company uses Microsoft Defender XDR.
+
+You need to create a custom detection rule that will remediate malicious activity when an alert is detected. The solution must minimize administrative effort.
+
+What should you configure?
+
+Your Answer
+The actions
+
+This answer is correct.
+Correct Answer
+The actions
+
+This answer is correct.
+The correct configuration is Actions, because in Microsoft Defender XDR you define automated remediation for a custom detection rule by setting actions such as Isolate device, Run antivirus scan, or Initiate automated investigation. Severity and alert suppression do not trigger remediation, and there is no direct “automated investigation” setting — it is an action you configure inside the Actions step of the rule wizard.
+
+Describe Microsoft Defender XDR services
+Introduction
+
+Question 18 of 50
+You have a Microsoft Sentinel playbook named Playbook1.
+
+Playbook1 is triggered when a new Microsoft Sentinel incident is created.
+
+You create a custom near-real-time (NRT) analytics rule named NRTRule1.
+
+You need to ensure that NRTRule1 can use Playbook1.
+
+What should you do?
+
+Your Answer
+Configure the Incident settings for NRTRule1.
+
+This answer is incorrect.
+Correct Answer
+Add an automation rule to NRTRule1.
+
+This answer is correct.
+For playbooks that are triggered by an incident creation and receive incidents as their inputs (their first step is “When a Microsoft Sentinel Incident is triggered”), create an automation rule and define a Run playbook action in the rule to trigger the playbook.
+
+Configuring the Incident settings for NRTRule1 does not allow for the addition of a playbook for automation.
+
+Recreating the query by using a scheduled query rule is unnecessary as the option is available on the NRT rule.
+
+Configuring Alert Automation (Classic) on NRTRule1 is reserved for playbooks that have been configured with the Microsoft Sentinel alert trigger.
+
+Automation in Microsoft Sentinel - Training | Microsoft Learn
+
+Question 19 of 50
+You have a Microsoft Sentinel workspace that has a Microsoft Defender for Cloud data connector.
+
+You create a Microsoft incident creation rule named Rule1.
+
+You need to ensure that Rule1 creates incidents based on Defender for Cloud alerts.
+
+What should you configure in Rule1?
+
+Your Answer
+entity mapping
+
+This answer is incorrect.
+Correct Answer
+analytics rule logic
+
+This answer is correct.
+When you are creating a Microsoft incident creation rule, in the analytics rule logic settings, you select the product for which you want to create incidents from alerts, such as Defender for Cloud or Microsoft Entra ID Protection. Rule queries, alert details and entity mapping are available in scheduled riles (queries), but they are unavailable in Microsoft incident creation rules.
+
+Create incidents from alerts in Microsoft Sentinel | Microsoft Learn
+
+Threat detection with Microsoft Sentinel analytics - Training | Microsoft Learn
+
+Question 20 of 50
+You have a Microsoft Sentinel workspace.
+
+You create the following analytics rules in Microsoft Sentinel:
+
+A near-real-time (NRT) rule named Rule1
+A fusion rule named Rule2
+A scheduled rule named Rule3
+A Microsoft security rule named Rule4
+You need to identify which rules will generate incidents that can be investigated by using Microsoft Sentinel.
+
+Which rules should you identify?
+
+Your Answer
+Rule1 and Rule3 only
+
+This answer is correct.
+Correct Answer
+Rule1 and Rule3 only
+
+This answer is correct.
+You can only investigate incidents in Microsoft Sentinel that were raised by analytics rules in which you used the entity mapping fields. The investigation graph requires that your original incident includes entities.
+
+Entity mapping is available only in scheduled and NRT rules, it is unavailable with other analytics rule types. As such, you can investigate incidents from Rule1 and Rule3 only.
+
+Investigate incidents with Microsoft Sentinel | Microsoft Learn
+
+Query, visualize, and monitor data in Microsoft Sentinel - Training | Microsoft Learn
+
+Question 21 of 50
+You have a Microsoft Sentinel workspace that ingests Microsoft Entra ID sign-in logs and firewall logs.
+
+A scheduled analytics rule detects suspicious sign-ins and maps the Account and IP entities.
+
+You need to reduce the time between a suspicious sign-in and alert creation. The solution must meet the following requirements:
+
+Run automatically every minute.
+Use a one-minute lookback period.
+Use ingestion time to account for ingestion delay.
+Which type of analytics rule should you create?
+
+Your Answer
+a near-real-time (NRT) analytics rule
+
+This answer is correct.
+Correct Answer
+a near-real-time (NRT) analytics rule
+
+This answer is correct.
+Objective:
+
+1.4 Configure detections
+
+What This Item Tests:
+
+Configure and manage analytics rules in Microsoft Sentinel SIEM, including scheduled, near-real time (NRT), threat intelligence, and machine learning
+
+Additional Reading:
+
+Work with near-real-time (NRT) detection analytics rules in Microsoft Sentinel
+
+Threat detection in Microsoft Sentinel - Types of analytics rules
+
+Alerts and Incidents from Microsoft Sentinel
+
+Types of analytics rules
+
+Rationale:
+
+NRT analytics rules are designed for detections and must run frequently with minimal delay. NRT rules run automatically every minute with a one-minute lookback period and evaluate events based on ingestion time, which allows alerts to be generated quickly even when ingestion delays occur. Scheduled analytics rules run on configurable schedules but are not optimized for minute-level NRT detections. Microsoft security analytics rules are built-in rules managed by Microsoft and cannot be customized to meet the specific timing requirements described. ML behavior analytics rules rely on anomaly detection models and are not intended for deterministic minute-by-minute detection logic.
+
+Question 22 of 50
+You have a Microsoft 365 E5 subscription that contains five Microsoft SharePoint Online sites.
+
+You apply data loss prevention (DLP) policies to the SharePoint Online sites.
+
+You need to review the DLP alerts.
+
+Which two portals can you use? Each correct answer presents a complete solution.
+
+Your Answer
+the Microsoft Purview portal
+
+This answer is correct.
+the Microsoft Defender portal
+
+This answer is correct.
+Correct Answer
+the Microsoft Purview portal
+
+This answer is correct.
+the Microsoft Defender portal
+
+This answer is correct.
+You create DLP policies in the Microsoft Purview compliance portal. DLP alerts can also be viewed in the same portal by selecting Data loss prevention, and then the Alerts tab.
+
+The SharePoint admin center enables you to manage SharePoint sites in your organization, for example, creating new sites.
+
+The Microsoft 365 admin center enables you to manage your Microsoft 365 subscription, for example, configuring tenant settings or creating new user accounts.
+
+The Microsoft Defender portal combines protection, detection, investigation, and response to email, collaboration, identity, device, and cloud app threats in a central place. This includes the ability to view DLP alerts and incidents.
+
+You cannot create a DLP policy or view DLP alerts in the SharePoint admin center or Microsoft 365 admin center.
+
+Configure and view alerts for DLP policies - Microsoft Purview (compliance) | Microsoft Learn
+
+Mitigate incidents using Microsoft 365 Defender - Training | Microsoft Learn
+
+Investigate data loss incidents with Microsoft 365 Defender | Microsoft Learn
+
+Question 23 of 50
+You have a hybrid Microsoft Entra tenant and a Microsoft 365 E5 subscription.
+
+You need to review all changes made to the Active Directory Enterprise Admins group during the last 14 days.
+
+What should you use?
+
+Your Answer
+the Microsoft Entra ID Provisioning Analysis workbook
+
+This answer is incorrect.
+Correct Answer
+the Microsoft Defender for Identity Modifications to sensitive groups report
+
+This answer is correct.
+The Defender for Identity Modifications to sensitive groups report lists every time a modification is made to sensitive groups, such as admin or manually tagged accounts or groups.
+
+The Microsoft Entra ID Provisioning Analysis workbook provides information on activities performed by the provisioning service, such as the creation of a group in ServiceNow or a user imported from Workday.
+
+The Defender for Cloud Apps Identity Security Posture offers proactive identity security posture assessments to detect and recommend actions across on-premises Active Directory configurations.
+
+The Defender for Cloud Apps Cloud Discovery dashboard is designed to give you more insight into how cloud apps are being used in your organization. It provides an at-a-glance overview of which kinds of apps are being used, your open alerts, and the risk levels of apps in your organization.
+
+The Microsoft Entra ID Sensitive Operations Report workbook is intended to help identify suspicious application and service principal activity that may indicate compromises in your environment.
+
+Review compromised accounts or data - Training | Microsoft Learn
+
+Azure Monitor workbooks for Azure Active Directory - Microsoft Entra | Microsoft Learn
+
+Understand how Provisioning integrates with Azure Monitor logs in Azure Active Directory. - Microsoft Entra | Microsoft Learn
+
+Question 24 of 50
+You have a Microsoft 365 E5 subscription that uses Microsoft Defender for Identity.
+
+You need to download a Defender for Identity detailed alert report.
+
+Which format will the report use?
+
+Your Answer
+XLSX
+
+This answer is correct.
+Correct Answer
+XLSX
+
+This answer is correct.
+Each Defender for Identity security alert includes the alert title, description, evidence and Microsoft Excel download, which includes a detailed report for analysis.
+
+Review compromised accounts or data - Training | Microsoft Learn
+
+Question 25 of 50
+You have a Microsoft Defender XDR deployment that includes Microsoft Defender for Endpoint, Microsoft Defender for Identity, and Microsoft Defender for Cloud Apps.
+
+You need to view alerts from all three security services aggregated as a single incident.
+
+Which page should you use in the Microsoft Defender portal?
+
+Your Answer
+Incidents & alerts
+
+This answer is correct.
+Correct Answer
+Incidents & alerts
+
+This answer is correct.
+The correct answer is Incidents & alerts, because Microsoft Defender XDR automatically correlates alerts from Defender for Endpoint, Defender for Identity, and Defender for Cloud Apps into unified incidents for easier investigation and response. Device inventory is only for managing and viewing devices, Hunting is for running advanced KQL queries to proactively search for threats, and Secure Score provides posture recommendations rather than aggregated incidents.
+
+Manage incidents
+
+Question 26 of 50
+You have Microsoft Defender for Cloud workload protections enabled for an Azure Kubernetes Service (AKS) cluster. Alerts are investigated in the Microsoft Defender portal.
+
+For a container, you have a Defender for Cloud alert that includes manual remediation steps. The same type of alert occurs frequently for new containers in the cluster.
+
+You need to ensure that the remediation steps run automatically when the alert occurs.
+
+What should you create?
+
+Your Answer
+a logic app
+
+This answer is correct.
+Correct Answer
+a logic app
+
+This answer is correct.
+Objective:
+
+2.1 Respond to alerts and incidents in Microsoft Defender XDR
+
+What This Item Tests:
+
+Investigate and remediate alerts and incidents identified by Microsoft Defender for Cloud workload protections
+
+Additional Reading:
+
+Remediate security alerts using Microsoft Defender for Cloud - Introduction
+Mitigate incidents using Microsoft Defender - Introduction
+Simulate an attack with an isolated domain controller and client device (optional)
+Rationale:
+
+A logic app can automate remediation by triggering when a Defender for Cloud alert is generated and executing the required response actions. This approach enables repeated alerts to be handled automatically without manual intervention. Creating a custom detection rule generates additional alerts rather than performs remediation. Incident tags classify incidents but do not trigger automated responses. Incident queue filters only change how incidents are displayed and prioritized and do not automate remediation.
+
+Question 27 of 50
+You have a hybrid identity environment that contains:
+
+On-premises Active Directory domain controllers monitored by using Microsoft Defender for Identity
+Microsoft Entra ID Protection enabled for cloud identity risk detection
+Incidents managed in Microsoft Defender XDR
+An incident in the Microsoft Defender portal includes identity-related alerts for a user named user1@contoso.com.
+
+You confirm that the account is compromised, and the user appears as a Risky user in Microsoft Entra ID Protection.
+
+You need to remediate the identity risk and ensure that the user completes strong authentication again before regaining access to Microsoft 365 resources.
+
+What should you do?
+
+Your Answer
+Reset the user multifactor authentication (MFA) registration.
+
+This answer is correct.
+Correct Answer
+Reset the user multifactor authentication (MFA) registration.
+
+This answer is correct.
+Objective:
+
+2.1 Respond to alerts and incidents in Microsoft Defender XDR
+
+What This Item Tests:
+
+Investigate and remediate compromised identities that are identified by Microsoft Entra ID
+
+Additional Reading:
+
+Remediate and respond
+Remediate risks
+Understand Microsoft Defender for Identity Completed
+Mitigate incidents using Microsoft Defender - Introduction
+Rationale:
+
+Resetting the user’s MFA registration forces the user to reregister authentication methods and complete strong authentication before accessing Microsoft 365 resources, which remediates the identity risk in Microsoft Entra ID Protection. Creating a Conditional Access policy that blocks sign-ins prevents the user from accessing resources but does not remediate the identity risk. Installing Defender for Identity sensors improves the monitoring of on-premises domain controllers but does not remediate a compromised cloud identity. Dismissing the user risk clears the risk state without verifying the user’s identity or requiring additional authentication.
+
+Question 28 of 50
+Your company uses Microsoft Defender for Endpoint.
+
+All security alerts are automatically remediated.
+
+Microsoft Defender notifies you that it blocked a malware infection attempt on a device.
+
+You need to perform an analysis on the device. The solution must meet the following requirements:
+
+Analyze the device memory, active processes, and inbound and outbound network connections.
+Minimize the impact of the analysis on device users.
+Avoid identifying false positives as malicious.
+What should you do first?
+
+Your Answer
+Collect an investigation package.
+
+This answer is correct.
+Correct Answer
+Collect an investigation package.
+
+This answer is correct.
+The correct answer is Collect an investigation package, because this feature in Microsoft Defender for Endpoint gathers forensic evidence such as memory contents, running processes, and network connections while minimizing disruption to the user. Reviewing the alert evidence may over-remediate and misclassify false positives, isolating a device disrupts users, and an antivirus scan detects malware but does not provide detailed forensic data.
+
+Collect investigation package from devices
+
+Question 29 of 50
+Your company uses Microsoft Defender for Endpoint.
+
+A security incident is currently affecting devices that run Windows 11 or macOS.
+
+You need to identify the scope of the incident.
+
+What should you use in the Microsoft Defender portal?
+
+Your Answer
+Advanced hunting
+
+This answer is correct.
+Correct Answer
+Advanced hunting
+
+This answer is correct.
+The correct answer is Advanced hunting, because it allows you to run KQL queries across Defender for Endpoint telemetry to determine which devices, users, or processes are involved in an incident. Deep analysis is for detonating files in a sandbox, and Device inventory lists assets but does not identify which ones are part of the current incident.
+
+Introduction
+Explore Microsoft Defender for Endpoint
+Introduction
+Microsoft Incident Response team ransomware approach and best practices
+
+Question 30 of 50
+Your company used Microsoft Defender XDR.
+
+You are reviewing an incident that contains two related alerts:
+
+A suspicious process injection observed on a Windows device named DeviceA
+User and IP address reconnaissance (SMB) targeting a domain controller
+The alert process tree shows notepad.exe on DeviceA communicating with an external IP address.
+
+You need to open the entity details page for the external IP address from the incident evidence.
+
+What should you do?
+
+Your Answer
+Select the external IP address in the alert process tree.
+
+This answer is correct.
+Correct Answer
+Select the external IP address in the alert process tree.
+
+This answer is correct.
+Objective:
+
+2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint
+
+What This Item Tests:
+
+Perform evidence and entity investigation
+
+Additional Reading:
+
+Simulate an attack with an isolated domain controller and client device (optional)
+
+What is Microsoft Defender XDR?
+
+Investigate DLP alerts in Microsoft Defender XDR
+
+Introduction to Microsoft Defender XDR threat protection - Introduction
+
+Troubleshoot Microsoft Defender XDR service issues
+
+Rationale:
+
+Selecting the external IP address in the alert process tree opens the IP address entity page, which enable an investigation of the IP address’s related activity, alerts, and context directly from the incident evidence. Changing the incident status only updates the workflow state. Approving remediation actions in the Action center applies response actions but does not reveal entity information. Filtering the incident queue only changes the incident view and does not provide access to entity investigation details.
+
+Question 31 of 50
+You are using Microsoft Defender for Endpoint.
+
+An alert for a suspicious PowerShell command line is associated with a device named WS-23.
+
+You need to view a chronological list of events on WS-23 for a custom time range to correlate activity related to the alert.
+
+What should you use?
+
+Your Answer
+the Timeline tab
+
+This answer is correct.
+Correct Answer
+the Timeline tab
+
+This answer is correct.
+Objective:
+
+2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint
+
+What This Item Tests:
+
+Investigate device timelines
+
+Additional Reading:
+
+Investigate devices in the Microsoft Defender for Endpoint Devices list - Tabs
+Rationale:
+
+The Timeline tab on the device page provides a chronological view of device activity and enables investigators to filter events by selecting a custom time range on the calendar control. The Alerts tab shows alert records rather than full device timeline activity. Collecting an investigation package gathers forensic artifacts but is not intended for interactive timeline analysis. Advanced hunting pivots to broader hunting queries and does not display the device timeline filtered by a custom date range.
+
+Question 32 of 50
+You have Windows 11 devices onboarded to Microsoft Defender for Endpoint.
+
+An incident contains an alert for a suspicious PowerShell command line on a device.
+
+You need to use the device Timeline to create a clean breach timeline that meets the following requirements:
+
+Highlights key device events
+Displays only the highlighted events
+Limits the view to events that occurred before the highlighted event
+What should you do?
+
+Your Answer
+Flag the key event or events, enable the Only Flagged events filter, and use the time bar to show events before the flagged event.
+
+This answer is correct.
+Correct Answer
+Flag the key event or events, enable the Only Flagged events filter, and use the time bar to show events before the flagged event.
+
+This answer is correct.
+Objective:
+
+2.2 Respond to alerts and incidents in Microsoft Defender for Endpoint
+
+What This Item Tests:
+
+Investigate device timelines
+
+Additional Reading:
+
+Investigate devices in the Microsoft Defender for Endpoint Devices list - Tabs
+
+Perform device investigations in Microsoft Defender for Endpoint - Introduction
+
+Rationale:
+
+Flagging key events in the device timeline enables investigators to mark important activity, and then filter the timeline to show only flagged events. Investigators can also adjust the time bar to display events occurring before a selected event to reconstruct the attack sequence and create a clean breach timeline. Exporting the timeline produces a static dataset and does not provide interactive filtering for flagged events. Hunting for related events pivots to advanced hunting rather than using the device timeline. Reviewing the Active alerts card only displays alert information and does not create a filtered breach timeline.
+
+Question 33 of 50
+You use Microsoft Purview Audit.
+
+You discover that an external user accessed a Microsoft SharePoint Online document that contains confidential information.
+
+You need to identify the name of the user that accessed the document and what the user did.
+
+What should you do first?
+
+Your Answer
+From the Microsoft Purview portal, run an audit log search.
+
+This answer is correct.
+Correct Answer
+From the Microsoft Purview portal, run an audit log search.
+
+This answer is correct.
+The correct answer is From the Microsoft Purview portal, run an audit log search, because the audit log records user activities in Microsoft 365 services, including SharePoint Online access by external users. Running an audit log search provides the user name and the specific actions performed. Exporting to CSV can be done later for reporting, but it is not the first step. Get-SimpleAuditLogReport is outdated and provides limited results, Microsoft Sentinel requires log ingestion and is not the minimal-effort path, and content search is designed for locating documents in eDiscovery, not for analyzing user activity.
+
+Search the Unified Audit Log (UAL)
+Describe audit in Microsoft Purview
+Explore Microsoft Purview Audit solutions
+
+Question 34 of 50
+You use Microsoft Purview eDiscovery to investigate potential data leaks across Microsoft Exchange Online mailboxes and SharePoint Online sites.
+
+You create an eDiscovery search that targets multiple custodians and SharePoint locations. The search uses several wildcard-heavy keywords to identify potentially leaked credentials.
+
+When you run the search, it fails and returns a CS007 error.
+
+You need to successfully run the investigation search, while keeping the result set manageable for the service to process.
+
+What should you do?
+
+Your Answer
+Split the search into smaller searches by limiting locations or date ranges, and then retry the search.
+
+This answer is correct.
+Correct Answer
+Split the search into smaller searches by limiting locations or date ranges, and then retry the search.
+
+This answer is correct.
+Objective:
+
+2.3 Investigate Microsoft 365 activities to identify threats
+
+What This Item Tests:
+
+Investigate threats by using Content Search in Microsoft Purview
+
+Additional Reading:
+
+Search error: CS007
+Conduct an eDiscovery search Completed
+eDiscovery solutions
+Rationale:
+
+The CS007 error occurs when an eDiscovery search becomes too large or complex for the service to process, often due to wildcard-heavy queries across many locations. Splitting the search into smaller searches by limiting custodians, locations, and date ranges reduces the workload and enable the service to process the query successfully. Removing duplicate mailbox objects and waiting for synchronization addresses identity conflicts rather than query size. Reindexing SharePoint or OneDrive locations resolves indexing issues but does not address the excessive query scope that causes error CS007.
+
+Question 35 of 50
+You send Microsoft Graph activity logs to a Log Analytics workspace.
+
+A Microsoft Entra sign-in log entry for a user named user1@contoso.com shows a suspicious interactive sign-in that includes a unique token identifier (UTI) of 8c1b2a2e-6b5f-4a5d-9b3b-2aa5c0e9f4aa.
+
+You need to identify which Microsoft Graph API requests were made by the same access token during the last 24 hours.
+
+Which Microsoft Graph activity log attribute should you filter on?
+
+Your Answer
+SessionId
+
+This answer is incorrect.
+Correct Answer
+SignInActivityId
+
+This answer is correct.
+Objective:
+
+2.3 Investigate Microsoft 365 activities to identify threats
+
+What This Item Tests:
+
+Investigate threats by using Microsoft Graph activity logs
+
+Additional Reading:
+
+What data is available in the Microsoft Graph activity logs
+
+Common use cases for Microsoft Graph activity logs
+
+Access reports using Microsoft Graph Explorer
+
+Rationale:
+
+The SignInActivityId attribute links Microsoft Graph activity log entries to the corresponding sign-in event and associated token identifiers such as the UTI. Filtering on this attribute enables investigators to identify Microsoft Graph API activity generated by the same access token. SessionId represents a session context rather than a sign-in correlation identifier. OperationId identifies individual API operations but does not correlate activity to a specific sign-in event. ClientRequestId identifies requests from a client application and cannot reliably correlate activity to the sign-in.
+
+Question 36 of 50
+You send Microsoft Graph activity logs to a Log Analytics workspace.
+
+During the last three days, some requests to the /groups resource returned HTTP 401 and HTTP 403 errors.
+
+You need to identify the top 20 calling entities that generate the highest number of distinct failed requests to /groups.
+
+Which KQL query should you run?
+
+Your Answer
+MicrosoftGraphActivityLogs
+| where TimeGenerated &gt;= ago(3d)
+| where ResponseStatusCode == 401 or ResponseStatusCode == 403
+| where RequestUri contains "/groups"
+| summarize UniqueRequests=count_distinct(RequestId) by AppId, ServicePrincipalId, UserId
+| sort by UniqueRequests desc
+| limit 20
+
+This answer is correct.
+Correct Answer
+MicrosoftGraphActivityLogs
+| where TimeGenerated &gt;= ago(3d)
+| where ResponseStatusCode == 401 or ResponseStatusCode == 403
+| where RequestUri contains "/groups"
+| summarize UniqueRequests=count_distinct(RequestId) by AppId, ServicePrincipalId, UserId
+| sort by UniqueRequests desc
+| limit 20
+
+This answer is correct.
+Objective:
+
+2.3 Investigate Microsoft 365 activities to identify threats
+
+What This Item Tests:
+
+Build detections and behavioral analysis to spot suspicious or unusual use of Microsoft Graph APIs.
+
+Additional Reading:
+
+Common use cases for Microsoft Graph activity logs
+Review and monitor Microsoft Entra audit logs
+Explore Microsoft Security Graph
+Rationale:
+
+The MicrosoftGraphActivityLogs table is the correct source for Microsoft Graph API request activity, and the Microsoft documented example for failed /groups requests uses filters for the last three days, 401 or 403 response codes, RequestUri containing /groups, and a distinct count of RequestId grouped by AppId, ServicePrincipalId, and UserId. Option B is invalid because a single response cannot be both 401 and 403, and it omits ServicePrincipalId and UserId. Option C uses the wrong table because SigninLogs does not capture Microsoft Graph request-level activity. Option D uses the wrong time range and grouping fields and does not filter for failed requests.
+
+Question 37 of 50
+You have a Microsoft 365 tenant that uses Microsoft Purview Audit (Standard).
+
+An audit search in the Microsoft Purview portal returns more than 80,000 matching events.
+
+Your SIEM team requires a CSV export that includes all matching audit records.
+
+You cannot upgrade to Audit (Premium).
+
+You need to ensure that no audit records are omitted due to export limits.
+
+What should you do?
+
+Your Answer
+Refine the search into multiple smaller time ranges and export each result set to a CSV file.
+
+This answer is correct.
+Correct Answer
+Refine the search into multiple smaller time ranges and export each result set to a CSV file.
+
+This answer is correct.
+Objective:
+
+2.3 Investigate Microsoft 365 activities to identify threats
+
+What This Item Tests:
+
+Investigate threats by using Audit from Microsoft Purview
+
+Additional Reading:
+
+Microsoft Purview Audit overview
+Rationale:
+
+Segmenting the search into smaller time ranges ensures that each export stays within the 50,000-record export limit of Audit (Standard), enabling investigators to export all records across multiple CSV files. Exporting directly from the portal might truncate results when the limit is exceeded. Creating an Audit (Premium) retention policy does not meet the constraints because the tenant cannot be upgraded. Duplicating the search without modifying the query returns the same dataset and does not bypass export limits.
+
+Question 38 of 50
+You have a Microsoft 365 subscription that sends Microsoft Graph activity logs to a Log Analytics workspace.
+
+You need to identify the top 20 identities that generate the highest number of failed authorization requests to the /groups endpoint during the last three days.
+
+Failures are defined as HTTP 401 or HTTP 403 errors.
+
+You are writing the following KQL query.
+
+MicrosoftGraphActivityLogs
+| where TimeGenerated >= ago(3d)
+| where RequestUri contains "/groups"
+| where [ Target1 ]
+| summarize UniqueRequests = count_distinct(RequestId) by AppId, ServicePrincipalId, UserId
+| sort by UniqueRequests desc
+| limit 20
+
+Which expression should you insert at [Target1]?
+
+Your Answer
+ResponseStatusCode == 401 or ResponseStatusCode == 403
+
+This answer is correct.
+Correct Answer
+ResponseStatusCode == 401 or ResponseStatusCode == 403
+
+This answer is correct.
+Objective:
+
+2.3 Investigate Microsoft 365 activities to identify threats
+
+What This Item Tests:
+
+Build detections and behavioral analysis to spot suspicious or unusual use of Microsoft Graph APIs.
+
+Additional Reading:
+
+Azure Monitor Logs query examples
+
+What data is available in the Microsoft Graph activity logs
+
+Common use cases for Microsoft Graph activity logs
+
+Rationale:
+
+Filtering for ResponseStatusCode == 401 or ResponseStatusCode == 403 correctly identifies authorization failures in Microsoft Graph API requests, which satisfies the requirement to detect failed authorization attempts to the /groups endpoint. Filtering for 429 identifies throttling events rather than authorization failures. Filtering for HTTP 5xx responses detects server-side errors rather than authorization failures. Using ResultType applies to Microsoft Entra ID sign-in logs rather than MicrosoftGraphActivityLogs.
+
+Question 39 of 50
+You have a Microsoft 365 tenant that uses Microsoft Purview Audit (Standard).
+
+Your security team investigates activity by using the audit search tool in the Microsoft Purview portal.
+
+An investigation requests Microsoft Entra ID and Exchange Online audit events from nine months ago, but no results are returned.
+
+You need to ensure that, going forward, audit records for Microsoft Entra ID and Exchange Online remain searchable for at least one year.
+
+Which Microsoft Purview auditing solution should you use?
+
+Your Answer
+Audit (Premium)
+
+This answer is correct.
+Correct Answer
+Audit (Premium)
+
+This answer is correct.
+Objective:
+
+2.3 Investigate Microsoft 365 activities to identify threats
+
+What This Item Tests:
+
+Investigate threats by using Audit from Microsoft Purview
+
+Additional Reading:
+
+Microsoft Purview Audit overview
+Describe audit in Microsoft Purview
+Learn about auditing solutions in Microsoft Purview
+Rationale:
+
+Audit (Premium) extends unified audit log retention and provides longer audit data availability than Audit (Standard), enabling organizations to search Microsoft Entra ID and Exchange Online audit events for at least one year. Audit (Standard) provides a shorter default retention period and, therefore, cannot meet the requirement. The Office 365 Management Activity API enables programmatic access to activity data but does not extend the retention period. Running Search-UnifiedAuditLog in Exchange Online PowerShell queries the same underlying audit log and does not change retention.
+
+Question 40 of 50
+Your company uses Microsoft Defender XDR.
+
+During an investigation, you discover that a user ran the following query to hunt for suspicious processes.
+
+DeviceProcessEvents
+| where InitiatingProcessFileName =~ "powershell.exe"
+| project Timestamp, FileName, InitiatingProcessFileName
+| order by Timestamp desc
+| limit 2
+
+You need to review the results of the query and identify whether it returned the intended data.
+
+What should you use?
+
+Your Answer
+Microsoft Sentinel in the Microsoft Defender portal
+
+This answer is incorrect.
+Correct Answer
+Advanced Hunting in the Microsoft Defender portal
+
+This answer is correct.
+The correct answer is the Advanced Hunting in the Microsoft Defender portal, because advanced hunting queries in Microsoft Defender XDR use KQL against tables such as DeviceProcessEvents, and the results can be viewed and analyzed directly in the Advanced Hunting interface. The Microsoft Graph Security API is an alternative programmatic interface for retrieving security data, but it is not the portal-based tool used in this scenario. While Microsoft Sentinel can be integrated with the Defender portal to surface incidents, Sentinel itself is a separate SIEM solution in the Azure portal and does not provide the Advanced Hunting tables used in this query.
+
+SC-200: Configure your Microsoft Sentinel environment
+Proactively hunt for threats with advanced hunting in Microsoft Defender
+
+Question 41 of 50
+You have a Microsoft 365 E5 subscription.
+
+You plan to create a Microsoft Defender XDR hunting query to identify users that have been affected by clicking a suspicious URL.
+
+You need to create a detection rule that will mark the user as compromised.
+
+Which two properties should you include in the rule? Each answer presents part of the solution.
+
+Your Answer
+AlertId
+
+This answer is incorrect.
+TimeGenerated
+
+This answer is incorrect.
+Correct Answer
+AccountUpn
+
+This answer is correct.
+ReportId
+
+This answer is correct.
+To create a custom detection rule, the query must return the following columns:
+
+Timestamp: Used to set the timestamp for generated alerts
+ReportId: Enables lookups for the original records
+One of the following columns identifies specific devices, users, or mailboxes:
+
+DeviceId
+DeviceName
+RemoteDeviceName
+RecipientEmailAddress
+SenderFromAddress (envelope sender or Return-Path address)
+SenderMailFromAddress (sender address displayed by the email client)
+RecipientObjectId
+AccountObjectId
+AccountSid
+AccountUpn
+InitiatingProcessAccountSid
+InitiatingProcessAccountUpn
+InitiatingProcessAccountObjectId
+Explore advanced hunting - Training | Microsoft Learn
+
+Create and manage custom detection rules in Microsoft 365 Defender | Microsoft Learn
+
+Question 42 of 50
+You have a Microsoft 365 E5 subscription that contains the following devices:
+
+Device1 – Laptop, Windows 11 Enterprise
+Device2 – Laptop, Windows 11 Pro
+Device3 – Mobile, Android
+Device4 – Laptop, macOS
+All the devices are onboarded to the Microsoft Defender.
+
+You plan to create the following advanced hunting query.
+
+DeviceEvents
+| where ActionType contains 'Remote'
+| project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessAccountUpn, ActionType
+
+You need to identify which devices will be returned by the query.
+
+What should you identify?
+
+Your Answer
+Device1, Device2, and Device4 only
+
+This answer is correct.
+Correct Answer
+Device1, Device2, and Device4 only
+
+This answer is correct.
+The correct answer is Device1, Device2, and Device4 only, because the DeviceEvents table in Microsoft Defender for Endpoint is populated by supported platforms including Windows 10/11 Enterprise, Windows 10/11 Pro, and macOS. Android devices, even when onboarded, do not generate entries in DeviceEvents, so Device3 will not appear in the query results. Therefore, only Device1, Device2, and Device4 can be returned.
+
+Introduction
+
+Question 43 of 50
+You have a Microsoft Sentinel workspace that includes the following tables:
+
+SigninLogs
+AuditLogs
+SecurityAlerts
+You need to create a query that will look for an IP address across the three tables and return the matching rows.
+
+Which operator should you use?
+
+Your Answer
+union
+
+This answer is correct.
+Correct Answer
+union
+
+This answer is correct.
+The union operator takes two or more tables and returns the rows from all of them.
+
+The join operator merges the rows of two tables to form a new table by matching the specified columns' values from each table.
+
+The extend operator creates calculated columns and appends the new columns to the result set.
+
+The lookup operator extends the columns of a fact table with looked-up values from a dimension table.
+
+Use the union operator - Training | Microsoft Learn
+
+Question 44 of 50
+You have Microsoft Sentinel workspace that have The User and Entity Behavior Analytics (UEBA) behaviors layer enabled.
+
+You need to create an advanced hunting query that returns behavior titles and descriptions and the associated user UPNs by joining the behavior information dataset with the behavior entities dataset.
+
+Which table should you use as the behavior information source?
+
+Your Answer
+BehaviorInfo
+
+This answer is correct.
+Correct Answer
+BehaviorInfo
+
+This answer is correct.
+Objective:
+
+3.1 Detect threats by using Microsoft Defender XDR
+
+What This Item Tests:
+
+Identify the appropriate table to use in a KQL query.
+
+Additional Reading:
+
+Query logs in the logs page
+Rationale:
+
+BehaviorInfo contains the behavior metadata, including the behavior title, description, category, and identifiers required to correlate behavior records. BehaviorEntities stores the entities involved in the behavior, such as user accounts, devices, and IP addresses, and is typically joined with BehaviorInfo to retrieve the associated entities such as user UPNs. IdentityAccountInfo and IdentityEntities are not advanced hunting tables for UEBA behaviors in Microsoft Defender XDR. (The IdentityAccountInfo and IdentityInfo tables in the advanced hunting schema contain information about user accounts obtained from various services, including Microsoft Entra ID.)
+
+Question 45 of 50
+You use Microsoft Sentinel graph-based hunting in the Microsoft Defender portal.
+
+A scheduled analytics rule creates incidents from a third-party alert source. Some alerts identify the user only as user1, while other records identify the same account as user1@contoso.com.
+
+When analysts investigate activity in the hunting graph, two separate user nodes appear for the same person.
+
+You need to ensure that the alerts referencing user1 and user1@contoso.com are mapped to the same user entity in the hunting graph.
+
+What should you do?
+
+Your Answer
+Sync user account entities with Microsoft Entra ID.
+
+This answer is correct.
+Correct Answer
+Sync user account entities with Microsoft Entra ID.
+
+This answer is correct.
+Objective:
+
+3.1 Detect threats by using Microsoft Defender XDR
+
+What This Item Tests:
+
+Analyze relationships between entities by using Sentinel Graph
+
+Additional Reading:
+
+What is Microsoft Sentinel graph?
+
+Understand the benefits of integrating Microsoft Sentinel with Defender XDR Completed
+
+Connect Microsoft Defender legacy connectors
+
+Common use cases and scenarios
+
+Rationale:
+
+Syncing user entities with Microsoft Entra ID enables Microsoft Sentinel Graph to resolve different user identifiers, such as a short username and a UPN, to the same identity. This ensures that related activity is associated with a single user node during graph-based investigations. Automation rules that rename incidents do not affect entity resolution. Changing connectors does not resolve identity mapping issues. Incident creation rules control how alerts generate incidents but do not normalize user identifiers.
+
+Question 46 of 50
+You have an Azure subscription that contains a Microsoft Sentinel workspace.
+
+You develop three hunting queries.
+
+You need to ensure that the hunting queries run each time you open the Hunting blade.
+
+What should you do?
+
+Your Answer
+Add the queries as Favorites.
+
+This answer is correct.
+Correct Answer
+Add the queries as Favorites.
+
+This answer is correct.
+Queries saved to your Favorites automatically run each time the Hunting blade is accessed.
+
+An analytics rule will run continuously generating alerts as they are discovered.
+
+Using hunting livestream to create interactive sessions lets you test newly created queries as events occur, get notifications from the sessions when a match is found, and launch investigations if necessary. You can quickly create a livestream session by using any Log Analytics query.
+
+Hunting bookmarks in Microsoft Sentinel help by preserving the queries you ran in Microsoft Sentinel - Logs, along with the query results that you deem relevant. You can also record your contextual observations and reference your findings by adding notes and tags. Bookmarked data is visible to you and your teammates for easy collaboration.
+
+Threat hunting with Microsoft Sentinel - Training | Microsoft Learn
+
+Question 47 of 50
+You have a Microsoft Sentinel workspace that stores Azure Activity logs in a table named AzureActivity.
+
+Earlier today, an analytics rule that has the following rule resource ID was modified.
+
+alertRules/11111111-1111-1111-1111-111111111111
+
+You need to identify which users made the change and when.
+
+You are writing the following KQL query.
+
+AzureActivity
+| where OperationNameValue startswith "MICROSOFT.SECURITYINSIGHTS/ALERTRULES/WRITE"
+| where Properties contains "alertRules/11111111-1111-1111-1111-111111111111"
+| where [ Target1 ]
+| project Caller, TimeGenerated
+
+Which expression should you insert at [ Target1 ]?
+
+Your Answer
+ActivityStatusValue contains "Succeeded"
+
+This answer is correct.
+Correct Answer
+ActivityStatusValue contains "Succeeded"
+
+This answer is correct.
+Objective:
+
+3.2 Detect threats by using the Microsoft Sentinel platform
+
+What This Item Tests:
+
+Create and monitor hunting queries
+
+Additional Reading:
+
+Auditing with Azure Activity logs
+Query data using Kusto Query Language
+Query logs in the logs page
+Rationale:
+
+ActivityStatusValue contains "Succeeded" correctly limits the Azure Activity results to update successfully after the query already filters for the analytics rule write operation and the specific rule resource ID. OperationName contains "Delete" targets the incorrect action. QueryText applies to query-auditing scenarios such as LAQueryLogs, not AzureActivity. Filtering only on the provider is too broad and returns many Microsoft Sentinel operations beyond successful updates to the specified rule. AzureActivity is the documented source for auditing actions performed in Microsoft Sentinel, including editing alert rules.
+
+Question 48 of 50
+You have a Microsoft Sentinel workspace that ingests high-volume network session logs into a custom table named NetworkSessions_CL.
+
+A summary rule aggregates the raw sessions into a destination table named NetworkSessionSummary_CL.
+
+Analysts report that hunting queries time out when they query NetworkSessions_CL for trends across multiple days.
+
+You need to ensure that analysts can query seven days of network session logs without experiencing time outs.
+
+Which table should you instruct the analysts to query?
+
+Your Answer
+NetworkSessionSummary_CL
+
+This answer is correct.
+Correct Answer
+NetworkSessionSummary_CL
+
+This answer is correct.
+Objective:
+
+3.2 Detect threats by using the Microsoft Sentinel platform
+
+What This Item Tests:
+
+Create and manage Summary rule tables for querying
+
+Additional Reading:
+
+How to create summary rules
+
+Query data using Kusto Query Language
+
+Rationale:
+
+NetworkSessionSummary_CL is the correct table because a summary rule stores aggregated results in the destination table defined in the rule. Analysts should query this table for longer-term trend analysis because it contains summarized data and is optimized for querying across longer time ranges. NetworkSessions_CL is the raw high-volume source table that caused the query timeouts. AzureActivity and SecurityEvent are unrelated tables that do not contain the summarized session data.
+
+Question 49 of 50
+You use GitHub Copilot Agent Mode in Microsoft Visual Studio Code to run threat hunting steps from a notebook connected to a Microsoft Sentinel MCP server.
+
+You sign in to Visual Studio Code by using a guest account, but the Microsoft Sentinel workspaces you investigate are in the home tenant.
+
+When you invoke MCP tools, the results sometimes come from a different workspace than the one you intend to query.
+
+You need to ensure that all the MCP tool calls authenticate to the home tenant and consistently query a specific workspace ID.
+
+What should you do in the MCP server definition?
+
+Your Answer
+Add an x-mcp-client-tenant-id header to the MCP server definition and specify the workspace ID in prompts.
+
+This answer is correct.
+Correct Answer
+Add an x-mcp-client-tenant-id header to the MCP server definition and specify the workspace ID in prompts.
+
+This answer is correct.
+Objective:
+
+3.2 Detect threats by using the Microsoft Sentinel platform
+
+What This Item Tests:
+
+Hunt for threats by using Notebooks, including connection to the Sentinel MCP Server
+
+Additional Reading:
+
+Create a notebook
+
+Troubleshooting common problems
+
+Rationale:
+
+Adding the x-mcp-client-tenant-id header ensures that MCP tool calls authenticate against the intended home tenant when a user signs in with a guest identity, preventing cross-tenant ambiguity. Specifying the workspace ID ensures that the MCP tools consistently query the intended Microsoft Sentinel workspace. Recreating the MCP server configuration does not control tenant scoping, storing a static access token is insecure and does not address workspace targeting, and creating a Machine Learning compute instance is unrelated to MCP server authentication or workspace selection.
+
+Question 50 of 50
+You have a Microsoft Sentinel workspace that ingests high-volume firewall logs into a custom table named FirewallLogs_CL.
+
+Analysts ran interactive KQL queries that aggregated logs by source IP and destination port during the last 24 hours. During peak ingestion, the queries timed out.
+
+You need to reduce query time by running scheduled aggregations and storing the summarized results in a custom Log Analytics table for later queries.
+
+Which Microsoft Sentinel feature should you use?
+
+Your Answer
+a summary rule that writes results to a destination table
+
+This answer is correct.
+Correct Answer
+a summary rule that writes results to a destination table
+
+This answer is correct.
+Objective:
+
+3.2 Detect threats by using the Microsoft Sentinel platform
+
+What This Item Tests:
+
+Create and manage Summary rule tables for querying
+
+Additional Reading:
+
+How to create summary rules
+KQL jobs, summary rules, and search jobs
+Enable analytics rules in Microsoft Sentinel Completed
+Query data using Kusto Query Language
+Rationale:
+
+A summary rule runs scheduled KQL queries that aggregate large volumes of data and writes the summarized results to a destination table in the analytics tier, enabling analysts to query a smaller dataset for faster investigations. Scheduled analytics rules generate detections and incidents rather than storing aggregated results for hunting queries. Search jobs are used to run long-running searches across large historical datasets but do not maintain summarized tables for repeated queries. KQL jobs run scheduled asynchronous queries in the Sentinel data lake but are not designed specifically to create aggregated datasets in the analytics tier for faster investigative queries.
