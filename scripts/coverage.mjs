@@ -115,7 +115,7 @@ export function build() {
 
   w('## Labs');
   w();
-  w(`| Lab | Level | ${SETS.map((k) => k.replace('set', 'Set ')).join(' | ')} | Practises |`);
+  w(`| Lab | Level | ${SETS.map((k) => k.replace('set', 'Set ')).join(' | ')} | Practices |`);
   w(`|---|---|${SETS.map(() => '---').join('|')}|---|`);
   for (const l of LABS) w(`| \`${l.id}\` | ${l.level} | ${SETS.map((k) => (l.sourceQuestions[k] ?? []).join(', ') || '—').join(' | ')} | ${l.topics.join(', ')} |`);
   w();

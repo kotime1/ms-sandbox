@@ -2,7 +2,7 @@
 
 Built from your five practice attempts (`question_sets/set1-5.txt`), and checked against Microsoft Learn where I could. Where a fact comes **only** from the practice questions and I could not confirm it in the docs, it is marked **(exam wording)**.
 
-Each topic names the sandbox lab that practises it (see `docs/COVERAGE.md`). Regenerate the numbers in section 1 with `node scripts/progress.mjs` after adding a set. Run the lab, then retake the question.
+Each topic names the sandbox lab that practices it (see `docs/COVERAGE.md`). Regenerate the numbers in section 1 with `node scripts/progress.mjs` after adding a set. Run the lab, then retake the question.
 
 ## 1. Where you stand
 

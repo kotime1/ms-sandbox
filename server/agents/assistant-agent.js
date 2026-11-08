@@ -2,20 +2,20 @@
 //
 // Two providers behind one interface:
 //   local   - default. Keyword-matches the offline concept notes and the lab-agent's context.
-//   claude  - optional. Used only when ANTHROPIC_API_KEY is set (and ASSISTANT_PROVIDER != local).
+//   claude  - optional, through IBM Consulting Advantage. Used only when ICA_API_KEY and a model are set (and ASSISTANT_PROVIDER != local).
 //
 // Security properties:
 //  - It only ever sees lab.context: objectives, hint tiers the learner already revealed, and
 //    concept notes. The lab solution, check functions and unrevealed hints are not reachable.
 //  - The system prompt tells the model to coach rather than give the answer, but the real
 //    control is the data boundary above: a jailbreak cannot leak what is not in the prompt.
-//  - The API key is read once from the environment, sent only to api.anthropic.com, and never
+//  - The API key is read once from the environment, sent only to the ICA API (see core/ica-client.js), and never
 //    returned to the browser or logged. Calls have a timeout and a response size cap.
 //  - Replies are plain text; the UI renders them with textContent, never innerHTML.
 
 import { findConcepts } from '../knowledge/concepts.js';
+import { icaConfig, icaChat } from '../core/ica-client.js';
 
-const API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_Q = 600;
 const MAX_REPLY_CHARS = 3000;
 const SOLUTION_ASK = /(give|show|tell|what'?s|what is|reveal|just).{0,30}(answer|solution|query|command|steps?)\b|\bsolve (it|this)\b|\bwalk ?through\b/i;
@@ -34,9 +34,9 @@ export class AssistantAgent {
   constructor({ bus, env = process.env, fetchImpl = globalThis.fetch }) {
     this.bus = bus;
     this.fetch = fetchImpl;
-    this.key = env.ANTHROPIC_API_KEY || '';
-    this.model = env.ASSISTANT_MODEL || 'claude-haiku-5-5';
-    this.provider = this.key && env.ASSISTANT_PROVIDER !== 'local' ? 'claude' : 'local';
+    this.cfg = icaConfig(env, 'ASSISTANT_MODEL');
+    this.model = this.cfg.model;
+    this.provider = this.cfg.enabled && env.ASSISTANT_PROVIDER !== 'local' ? 'claude' : 'local';
     this.history = [];
   }
 
@@ -102,22 +102,11 @@ export class AssistantAgent {
           ...Object.entries(ctx.revealedHints).flatMap(([id, hs]) => hs.map((h) => `- (${id}) ${h}`)),
         ].join('\n')
       : 'No lab is active.';
-    const res = await this.fetch(API_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': this.key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 400,
-        system: `${SYSTEM}\n\nLAB CONTEXT:\n${context}`,
-        messages: [...this.history.slice(-6), { role: 'user', content: q }],
-      }),
-      signal: AbortSignal.timeout(15_000),
-      redirect: 'error',
+    const text = await icaChat({
+      fetchImpl: this.fetch, cfg: this.cfg, maxTokens: 400, timeoutMs: 15_000,
+      system: `${SYSTEM}\n\nLAB CONTEXT:\n${context}`,
+      messages: [...this.history.slice(-6), { role: 'user', content: q }],
     });
-    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { name: 'UpstreamError' });
-    const body = await res.json();
-    const text = body?.content?.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
-    if (!text) throw Object.assign(new Error('empty'), { name: 'UpstreamError' });
     return text.slice(0, MAX_REPLY_CHARS);
   }
 }

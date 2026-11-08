@@ -1,22 +1,22 @@
 // exam-agent: writes fresh practice-exam questions with Claude, on request. Optional: it is only available when
-// ANTHROPIC_API_KEY is set (and EXAM_PROVIDER != local). The authored bank in server/exam/bank/ works without it.
+// ICA_API_KEY and a model (EXAM_MODEL or ICA_MODEL) are set (and EXAM_PROVIDER != local). Calls go through IBM Consulting Advantage. The authored bank in server/exam/bank/ works without it.
 //
 // Security properties (same shape as assistant-agent.js):
 //  - The only inputs are enum values chosen by the server (domain key, question types, how many). No text from the
 //    browser reaches the prompt, so there is nothing to inject into.
 //  - The reply is untrusted data: it must be a JSON array, every item goes through validateQuestion() (structure and
 //    answer-shape neutrality), and anything that fails is dropped. Nothing from the model is rendered as HTML.
-//  - The API key is read once from the environment, sent only to api.anthropic.com, and never returned or logged.
+//  - The API key is read once from the environment, sent only to the ICA API (core/ica-client.js), and never returned or logged.
 //    Calls have a timeout and a response size cap.
 //  - Generated questions are labelled source:'live'; the UI tells the learner to verify them on Microsoft Learn.
 
 import { DOMAINS, OBJECTIVES } from '../exam/objectives.js';
 import { validateQuestion } from '../exam/validate.js';
 import { randomToken } from '../core/util.js';
+import { icaConfig, icaChat } from '../core/ica-client.js';
 
-const API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_BODY_CHARS = 60_000;
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 90_000;
 
 const EXAMPLE = {
   domain: 'respond',
@@ -25,7 +25,7 @@ const EXAMPLE = {
   scenario: 'A user reports that WS-12 is slow. Defender for Endpoint shows a suspicious scheduled task on the device. The user is in a meeting and must not lose access to the machine.',
   stem: 'You need a forensic snapshot of the processes, connections and scheduled tasks on WS-12 without a live session. What should you do?',
   options: [
-    { text: 'Collect an investigation package from the device page', correct: true },
+    { text: 'Collect an investigation package from the device page', correct: true, why: 'It gathers a ZIP of processes, connections and scheduled tasks without interrupting the user or opening a session.' },
     { text: 'Isolate the device from the network from the device page', why: 'Isolation contains the device and disrupts the user. It does not collect a snapshot.' },
     { text: 'Open a live response session from the device page', why: 'Live response is an interactive session, which the requirement rules out.' },
     { text: 'Submit the scheduled task file for deep analysis', why: 'Deep analysis detonates one file in a sandbox. It does not capture the device state.' },
@@ -36,10 +36,11 @@ const EXAMPLE = {
 
 const SCHEMA_NOTES = [
   'Each question is a JSON object with: domain, objective (copied EXACTLY from the list for that domain), type, optional scenario, stem, explanation, learn (a Microsoft Learn page TITLE, never a URL).',
-  'type "single": options = 4 or 5 objects { text, correct: true } or { text, why }. Exactly one correct. Every WRONG option has a "why" (15-300 chars) saying why it is wrong.',
+  'EVERY option (right or wrong) and every ordering step needs a "why" of 15 to 300 characters. The learner reads it under that choice after answering: on the right option it says why it is right, on a wrong option why it is wrong, on a step why it belongs at that position. Do not just repeat the option text.',
+  'type "single": options = 4 or 5 objects { text, why } with exactly one also marked correct: true.',
   'type "multi": options = 5 or 6 objects as above, 2 or 3 correct, "select" = the number correct, and the stem says "two" or "three".',
-  'type "order": steps = 3 to 6 objects { text } listed in the CORRECT order. The stem asks to arrange them.',
-  'type "dropdown": template = text containing {{a}}, {{b}} ... blanks (each exactly once); blanks = [{ id: "a", options: [{ text, correct: true }, { text, why }] }, ...], 2-5 options each, exactly one correct. Use it for Yes/No statement tables, completing a KQL query (set "code": true) or choosing portal settings.',
+  'type "order": steps = 3 to 6 objects { text, why } listed in the CORRECT order. The stem asks to arrange them. Each why explains why that step comes at that position, usually by what depends on it or what it depends on.',
+  'type "dropdown": template = text containing {{a}}, {{b}} ... blanks (each exactly once); blanks = [{ id: "a", options: [{ text, correct: true, why }, { text, why }] }, ...], 2-5 options each, exactly one correct. Use it for Yes/No statement tables, completing a KQL query (set "code": true) or choosing portal settings.',
 ].join('\n');
 
 const RULES = [
@@ -85,9 +86,9 @@ function extractJson(text) {
 export class ExamAgent {
   constructor({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
     this.fetch = fetchImpl;
-    this.key = env.ANTHROPIC_API_KEY || '';
-    this.model = env.EXAM_MODEL || 'claude-sonnet-5-5';
-    this.available = Boolean(this.key) && env.EXAM_PROVIDER !== 'local';
+    this.cfg = icaConfig(env, 'EXAM_MODEL');
+    this.model = this.cfg.model;
+    this.available = this.cfg.enabled && env.EXAM_PROVIDER !== 'local';
   }
 
   /**
@@ -113,17 +114,7 @@ export class ExamAgent {
   }
 
   async call(prompt) {
-    const res = await this.fetch(API_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': this.key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: this.model, max_tokens: 8000, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      redirect: 'error',
-    });
-    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { name: 'UpstreamError' });
-    const body = await res.json();
-    const text = body?.content?.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
-    if (!text) throw Object.assign(new Error('empty'), { name: 'UpstreamError' });
+    const text = await icaChat({ fetchImpl: this.fetch, cfg: this.cfg, system: SYSTEM, messages: [{ role: 'user', content: prompt }], maxTokens: 8000, timeoutMs: TIMEOUT_MS });
     return extractJson(text.slice(0, MAX_BODY_CHARS));
   }
 }

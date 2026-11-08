@@ -10,7 +10,7 @@
 //   stem         the question. 20-600 chars
 //   explanation  why the right answer is right, 40-900 chars. Shown after the learner submits
 //   source       'bank' (original), 'setN:QM' (adapted from question_sets/setN.txt question M) or 'live'
-//   labId        optional. A lab in server/labs/ that practises this
+//   labId        optional. A lab in server/labs/ that practices this
 //   learn        optional. Title of a Microsoft Learn page to read (a title, never a URL)
 //
 // type 'single'   options: 4-5 x { text, correct?: true, why? }   exactly one correct
@@ -19,7 +19,9 @@
 // type 'dropdown' template: text with {{id}} blanks; blanks: 1-5 x { id, options: 2-5 x { text, correct?, why? } }, one correct each
 //                 code?: true shows the template in a monospace block (KQL, JSON). Also used for Yes/No statement tables.
 //
-// `why` is required on every WRONG option (15-300 chars): it is what the learner reads when they pick it.
+// `why` is required on EVERY option, right or wrong (15-300 chars), and on every ordering step: after submitting, each choice shows its own
+// explanation, so the right one says why it is right and a wrong one says why it is wrong. An ordering step's `why` says why it
+// belongs at that position. `explanation` is then a short summary of the whole question (40-900 chars).
 // Answer-shape rules live in validate.js. Short version: the correct option must not look different from the wrong ones.
 
 import { DOMAINS, BULLET_DOMAIN } from './objectives.js';
@@ -42,8 +44,7 @@ function checkOptions(opts, path, { min, max, correct }, errs) {
     texts.add(o.text);
     if (o.correct !== undefined && o.correct !== true) errs.push(`${p}: correct must be true or omitted`);
     if (o.correct) nCorrect++;
-    else if (len(o.why) < 15 || o.why.length > 300) errs.push(`${p}: a wrong option needs a 'why' of 15-300 chars`);
-    if (o.correct && o.why !== undefined && (len(o.why) < 1 || o.why.length > 300)) errs.push(`${p}: why must be 1-300 chars`);
+    if (len(o.why) < 15 || o.why.length > 300) errs.push(`${p}: every option needs a 'why' of 15-300 chars${o.correct ? ' (say why the right answer is right)' : ''}`);
   });
   if (nCorrect < correct[0] || nCorrect > correct[1]) errs.push(`${path}: needs ${correct[0] === correct[1] ? correct[0] : `${correct[0]}-${correct[1]}`} correct option(s), has ${nCorrect}`);
 }
@@ -77,6 +78,7 @@ export function checkStructure(q) {
       const seen = new Set();
       s.forEach((st, i) => {
         if (len(st?.text) < 4 || st.text.length > 160) errs.push(`steps[${i}]: text must be 4-160 chars`);
+        if (len(st?.why) < 15 || st.why.length > 300) errs.push(`steps[${i}]: needs a 'why' of 15-300 chars saying why it belongs at position ${i + 1}`);
         if (seen.has(st?.text)) errs.push(`steps[${i}]: duplicate step`);
         seen.add(st?.text);
       });

@@ -178,9 +178,9 @@ export default [
     stem: 'For each statement about automatic attack disruption, select Yes or No.',
     template: 'It can contain a user account when high-confidence signals show ransomware activity: {{a}}\nIt requires an analyst to approve each action before it runs: {{b}}\nA contained asset can be released by an analyst from the Action center: {{c}}',
     blanks: [
-      { id: 'a', options: [ok('Yes'), no('No', 'Automatic attack disruption can contain users and devices when confidence is high.')] },
+      { id: 'a', options: [ok('Yes'), no('No', 'The statement is true, so No is wrong. Containing users, not only devices, is part of what disruption does.')] },
       { id: 'b', options: [no('Yes', 'Disruption actions run automatically to limit spread without waiting for approval.'), ok('No')] },
-      { id: 'c', options: [ok('Yes'), no('No', 'Analysts can review disruption actions and undo them from the Action center.')] },
+      { id: 'c', options: [ok('Yes'), no('No', 'The statement is true, so No is wrong. A disruption action is not permanent, and an analyst can undo it.')] },
     ],
     explanation: 'Automatic attack disruption acts without approval when signals are high-confidence, by containing devices and disabling or restricting users. Analysts can review the actions and release contained assets from the Action center.',
   },

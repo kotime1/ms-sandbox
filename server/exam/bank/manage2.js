@@ -39,8 +39,8 @@ export default [
     template: 'A KQL job can query data that is stored in the data lake tier: {{a}}\nA Sentinel analytics rule can query data that exists only in the data lake tier: {{b}}\nData in the data lake tier can be retained for several years: {{c}}',
     blanks: [
       { id: 'a', options: [ok('Yes'), no('No', 'KQL jobs are the way to run queries over data lake data and promote results to the analytics tier.')] },
-      { id: 'b', options: [no('Yes', 'Analytics rules evaluate data in the analytics tier. Data lake data has to be promoted first, for example by a KQL job.'), ok('No')] },
-      { id: 'c', options: [ok('Yes'), no('No', 'The data lake tier is designed for low-cost, long-term storage.')] },
+      { id: 'b', options: [no('Yes', 'A rule would find nothing here: it reads the analytics tier, and data that is only in the data lake has not been put there.'), ok('No')] },
+      { id: 'c', options: [ok('Yes'), no('No', 'The statement is true, so No is wrong. Keeping data for several years is the purpose of this tier.')] },
     ],
     explanation: 'The data lake tier is low-cost long-term storage. You query it with KQL jobs or notebooks and can promote results into the analytics tier, where analytics rules run.',
   },
@@ -86,7 +86,7 @@ export default [
     template: 'On the Collect tab, select the event set {{a}}\nThe filter is written as {{b}}\nThe filter is stored in the {{c}}',
     blanks: [
       { id: 'a', options: [no('All Security Events', 'This collects every event, which exceeds the requirement.'), no('Common', 'Common is a predefined set. It is not limited to two event IDs.'), ok('Custom'), no('Minimal', 'Minimal is a predefined small set and cannot be edited to specific IDs.')] },
-      { id: 'b', options: [ok('an XPath query'), no('a KQL where clause', 'KQL runs after ingestion. The agent filters with XPath at collection time.'), no('a regular expression', 'The collection filter uses XPath rather than regular expressions.')] },
+      { id: 'b', options: [ok('an XPath query'), no('a KQL where clause', 'A where clause is applied to data that has already been ingested, so it cannot limit what the agent collects.'), no('a regular expression', 'The collection filter uses XPath rather than regular expressions.')] },
       { id: 'c', options: [no('workspace table schema', 'The table schema describes columns and does not hold collection filters.'), ok('data collection rule'), no('analytics rule query', 'Analytics rules run on ingested data and have no effect on collection.')] },
     ],
     explanation: 'The Custom event set lets you supply an XPath query such as Security!*[System[(EventID=4624 or EventID=4625)]]. That XPath is part of the data collection rule that the agent downloads.',
@@ -216,7 +216,7 @@ export default [
     stem: 'For each requirement, select the Microsoft Sentinel analytics rule type that meets it.',
     template: 'Evaluate events every minute using ingestion time: {{a}}\nCorrelate signals into a multistage attack with no query to maintain: {{b}}\nCreate incidents from alerts of another Microsoft security product by product filter: {{c}}',
     blanks: [
-      { id: 'a', options: [ok('NRT rule'), no('Scheduled rule', 'The fastest a scheduled rule runs is every five minutes.'), no('Fusion rule', 'Fusion correlates alerts and does not expose a query to run each minute.'), no('Microsoft security rule', 'These rules forward alerts from other products and do not evaluate events.')] },
+      { id: 'a', options: [ok('NRT rule'), no('Scheduled rule', 'It cannot meet a one-minute requirement, because five minutes is the shortest interval a scheduled rule can use.'), no('Fusion rule', 'Fusion correlates alerts and does not expose a query to run each minute.'), no('Microsoft security rule', 'These rules forward alerts from other products and do not evaluate events.')] },
       { id: 'b', options: [no('NRT rule', 'NRT rules run a query that you write and maintain.'), no('Scheduled rule', 'Scheduled rules run a query that you write and maintain.'), ok('Fusion rule'), no('Microsoft security rule', 'This rule type creates incidents from alerts one product at a time and does not correlate stages.')] },
       { id: 'c', options: [no('Threat intelligence rule', 'This rule type matches indicators with log data. It does not forward alerts from another product.'), no('Scheduled rule', 'Scheduled rules use a query rather than a product filter.'), no('Fusion rule', 'Fusion correlates alerts using machine learning, not by simple product filter.'), ok('Microsoft security rule')] },
     ],

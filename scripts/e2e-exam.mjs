@@ -69,14 +69,29 @@ try {
     await b.waitFor(`document.querySelector('.exam-verdict')`, `feedback for question ${n}`);
     const verdict = await b.evalJs(`document.querySelector('.exam-verdict').textContent`);
     await b.ok(/^(Correct|Incorrect)/.test(verdict), `question ${n} (${kind}): feedback says ${verdict.split(' —')[0]}`);
-    await b.ok(await b.evalJs(`document.querySelector('.exam-explain p').textContent.length > 30`), `question ${n}: an explanation is shown`);
+    await b.ok(await b.evalJs(`document.querySelector('.exam-explain p').textContent.length > 30`), `question ${n}: the short summary is shown`);
+    // The feedback lives in the SAME card as the choices; Sources and the tutor are separate cards after it.
+    await b.ok(await b.evalJs(`!!document.querySelector('.exam-card .exam-verdict') && !!document.querySelector('.exam-card .exam-explain')`), `question ${n}: the verdict and explanation are inside the question card`);
+    await b.ok(await b.evalJs(`!document.querySelector('.exam-card .exam-card-sub') && document.querySelectorAll('.exam-after > .exam-card-sub').length === 2`), `question ${n}: Sources and the tutor are separate cards outside it`);
+    await b.ok(await b.evalJs(`!document.querySelector('.exam-review, .exam-review-row')`), `question ${n}: there is no second list repeating the choices`);
     if (kind === 'single' || kind === 'multi') {
-      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-review-row').length >= 4`), `question ${n}: every option is reviewed`);
-      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-review-row.is-right').length >= 1`), `question ${n}: the correct answer is marked`);
+      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-card .exam-option').length >= 4`), `question ${n}: all choices are still shown`);
+      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-card .exam-option.is-right').length >= 1`), `question ${n}: the correct choice is marked in place`);
+      // Every choice carries its own explanation directly under it, the right one included.
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-card .exam-option')].every((o) => o.querySelector('.exam-why')?.textContent.length > 15)`), `question ${n}: every choice, right or wrong, has its own explanation`);
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-option.is-right')].every((o) => o.querySelector('.exam-opt-text').nextElementSibling?.classList.contains('exam-mark') && o.querySelector('.exam-why'))`), `question ${n}: the right choice has a label and its own reason`);
+      await b.ok(await b.evalJs(`new Set([...document.querySelectorAll('.exam-card .exam-why')].map((e) => e.textContent)).size === document.querySelectorAll('.exam-card .exam-why').length`), `question ${n}: no two choices show the same explanation`);
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-card .exam-option')].every((o) => o.compareDocumentPosition(document.querySelector('.exam-explain')) & Node.DOCUMENT_POSITION_FOLLOWING)`), `question ${n}: the explanations sit with the choices, above the short summary`);
       if (/^Incorrect/.test(verdict)) {
         wrongFirst = true;
-        await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-review-row.is-picked:not(.is-right) .exam-why')].every((e) => e.textContent.length > 15) && document.querySelectorAll('.exam-review-row.is-picked:not(.is-right) .exam-why').length >= 1`), `question ${n}: a wrong pick explains why it is wrong`);
+        await b.ok(await b.evalJs(`document.querySelectorAll('.exam-option.is-picked.is-wrong').length >= 1 && [...document.querySelectorAll('.exam-option.is-picked.is-wrong')].every((o) => /Your choice/.test(o.querySelector('.exam-mark').textContent))`), `question ${n}: a wrong pick is marked as the learner's choice`);
       }
+    }
+    if (kind === 'dropdown') {
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-template select')].every((s) => s.classList.contains('is-right') || s.classList.contains('is-wrong'))`), `question ${n}: every dropdown is marked`);
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-blank-note')].every((e) => !e.hidden && e.textContent.length > 3)`), `question ${n}: every dropdown has a note`);
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-template select.is-wrong')].every((s) => /Answer:/.test(s.parentElement.querySelector('.exam-blank-note').textContent) && s.parentElement.querySelectorAll('.exam-why').length >= 2)`), `question ${n}: a wrong dropdown says what is wrong, names the right answer and says why it is right`);
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-template select.is-right')].every((s) => s.parentElement.querySelectorAll('.exam-why').length >= 1)`), `question ${n}: a right dropdown says why it is right`);
     }
     await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-card input, .exam-card select')].every((e) => e.disabled)`), `question ${n}: inputs are locked after submitting`);
     await b.ok(await b.evalJs(`document.querySelector('[data-target="btn:exam-submit"]').hidden`), `question ${n}: the Submit button is gone after submitting`);
@@ -138,9 +153,14 @@ try {
       await shot('exam-6-order');
       await b.click('btn:exam-submit');
       await b.waitFor(`document.querySelector('.exam-verdict')`, 'ordering feedback');
-      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-review li').length === ${before.length}`), 'the correct order is listed after submitting');
+      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-step.is-right, .exam-step.is-wrong').length === ${before.length}`), 'every step is marked right or wrong in place');
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-step.is-wrong .exam-mark')].every((m) => /belongs at step \\d/.test(m.textContent))`), 'a misplaced step says where it belongs');
+      await b.ok(await b.evalJs(`!document.querySelector('.exam-review')`), 'there is no separate correct-order list');
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-step')].every((li) => li.querySelector('.exam-why')?.textContent.length > 25)`), 'every step says why it belongs in its position');
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-step')].every((li) => /^Step \\d+: /.test(li.querySelector('.exam-why').textContent))`), 'each step reason names the position it explains');
+      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-step.is-wrong')].every((li) => { const m = /belongs at step (\\d+)/.exec(li.querySelector('.exam-mark').textContent); return m && li.querySelector('.exam-why').textContent.startsWith('Step ' + m[1] + ':'); })`), 'a misplaced step explains the position it should have had');
       await b.ok(await b.evalJs(`/of \\d steps in the right position/.test(document.querySelector('.exam-verdict').textContent)`), 'the verdict says how many steps were in the right place');
-      await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-step-btns button')].every((x) => x.disabled)`), 'the arrows are disabled after submitting');
+      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-step-btns button').length === 0`), 'the arrows are gone after submitting');
       await shot('exam-7-order-feedback');
       break;
     }

@@ -68,6 +68,7 @@ export function createApp({ env = process.env, now = () => Date.now(), store } =
   const limiter = new RateLimiter(Number(env.RATE_LIMIT) || 240, 60_000, now);
   const askLimiter = new RateLimiter(20, 60_000, now);
   const examStartLimiter = new RateLimiter(6, 60_000, now); // each start may call the Claude API
+  const examAskLimiter = new RateLimiter(12, 60_000, now); // each tutor message calls the Claude API
   const newSessionLimiter = new RateLimiter(30, 60_000, now);
 
   const allowedHosts = (port) => new Set(['localhost', '127.0.0.1', '[::1]'].flatMap((h) => [h, `${h}:${port}`]).concat((env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim()).filter(Boolean)));
@@ -216,6 +217,13 @@ export function createApp({ env = process.env, now = () => Date.now(), store } =
           if (body.count !== undefined && typeof body.count !== 'number') throw new HttpError(400, 'count must be a number');
           if (body.includeLive !== undefined && typeof body.includeLive !== 'boolean') throw new HttpError(400, 'includeLive must be true or false');
           return send(res, 200, { ok: true, data: await session.exam.start({ count: body.count, includeLive: body.includeLive }) });
+        }
+        if (method === 'GET' && /^chat\/\d{1,3}$/.test(sub)) return send(res, 200, { ok: true, data: session.exam.chat(Number(sub.slice('chat/'.length))) });
+        if (method === 'POST' && sub === 'ask') {
+          if (!Number.isInteger(body.n)) throw new HttpError(400, 'n must be a whole number');
+          if (typeof body.message !== 'string' || body.message.trim().length === 0 || body.message.length > 600) throw new HttpError(400, 'message must be a string of 1 to 600 characters');
+          if (!examAskLimiter.allow(session.id)) return fail(res, 429, 'RateLimited', 'The tutor needs a moment.');
+          return send(res, 200, { ok: true, data: await session.exam.ask(body.n, body.message) });
         }
         if (method === 'POST' && sub === 'answer') {
           if (!Number.isInteger(body.n)) throw new HttpError(400, 'n must be a whole number');

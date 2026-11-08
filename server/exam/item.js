@@ -22,11 +22,12 @@ export function shuffle(arr, rand = Math.random) {
 
 const withIds = (opts, prefix, rand) => shuffle(opts, rand).map((o, i) => ({ id: `${prefix}${i + 1}`, text: o.text, correct: Boolean(o.correct), why: o.why }));
 
+
 export function makeItem(q, rand = Math.random) {
   const item = { q, live: q.source === 'live', answered: false, answer: null, result: null };
   if (q.type === 'single' || q.type === 'multi') item.options = withIds(q.options, 'o', rand);
   else if (q.type === 'order') {
-    const correct = q.steps.map((s, i) => ({ id: `s${i + 1}`, text: s.text }));
+    const correct = q.steps.map((s, i) => ({ id: `s${i + 1}`, text: s.text, why: s.why }));
     let shown = shuffle(correct, rand);
     // The shown order must not already be the answer.
     for (let tries = 0; tries < 20 && shown.every((s, i) => s.id === correct[i].id); tries++) shown = shuffle(correct, rand);
@@ -79,7 +80,7 @@ export function grade(item, answer) {
     const inPlace = order.filter((id, i) => id === ids[i]).length;
     return {
       ...common, correct: inPlace === ids.length, detail: `${inPlace} of ${ids.length} steps in the right position`,
-      steps: item.steps.map((s, i) => ({ id: s.id, text: s.text, position: i + 1, yourPosition: order.indexOf(s.id) + 1 })),
+      steps: item.steps.map((s, i) => ({ id: s.id, text: s.text, why: s.why ?? null, position: i + 1, yourPosition: order.indexOf(s.id) + 1 })),
     };
   }
 

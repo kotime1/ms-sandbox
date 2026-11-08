@@ -117,7 +117,7 @@ The decision logic (which role, which trigger, which scope) is mostly right. The
 
 ## 4. Decisions needed
 
-1. **`unblock-lob1`:** set 2 Q1 and set 1 Q4 say "Tenant Allow/Block List" for an endpoint file. The docs say that list is email-only. Should the lab follow the **question** (so the exam answer is practised) or the **product** (a file indicator with the Allow action)? I recommend teaching the product and noting the exam wording in the debrief.
+1. **`unblock-lob1`:** set 2 Q1 and set 1 Q4 say "Tenant Allow/Block List" for an endpoint file. The docs say that list is email-only. Should the lab follow the **question** (so the exam answer is practiced) or the **product** (a file indicator with the Allow action)? I recommend teaching the product and noting the exam wording in the debrief.
 2. **Hunting favorites (set 2 Q46):** keep as "exam says so, unverified" or remove until checked?
 3. **Rebuild the shell** into one Defender portal layout using the real menu names (finding S1, S3). This changes every page and the coach's targets.
 

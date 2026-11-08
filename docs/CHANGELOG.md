@@ -2,6 +2,68 @@
 
 One entry per iteration, newest first. **Every iteration must update the docs and add an entry here.**
 
+## Iteration 8b: Claude through IBM Consulting Advantage instead of the Anthropic API (2026-11-05)
+
+**Summary.** Both Claude-backed features (lab assistant and exam question writer) now call IBM Consulting Advantage (ICA) instead of `api.anthropic.com`. `ANTHROPIC_API_KEY` is no longer read. Unit tests 356 -> **360**.
+
+- **One shared client**, `server/core/ica-client.js`: `POST {ICA_BASE_URL}/chat-models/chat/completions` (default base `https://api.servicesessentials.ibm.com/v1`), `Authorization: Bearer <ICA_API_KEY>`, OpenAI-style body (`messages` with the system prompt first) and reply (`choices[0].message.content`). The two agents no longer carry their own copy of the call.
+- **New env vars**: `ICA_API_KEY`, `ICA_MODEL`, optional `ICA_BASE_URL`, and the existing `ASSISTANT_MODEL` / `EXAM_MODEL` now override `ICA_MODEL` per agent. `*_PROVIDER=local` still forces offline.
+- **No default model.** The ICA docs I was given do not list the Claude model ids, and they are tenant-specific, so none is guessed. A key without a model keeps both agents offline (and the startup line says why). `node --env-file=.env scripts/ica-models.mjs` calls `GET /chat-models/models` and prints the Claude ids your key can use.
+- **Unchanged guarantees**: key only in the header, `redirect: 'error'`, timeouts, reply size cap, no response body in errors, offline fallback on any failure. `ICA_BASE_URL` must be https or Claude stays off.
+- **Not verified against the real service.** All tests use a mocked `fetch` shaped from the ICA docs (OpenAI-compatible). The docs I saw show the endpoint list, not the request/response schemas, so: confirm `max_tokens` is accepted, that the reply is `choices[0].message.content`, and that the chosen model follows the "reply with ONE JSON array" instruction. The assistant's `/chat-models` endpoint was chosen because the exam writer needs a raw model; the `/assistants` and `/agents` namespaces would add ICA-side behaviour.
+
+## Iteration 9c: An explanation under every choice and every step (2026-11-08)
+
+**Summary.** The explanation of why the answer is right was a single block at the bottom. Now each choice shows its own explanation directly under it, the correct one included, and every ordering step says why it belongs at its position. Unit tests 383 -> **393**; `e2e-exam.mjs` 145 -> **170** checks.
+
+- **Data:** 148 new explanations written by hand: 84 for right choices (single and multiple), 33 for the right pick in each dropdown blank, 31 for ordering steps. They live in `server/exam/bank/reasons-*.js` and are merged into the questions at load time. The schema now requires a `why` on every option and every step, so the bank refuses to load without one, and a Claude-written question has to include them or it is discarded. The generator prompt and example were updated, and I checked against the real model that it writes them (3 of 4 questions accepted, reasons 73 to 104 characters at the shortest).
+- **Layout:** the old closing "Why" block is now "In short", a summary after the verdict. For Yes/No and KQL dropdowns, a right pick says why it is right; a wrong pick says what is wrong with it, then names the right answer and why.
+- **Guard rails, each shown to fire:** the merge rejects a missing reason, a typo in the option text, a reason for a blank that does not exist, a missing blank reason, the wrong number of step reasons, a too-short reason, and reasons for a question that is not in the bank (8 cases tried).
+- **A weakness I found by checking:** 15 Yes/No blanks showed nearly the same sentence under "Yes" and under "No", because the old wrong-side text and my new right-side text both stated the same fact. I rewrote 14 of the wrong-side reasons to say what is wrong with that pick; 3 pairs still share key terms because they describe one fact, but they now say different things.
+- **Mistakes of mine, caught by running things:** the first version of the merge reported every other file's reasons as unmatched (the check belonged across all files, not per file); a CSS rule I added would have shown dropdown notes before submitting (fixed before it shipped); and the escape trap in script-made edits bit again in three throwaway scripts. A leak test I wrote compared a 30-character prefix, which false-alarmed on a phrase the scenario also contains; it now compares the whole reason.
+- **Not verified:** the 148 explanations are my own wording from my knowledge of the products and your study guide. They were not checked against a live tenant, and a few facts (default audit retention, some option names) are worth confirming on Microsoft Learn.
+
+## Iteration 9b: Feedback lives in the answer card (2026-11-08)
+
+**Summary.** After submitting, the feedback was a block of its own under the choices, and it repeated every choice in a second "Every option" list. It is now part of the answer card: the choices you picked from are marked where they are, then the verdict and explanation. Sources and the tutor stay separate cards below. Unit tests unchanged at **383**; \`e2e-exam.mjs\` 96 -> **145** checks, \`e2e-exam-cards.mjs on\` 29 -> **32**.
+
+- **Single and multiple choice:** the right choice turns green ("Correct answer"), your wrong pick turns red ("Your choice · not correct"), and each wrong choice keeps its reason underneath. The second list is gone.
+- **Ordering:** the list shows your order, each step marked, with "belongs at step N" on a misplaced one. The arrows disappear once you submit.
+- **Dropdowns:** each dropdown is marked beside itself; a wrong one names the right answer and why the picked one is wrong.
+- **Under the card:** Sources and references, Ask the tutor, then Next question. A reloaded question rebuilds the same view from the saved result (the ordering view uses your saved order).
+- **Tests:** the browser script now checks that the verdict and explanation are inside the question card, that the two cards are outside it, and that no second list exists.
+- **My mistake, caught by running it:** I patched a regex through a script and the backslash in \`\\d\` was lost inside a template literal, so one check could never match. That is the third time this has bitten me in this project; check the file text after any script-made edit that contains a regex.
+- **Not changed:** an ordering answer is all-or-nothing and marks every step wrong when the whole sequence is shifted by one. Separately, on a 390px screen the top tab bar crops the "Practice exam" tab; I did not touch it.
+
+## Iteration 9: Sources and an AI tutor under each answer (2026-11-05)
+
+**Summary.** After you submit a practice-exam answer, two cards appear under the explanation: **Sources and references** and **Ask the tutor**. Unit tests 362 -> **383**; new browser scripts `e2e-exam-cards.mjs on|off` (29 + 4 checks).
+
+### Sources
+- 92 Microsoft Learn pages in a curated table (`server/exam/references.js`), mapped to each of the 54 skills-measured bullets. The card shows the pages for the question's skill plus the matching lab. A question written by Claude gets the same pages for its skill and cannot bring its own links; the page only renders `https://learn.microsoft.com/en-us/` links.
+- **I checked the URLs instead of trusting my memory.** `scripts/check-refs.mjs` fetched all 93 I first wrote: 3 were 404 and 11 had moved, three of them to generic pages (the Windows Security Events, Windows Forwarded Events and Azure Activity connector pages no longer exist). All 92 now resolve with no redirects. I then read the real heading of 15 pages and fixed 7 titles that did not match what the page is (for example "email notifications" was actually "alert notifications").
+- **Known gap:** there is no specific page for Windows Security Events via AMA or Windows Event Forwarding, so those skills link to the general "Find your data connector" and "Connect to Azure, Windows, Microsoft services" pages. The Syslog/CEF link is a Syslog-only tutorial. Sources were chosen by skill, not per question, so a question can get a page that is broader than what it tests.
+
+### Tutor
+- `server/agents/exam-tutor.js`. It is refused until the question has been submitted, then sees that one question, the key, the explanation and what the learner chose. Learner text is a user message; the question text is quoted as data, and a Claude-written question is flagged to it as possibly wrong. Per-question history, 12 questions per item, 12 messages a minute, 600 characters a message.
+- Needs ICA (`EXAM_TUTOR_MODEL`, else `EXAM_MODEL`, else `ICA_MODEL`). Without it the card says why and the sources still show.
+- **Tested against the real service with your key** (`scripts/probe-tutor.mjs`): it declined an attempt to print its prompt and the key, explained my deliberately wrong pick accurately, and refused before submitting.
+- **Real-model findings:** (1) replies were **cut off mid-sentence**. This model spends tokens before the visible text (898 tokens for 1297 characters), so a 500 token budget truncated a 100-word answer. Now 1600 tokens, the shared client reports `finish_reason: length`, and a cut-off reply ends at its last full sentence and says so. (2) One call failed once and could not be reproduced (three further 3-turn runs were clean), so it is treated as transient: the learner sees a plain message, keeps their typed text, and the failed turn is not recorded.
+- **Browser check found my own test was half-empty:** the harness ends the process when a run finishes, so the second scenario in my script never ran while the first reported green. Scenarios are now separate runs (`on` and `off`).
+
+### Not done
+- The tutor is a plain chat. It does not search the web or Microsoft Learn, so it can be wrong about product details and says so. Answers are not streamed: a reply takes about 5 to 15 seconds and shows "Thinking…".
+
+## Iteration 8c: Make ICA actually switch on, and make live questions work at full size (2026-11-05)
+
+**Summary.** With `ICA_API_KEY` and `ICA_MODEL` in `.env`, the assistant still used offline notes and the exam showed no AI option. Unit tests 360 -> **362**.
+
+- **Cause: `npm start` never loaded `.env`.** The script was `node server/index.js`; Node only reads `.env` with `--env-file`. Both `npm start` and `npm run dev` now use `--env-file-if-exists=.env` (a missing `.env` is fine). That flag needs Node 22.9, so `engines` is now `>=22.9`. I told you the key would work in iteration 8b without saying how to load it; that was my gap.
+- **Verified against the real service, with your key** (the key was read from `.env` and never printed): a tiny chat call returns the expected reply, so the request shape, Bearer auth, `max_tokens` and `choices[0].message.content` from 8b are confirmed. The model `claude-sonnet-5-5` follows "reply with one JSON array": 4 asked, 4 accepted.
+- **Found by running a real 50-question exam: only 4 of ~20 live questions arrived, in exactly 60 s, with no note.** One request per domain asked for ~8 questions, a model needs ~45 s for 4, so the big requests timed out and fell back to the bank silently. Now each domain is split into batches of at most 4, all in parallel, with a 90 s timeout each. Real result: 15 live questions in 58 s. The other 5 were rejected by the answer-shape validator, which is the point of it.
+- **Failures are now reported, not silent.** The exam start returns notes such as "Claude wrote 15 of the 20 questions asked for; the built-in bank filled the rest", "5 generated question(s) were discarded...", or "N of M requests failed: UpstreamError".
+- The start button now says "Writing questions, about a minute…" so the wait is expected.
+
 ## Iteration 8: Practice exam tab (2026-11-05)
 
 **Summary.** A new top-level **Practice exam** tab builds an SC-200-style exam on request: 10 to 50 questions (default 50), four formats, scenario and performance-style items, domain weights from the October 2026 skills-measured list, and an explanation after every submitted question. Unit tests 318 -> **356**; new browser script `scripts/e2e-exam.mjs` (94 checks).

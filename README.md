@@ -27,7 +27,7 @@ Open the page, pick a lab, and work through it in the simulated portals. The rig
 |---|---|---|
 | **lab-agent** | Sets up each lab, knows which control comes next, grades the *state* of the environment, serves hints (3 tiers per objective) | [server/agents/lab-agent.js](server/agents/lab-agent.js) |
 | **attack-agent** | Writes synthetic attacker activity (sign-ins, alerts, incidents, Graph calls) into the sandbox. Used by lab setup and the "Replay" buttons. Only runs scenarios the active lab allows | [server/agents/attack-agent.js](server/agents/attack-agent.js) |
-| **assistant-agent** | Answers questions during a lab. Works offline from built-in notes; uses Claude only if you set `ANTHROPIC_API_KEY`. Coaches, does not hand over the answer | [server/agents/assistant-agent.js](server/agents/assistant-agent.js) |
+| **assistant-agent** | Answers questions during a lab. Works offline from built-in notes; uses Claude (through IBM Consulting Advantage) only if you set `ICA_API_KEY` and `ICA_MODEL`. Coaches, does not hand over the answer | [server/agents/assistant-agent.js](server/agents/assistant-agent.js) |
 
 They talk over a per-session event bus ([server/core/bus.js](server/core/bus.js)); the "Agent activity" drawer in the coach panel shows it.
 
@@ -70,18 +70,20 @@ Labs are graded on the **outcome** (what changed in the environment), not the cl
 
 ## Practice exam
 
-The **Practice exam** tab builds an SC-200-style exam on request (10 to 50 questions, 50 by default). Questions follow the published domain weights (Manage 40–45%, Respond 35–40%, Hunt 20–25%, so 21 / 19 / 10 for 50) and come in four formats: choose one, choose several, put steps in order, and complete dropdown selections (including Yes/No tables and KQL with blanks). Most carry a scenario. After you submit each question you see whether it was right, why, and why each wrong option is wrong, with a link to the lab that practises the topic.
+The **Practice exam** tab builds an SC-200-style exam on request (10 to 50 questions, 50 by default). Questions follow the published domain weights (Manage 40–45%, Respond 35–40%, Hunt 20–25%, so 21 / 19 / 10 for 50) and come in four formats: choose one, choose several, put steps in order, and complete dropdown selections (including Yes/No tables and KQL with blanks). Most carry a scenario. After you submit, the answer card itself shows the result: each choice is marked in place (the right one in green, your wrong pick in red) with its own explanation under it, the right one included. For an ordering question every step says why it belongs at that position. A short summary follows the verdict. Sources and the tutor are separate cards below it.
 
 - The built-in bank is in [server/exam/bank/](server/exam/bank/): original questions written for this sandbox, plus some adapted from [question_sets/](question_sets/) (those files only record the right answers, so the wrong options are new). Every one of the 54 skills-measured bullets has at least one question.
 - **Answers cannot be guessed from their shape.** The bank refuses to load if a correct answer is distinguishable by length, punctuation, hedging or repeated stem words, and a bank-wide check keeps the correct option's length rank near 25% for each of longest to shortest. Option order is shuffled for every exam.
-- With `ANTHROPIC_API_KEY` set, a checkbox adds freshly written questions (about 40% of the exam). They pass the same checks or are discarded, are labelled "Written by Claude", and can contain mistakes. See [.env.example](.env.example).
+- With IBM Consulting Advantage configured (`ICA_API_KEY` and `ICA_MODEL`), a checkbox adds freshly written questions (about 40% of the exam). They pass the same checks or are discarded, are labelled "Written by Claude", and can contain mistakes. See [.env.example](.env.example).
+- **Sources and references.** After you submit, a card lists Microsoft Learn pages for the skill the question tests (a curated, link-checked table in [server/exam/references.js](server/exam/references.js); a Claude-written question gets the same pages for its skill and cannot add its own links), plus the matching sandbox lab.
+- **Ask the tutor.** Below the sources, a chat card lets you ask follow-up questions about that one question. It sees the question, the correct answer and what you chose, but only after you have submitted, so it cannot reveal anything early. It needs ICA configured; without it the card says so. It can be wrong, and it is told to point you at the sources when unsure.
 - Answers are held on the server for the session. Nothing is stored in the browser, and the answer key is never sent before you submit.
 
 ## Optional: Claude-powered assistant
 
 ```bash
-cp .env.example .env     # add ANTHROPIC_API_KEY=...
-node --env-file=.env server/index.js
+cp .env.example .env     # add ICA_API_KEY=... (then: node --env-file=.env scripts/ica-models.mjs, and set ICA_MODEL)
+npm start                 # loads .env automatically (Node 22.9+); `npm run dev` restarts on file changes
 ```
 
 The key is read from the environment only. It is never sent to the browser or logged. The model only sees the lab brief, objectives and hints *you already unlocked*; never the solution. Set `ASSISTANT_PROVIDER=local` to force offline mode.

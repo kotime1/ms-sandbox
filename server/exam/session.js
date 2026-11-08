@@ -7,14 +7,19 @@ import { DOMAINS, DOMAIN_KEYS } from './objectives.js';
 import { buildExam, apportion, TYPE_MIX, MIN_COUNT, MAX_COUNT, DEFAULT_COUNT } from './build.js';
 import { makeItem, publicView, grade, ExamInputError } from './item.js';
 import { ExamAgent } from '../agents/exam-agent.js';
+import { ExamTutor } from '../agents/exam-tutor.js';
+import { refsFor } from './references.js';
 
 /** Share of each domain's quota we ask Claude to write when live generation is on. The rest comes from the bank. */
 const LIVE_SHARE = 0.4;
+/** Questions requested per Claude call. Kept small so a call finishes well inside the timeout. */
+const LIVE_BATCH = 4;
 
 export class ExamSession {
-  constructor({ env = process.env, bank = BANK, agent, rand = Math.random } = {}) {
+  constructor({ env = process.env, bank = BANK, agent, tutor, rand = Math.random } = {}) {
     this.bank = bank;
     this.agent = agent ?? new ExamAgent({ env });
+    this.tutor = tutor ?? new ExamTutor({ env });
     this.rand = rand;
     this.seen = new Set(); // bank ids already used in this session, so the next exam prefers new questions
     this.exam = null;
@@ -22,7 +27,7 @@ export class ExamSession {
   }
 
   info() {
-    return { live: this.agent.available, bank: this.bank.length, min: MIN_COUNT, max: MAX_COUNT, count: DEFAULT_COUNT };
+    return { live: this.agent.available, tutor: this.tutor.available, bank: this.bank.length, min: MIN_COUNT, max: MAX_COUNT, count: DEFAULT_COUNT };
   }
 
   async start({ count = DEFAULT_COUNT, includeLive = false } = {}) {
@@ -37,15 +42,25 @@ export class ExamSession {
         if (!this.agent.available) notes.push('Live question writing is not configured, so this exam uses the built-in bank.');
         else {
           const quota = apportion(n, Object.fromEntries(DOMAIN_KEYS.map((d) => [d, DOMAINS[d].target])));
-          const results = await Promise.all(DOMAIN_KEYS.map((d) => {
+          // Many small requests in parallel, not one big one per domain: a model writes ~4 questions in ~45 s, so 8 per
+          // domain in one request ran past the timeout. Each batch fails on its own and the bank fills any gap.
+          const jobs = DOMAIN_KEYS.flatMap((d) => {
             const want = Math.round(quota[d] * LIVE_SHARE);
             const types = Object.entries(apportion(want, TYPE_MIX)).flatMap(([t, k]) => Array(k).fill(t));
-            return this.agent.generate(d, types);
-          }));
+            const batches = [];
+            for (let i = 0; i < types.length; i += LIVE_BATCH) batches.push(types.slice(i, i + LIVE_BATCH));
+            return batches.map((b) => this.agent.generate(d, b));
+          });
+          const results = await Promise.all(jobs);
           extra = results.flatMap((r) => r.questions);
           const rejected = results.reduce((s, r) => s + r.rejected, 0);
-          if (extra.length === 0) notes.push('Claude did not return usable questions, so this exam uses the built-in bank.');
-          else if (rejected) notes.push(`${rejected} generated question(s) were discarded because they did not pass the quality checks.`);
+          const failed = results.filter((r) => r.error).length;
+          const wanted = DOMAIN_KEYS.reduce((s, d) => s + Math.round(quota[d] * LIVE_SHARE), 0);
+          if (extra.length === 0) notes.push(`Claude did not return usable questions${failed ? ` (${failed} of ${results.length} requests failed${results.find((r) => r.error)?.error ? `: ${results.find((r) => r.error).error}` : ''})` : ''}, so this exam uses the built-in bank.`);
+          else {
+            if (extra.length < wanted) notes.push(`Claude wrote ${extra.length} of the ${wanted} questions asked for${failed ? ` (${failed} of ${results.length} requests failed)` : ''}; the built-in bank filled the rest.`);
+            if (rejected) notes.push(`${rejected} generated question(s) were discarded because they did not pass the quality checks.`);
+          }
         }
       }
       const { questions, shortfall } = buildExam({ bank: this.bank, extra, count: n, seen: this.seen, rand: this.rand });
@@ -53,6 +68,7 @@ export class ExamSession {
       if (!questions.length) throw new ExamInputError('No questions are available.');
       for (const q of questions) if (q.source !== 'live') this.seen.add(q.id);
       const id = `x${Math.floor(this.rand() * 1e9).toString(36)}`;
+      this.tutor.reset();
       this.exam = { id, items: questions.map((q) => makeItem(q, this.rand)), notes, startedAt: Date.now() };
       return { examId: id, total: this.exam.items.length, notes, live: extra.length, question: this.question(1) };
     } finally {
@@ -77,11 +93,34 @@ export class ExamSession {
   answer(n, answer) {
     const item = this.#item(n);
     if (item.answered) throw new ExamInputError('This question has already been answered.');
-    const result = grade(item, answer);
+    const result = { ...grade(item, answer), refs: refsFor(item.q) };
     item.answered = true;
     item.answer = answer;
     item.result = result;
     return { n: Number(n), ...result, summary: this.summary() };
+  }
+
+  /** The follow-up chat for an answered question. Refuses before the learner has submitted, so it can never reveal the key early. */
+  #answered(n) {
+    const item = this.#item(n);
+    if (!item.answered) throw new ExamInputError('Submit your answer first, then you can ask about this question.');
+    return item;
+  }
+
+  chat(n) {
+    this.#answered(n);
+    return { available: this.tutor.available, history: this.tutor.history(Number(n)) };
+  }
+
+  async ask(n, message) {
+    const item = this.#answered(n);
+    try {
+      return await this.tutor.ask(Number(n), { q: item.q, item, result: item.result, refs: item.result.refs }, message);
+    } catch (e) {
+      if (e.name === 'TutorInput' || e.name === 'TutorUnavailable') throw new ExamInputError(e.message);
+      // Upstream trouble (timeout, HTTP error, empty reply): say so plainly, keep the chat usable.
+      throw new ExamInputError('The tutor could not answer just now. Try again in a moment, or read the sources below.');
+    }
   }
 
   summary() {
