@@ -463,3 +463,63 @@ body.p-exam .blade { border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .18); border
 .exam-chat-form[hidden] { display: none; }
 .exam-chat-input { resize: vertical; min-height: 2.6rem; }
 @media (max-width: 720px) { .exam-step-text { max-width: 100%; display: block; } .exam-step-btns { float: none; margin-top: .4rem; } }
+
+/* ---- rich tutor replies: Markdown, tables and diagrams (web/js/rich/) ---------------------------------------------------------
+   Diagram colours come from the theme variables, so light and dark need no separate rules. No inline styles are used anywhere. */
+.exam-msg:has(.rich-diagram, .rich-table-wrap) { max-width: 100%; justify-self: stretch; }
+.exam-msg-text.is-rich { white-space: normal; }
+.rich > :first-child { margin-top: 0; }
+.rich > :last-child { margin-bottom: 0; }
+.rich p { margin: .4rem 0; }
+.rich .rich-h { margin: .8rem 0 .3rem; font-size: 1rem; line-height: 1.3; }
+.rich h3.rich-h { font-size: 1.05rem; }
+.rich-list { margin: .4rem 0; padding-left: 1.4rem; }
+.rich-list .rich-list { margin: .15rem 0; }
+.rich-list li { margin: .15rem 0; }
+.rich code { font-family: Consolas, "Cascadia Mono", monospace; font-size: .88em; background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
+.rich-code { margin: .5rem 0; padding: .6rem .75rem; background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; overflow-x: auto; white-space: pre; font-size: .85rem; line-height: 1.45; }
+.rich-code code { background: none; padding: 0; font-size: inherit; }
+.rich-quote { margin: .5rem 0; padding: .1rem .8rem; border-left: 3px solid var(--border); color: var(--muted); }
+.rich-hr { border: 0; border-top: 1px solid var(--border); margin: .7rem 0; }
+.rich a { color: var(--accent); text-decoration: underline; }
+.exam-msg.you a { color: inherit; }
+.rich-table-wrap { overflow-x: auto; margin: .6rem 0; max-width: 100%; border: 1px solid var(--border); border-radius: 4px; }
+.rich-table { border-collapse: collapse; width: 100%; font-size: .88rem; line-height: 1.4; }
+.rich-table th, .rich-table td { padding: .4rem .6rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.rich-table th { background: var(--code-bg); font-weight: 600; white-space: nowrap; }
+.rich-table tr:last-child td { border-bottom: 0; }
+.rich-table .is-center { text-align: center; }
+.rich-table .is-right { text-align: right; }
+
+.rich-diagram { margin: .7rem 0; padding: 0; }
+.rich-diagram-title { font-weight: 600; margin-bottom: .3rem; }
+.rich-diagram-scroll { overflow: auto; max-width: 100%; max-height: 38rem; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: .4rem; }
+.rich-diagram-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rich-diagram .dg { display: block; max-width: none; height: auto; margin: 0 auto; }
+.rich-diagram-src { margin-top: .3rem; font-size: .85rem; }
+.rich-diagram-src summary { cursor: pointer; color: var(--muted); }
+.rich-diagram.is-text figcaption { margin-bottom: .2rem; }
+
+.dg { font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px; }
+.dg-shape { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; }
+.dg-line { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+.dg-text { fill: var(--text); }
+.dg-edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.dg-edge.dotted { stroke-dasharray: 5 4; }
+.dg-edge.thick { stroke-width: 3; }
+.dg-head { fill: var(--muted); stroke: none; }
+.dg-edge-label, .dg-edge-label-seq { fill: var(--text); font-size: 12px; }
+.dg-label-bg { fill: var(--surface); stroke: none; opacity: .92; }
+.dg-group { fill: var(--code-bg); stroke: var(--border); stroke-width: 1; stroke-dasharray: 4 3; opacity: .85; }
+.dg-group-title { fill: var(--muted); font-size: 12px; font-weight: 600; }
+.dg-life { stroke: var(--border); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.dg-note { fill: var(--warn-bg); stroke: var(--warn); stroke-width: 1; }
+.dg-frame { fill: none; stroke: var(--muted); stroke-width: 1; }
+.dg-frame-tag { fill: var(--code-bg); stroke: var(--muted); stroke-width: 1; }
+.dg-frame-kind { fill: var(--text); font-size: 11px; font-weight: 700; }
+.dg-frame-text { fill: var(--muted); font-size: 11px; }
+.dg-divider { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 6 4; }
+/* A grid item is as wide as its content unless told otherwise, so a wide diagram or table would stretch the whole chat past the screen
+   instead of scrolling inside its own box. */
+.exam-chat-log { grid-template-columns: minmax(0, 1fr); }
+.exam-msg, .exam-msg-text, .rich, .rich-diagram, .rich-table-wrap { min-width: 0; }

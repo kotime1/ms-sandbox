@@ -183,9 +183,18 @@ test('input is validated: empty text is refused, long text is cut to 600 charact
 });
 
 test('replies are capped, and an upstream failure becomes a plain message that keeps the chat usable', async () => {
-  const { s } = await started(ENV, replyWith('y'.repeat(9000)));
+  // A long reply is shortened at a line and says so (6,000 characters is room for a diagram and a table, but not unlimited).
+  const lines = Array.from({ length: 400 }, (_, i) => `Line ${i} of a very long answer.`).join('\n');
+  const { s } = await started(ENV, replyWith(lines));
   s.answer(1, answerFor(s.exam.items[0]));
-  assert.equal((await s.ask(1, 'long please')).reply.length, 2500);
+  const long = (await s.ask(1, 'long please')).reply;
+  assert.ok(long.length <= 6100, `reply is ${long.length} characters`);
+  assert.match(long, /too long and was shortened/);
+  assert.match(long, /Line 0 of a very long answer\./, 'the start is kept');
+  // One unbroken run with no newline at all is still bounded.
+  const { s: s2 } = await started(ENV, replyWith('y'.repeat(9000)));
+  s2.answer(1, answerFor(s2.exam.items[0]));
+  assert.ok((await s2.ask(1, 'long please')).reply.length <= 6100);
   const bad = await started(ENV, async () => ({ ok: false, status: 500 }));
   bad.s.answer(1, answerFor(bad.s.exam.items[0]));
   await assert.rejects(() => bad.s.ask(1, 'hello'), (e) => e instanceof ExamInputError && /could not answer just now/.test(e.message) && !/500|HTTP/.test(e.message));

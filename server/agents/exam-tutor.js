@@ -8,17 +8,20 @@
 //  - Learner text is a user message, never part of the system prompt. The system prompt tells the model to treat it as a
 //    question only. The real control is the data boundary above: there is nothing sensitive to leak.
 //  - The question text may come from Claude (source:'live'), so it is quoted inside the prompt as data, not as instructions.
-//  - Replies are length-capped plain text, rendered with textContent. History is capped per question and per session.
+//  - Replies are length-capped text. The page reads them as Markdown and draws ```mermaid blocks itself (web/js/rich/), building DOM with
+//    text nodes only, so nothing in a reply can become markup. History is capped per question and per session.
 //  - The key goes through core/ica-client.js only (see its notes).
 
 import { icaConfig, icaChatFull } from '../core/ica-client.js';
 
 const MAX_MSG = 600;
 const MAX_TURNS = 12; // learner messages per question
-const MAX_REPLY_CHARS = 2500;
+// A reply with a diagram or table is longer than a prose answer (measured: a flowchart, a sequence diagram and a five-row table took 500 to
+// 1,300 tokens and 1,200 to 2,300 characters).
+const MAX_REPLY_CHARS = 6000;
 // This model spends part of its token budget before the visible text (a ~180-word reply measured ~900 tokens), so the
 // budget is set well above the word limit. A reply that still hits it is cut at the last full sentence and says so.
-const MAX_TOKENS = 1600;
+const MAX_TOKENS = 3500;
 const MAX_QUESTIONS_KEPT = 60;
 
 const SYSTEM = [
@@ -28,7 +31,11 @@ const SYSTEM = [
   'Use the answer key and explanation as ground truth for this question. If the learner disagrees or you believe the key is wrong, say what you think and why, say plainly that you may be wrong, and send them to the Microsoft Learn sources listed below rather than insisting.',
   'If you are not sure how a Microsoft product behaves, say so. Do not invent portal menu names, settings, table or column names. This sandbox only mimics the portals.',
   'Stay on this question and the SC-200 topics around it. If asked about something unrelated, say you can only help with this question and its topic.',
-  'Keep replies under 150 words, plain text, no markdown tables. Short paragraphs or a short list is fine. Always finish your last sentence.',
+  'Keep prose under 150 words. Always finish your last sentence.',
+  'You may format with Markdown: short paragraphs, **bold**, `code`, bullet or numbered lists, and pipe tables. Use a table for comparisons and a list for steps. Do not use HTML.',
+  'When the learner asks for a diagram, a process flow, an architecture or a picture, or when one would clearly help (a sequence of steps, how components connect, a decision), draw it as Mermaid text in a fenced block that starts with ```mermaid. You cannot make images, so say so briefly if asked for one and offer the Mermaid diagram instead.',
+  'Only two Mermaid kinds can be drawn: `flowchart TD` (or LR) and `sequenceDiagram`. Rules for a diagram that draws correctly: at most 12 steps; write every label as plain short text of at most 8 words, with no HTML tags, no `<br>` and no markdown inside a label; put a label that contains brackets, parentheses or punctuation inside double quotes; give every step a short id (A, B, C) and write the label in a shape, for example A["Open the incident"], B{"True positive?"}, C(["Start"]); label a decision arrow like B -->|Yes| C; use `subgraph Name["Title"]` ... `end` to group; do not use `style`, `classDef`, `click` or colours; one diagram per reply unless asked for more. Follow a diagram with one or two sentences saying what it shows.',
+  'Diagrams and tables are for the SC-200 topic of this question and must match what the question and Microsoft Learn say. If you are unsure of a detail, leave it out of the diagram rather than guess.',
 ].join('\n');
 
 export class ExamTutor {
@@ -62,9 +69,9 @@ export class ExamTutor {
     const out = await icaChatFull({
       fetchImpl: this.fetch, cfg: this.cfg, maxTokens: MAX_TOKENS, timeoutMs: 60_000,
       system: `${SYSTEM}\n\n${describe(context)}`,
-      messages: [...log.slice(-8), { role: 'user', content: text }],
+      messages: [...log.slice(-8).map(forModel), { role: 'user', content: text }],
     });
-    const reply = finish(out.text, out.truncated).slice(0, MAX_REPLY_CHARS);
+    const reply = capReply(finish(out.text, out.truncated), MAX_REPLY_CHARS);
 
     log.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
     this.chats.set(n, log);
@@ -72,12 +79,51 @@ export class ExamTutor {
   }
 }
 
-/** A reply that ran out of tokens is cut at its last complete sentence and says so, never left mid-word. */
+/**
+ * A reply that ran out of tokens is cut at its last complete sentence and says so, never left mid-word. A diagram or a code block that was
+ * still open at the cut is removed whole: half a diagram cannot be drawn, and a lone ``` would swallow the note that follows it.
+ */
 export function finish(text, truncated) {
   if (!truncated) return text;
-  const end = Math.max(text.lastIndexOf('. '), text.lastIndexOf('.\n'), text.lastIndexOf('? '), text.lastIndexOf('!\n'), text.lastIndexOf('\n\n'));
-  const body = end > text.length * 0.4 ? text.slice(0, end + 1) : text.replace(/\s+\S*$/, '');
-  return `${body.trim()}\n\n(The reply was cut short. Ask me to continue.)`;
+  const open = openFence(text);
+  const whole = open >= 0 ? text.slice(0, open).trimEnd() : text;
+  const end = Math.max(whole.lastIndexOf('. '), whole.lastIndexOf('.\n'), whole.lastIndexOf('? '), whole.lastIndexOf('!\n'), whole.lastIndexOf('\n\n'), open >= 0 ? whole.length - 1 : -1);
+  const body = open >= 0 ? whole : end > whole.length * 0.4 ? whole.slice(0, end + 1) : whole.replace(/\s+\S*$/, '');
+  return `${body.trim()}\n\n(The reply was cut short${open >= 0 ? ' in the middle of a diagram or code block, which was left out' : ''}. Ask me to continue.)`;
+}
+
+/**
+ * An earlier turn as the model sees it. The learner keeps the full text; the model gets diagrams as a one-line stub (it can redraw one on
+ * request) and long replies shortened, so a chat full of diagrams does not make every later request large and slow.
+ */
+export function forModel(m) {
+  if (m.role !== 'assistant') return m;
+  const stubbed = m.content.replace(/(```|~~~)mermaid[^\n]*\n[\s\S]*?\n\s*\1/g, '[a Mermaid diagram was shown here]');
+  return { role: m.role, content: stubbed.length > 1500 ? `${stubbed.slice(0, 1500)}…` : stubbed };
+}
+
+/** Index of a code fence that is opened and never closed, or -1. */
+export function openFence(text) {
+  let at = -1;
+  let inside = false;
+  let pos = 0;
+  for (const line of text.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      if (!inside) at = pos;
+      inside = !inside;
+    }
+    pos += line.length + 1;
+  }
+  return inside ? at : -1;
+}
+
+/** The longest cap a reply may have: cut at a line, and never inside a fence. Used when the reply is simply too long. */
+export function capReply(text, max) {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const open = openFence(cut);
+  const base = open >= 0 ? cut.slice(0, open) : cut.slice(0, Math.max(cut.lastIndexOf('\n'), 0) || max);
+  return `${base.trimEnd()}\n\n(The reply was too long and was shortened. Ask for one part at a time.)`;
 }
 
 const mark = (v) => (v ? 'yes' : 'no');

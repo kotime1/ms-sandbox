@@ -7,13 +7,24 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { launch } from './e2e-lib.mjs';
 
+// Replies the fake tutor sends when the learner message starts with the key. Fences are built from a variable so this file stays readable.
+const F = '```';
+const RICH = {
+  DIAGRAM: `Here is the flow.\n\n${F}mermaid\nflowchart TD\n  A([Alert raised]) --> B{True positive?}\n  B -->|Yes| C["Contain the device"]\n  B -->|No| D[Close as benign]\n  C --> E[(Log the action)]\n${F}\n\nIt shows the decision after the alert.`,
+  SEQUENCE: `${F}mermaid\nsequenceDiagram\n  autonumber\n  participant R as Automation rule\n  participant P as Playbook\n  R->>P: Run playbook\n  P-->>R: Done\n${F}`,
+  TABLE: '| Type | Runs | Use |\n|:--|:-:|--:|\n| **Scheduled** | on a timer | custom `KQL` detections |\n| NRT | about a minute | fast response |\n\nNRT has *limits*.\n\n## Steps\n\n1. Open the incident\n2. Review the alerts\n   - check severity\n   - check entities\n3. Decide\n\n> Remember: classify before closing.',
+  BADLINK: 'See [Learn](https://learn.microsoft.com/en-us/azure/sentinel/) and [bad](javascript:alert(1)) and [other](https://evil.example/x).',
+  // two diagrams that cannot be drawn, then one that was cut off and never closed (what a reply that ran out of tokens can leave)
+  BROKEN: `${F}mermaid\nflowchart TD\n  A --> B[never closed\n${F}\n\nAnd a gantt chart:\n\n${F}mermaid\ngantt\n  title Nope\n${F}\n\nLast one:\n\n${F}mermaid\nflowchart TD\n  A --> B\n  B --> C[half writ`,
+};
 const asked = [];
 const fake = async (body) => {
   const last = body.messages.at(-1).content;
   asked.push({ system: body.messages[0].content, turns: body.messages.length - 1, last });
   if (/FAIL/.test(last)) return { ok: false, status: 503, json: async () => ({}) };
   if (/SLOW/.test(last)) await new Promise((r) => setTimeout(r, 600));
-  const reply = /HTML/.test(last) ? 'Here is <b>bold</b> and <img src=x onerror=alert(1)> as plain text.' : `Tutor reply ${asked.length}: because that is how it works.\nSecond line.`;
+  const reply = RICH[/^(DIAGRAM|SEQUENCE|TABLE|BADLINK|BROKEN|CUTOFF|LIST)/.exec(last)?.[1]]
+    ?? (/HTML/.test(last) ? 'Here is <b>bold</b> and <img src=x onerror=alert(1)> as plain text.' : `Tutor reply ${asked.length}: because that is how it works.\nSecond line.`);
   return { ok: true, status: 200, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: reply } }] }) };
 };
 
@@ -143,6 +154,63 @@ if (which === 'on') await run('tutor ON', { env: { ICA_API_KEY: 'k', ICA_MODEL: 
   await answerNow(b);
   await b.waitFor(`document.querySelector('.exam-chat-form') && !document.querySelector('.exam-chat-form').hidden`, 'chat form q2');
   await b.ok(await b.evalJs(`document.querySelectorAll('.exam-msg').length === 0`), 'question 2 starts with an empty chat');
+
+  // ---- rich replies, on question 2 (a question allows 12 learner messages, so these get their own chat)
+  const tutors = () => b.evalJs(`document.querySelectorAll('.exam-msg.tutor:not(.pending)').length`);
+  const ask = async (text) => {
+    const before = await tutors();
+    await b.setValue('.exam-chat-input', text);
+    await b.click('btn:exam-ask');
+    await b.waitFor(`document.querySelectorAll('.exam-msg.tutor:not(.pending)').length === ${before + 1}`, `reply to ${text.slice(0, 12)}`);
+  };
+  const lastReply = (expr) => b.evalJs(`(() => { const m = [...document.querySelectorAll('.exam-msg.tutor')].at(-1); return ${expr}; })()`);
+
+  // Budget: the tutor allows 12 messages a minute per session and 12 per question. Question 1 used 6, so this chat uses 5 (11 in all).
+  await ask('TABLE of rule types');
+  await b.ok(await lastReply(`m.querySelectorAll('table.rich-table').length === 1 && m.querySelectorAll('thead th').length === 3 && m.querySelectorAll('tbody tr').length === 2`), 'a Markdown table is drawn as a real table');
+  await b.ok(await lastReply(`m.querySelector('tbody td strong')?.textContent === 'Scheduled' && m.querySelector('tbody td code')?.textContent === 'KQL'`), 'bold and code work inside a table cell');
+  await b.ok(await lastReply(`m.querySelector('.rich-table-wrap').getAttribute('tabindex') === '0' && [...m.querySelectorAll('th')].every((t) => t.getAttribute('scope') === 'col')`), 'the table scrolls by keyboard and has column headers');
+  await b.ok(await lastReply(`getComputedStyle(m.querySelectorAll('th')[1]).textAlign === 'center' && getComputedStyle(m.querySelectorAll('th')[2]).textAlign === 'right'`), 'column alignment from the Markdown is applied');
+  await b.ok(await lastReply(`m.querySelector('em')?.textContent === 'limits' && !/\\*/.test(m.textContent)`), 'emphasis is applied and no stray asterisks remain');
+  await shot('exam-11-rich-table');
+  // the same reply also holds a list, a heading and a quote
+  await b.ok(await lastReply(`m.querySelectorAll('ol > li').length >= 3 && m.querySelectorAll('ol ul li').length === 2`), 'numbered list with a nested bullet list');
+  await b.ok(await lastReply(`m.querySelector('.rich-h')?.textContent === 'Steps' && m.querySelector('blockquote')?.textContent.includes('classify before closing')`), 'a heading and a quote are drawn');
+
+  await ask('DIAGRAM of the triage');
+  await b.ok(await lastReply(`m.querySelectorAll('svg.dg-flow').length === 1`), 'a Mermaid flowchart is drawn as an SVG');
+  await b.ok(await lastReply(`m.querySelectorAll('.dg-shape').length === 5 && m.querySelectorAll('.dg-edge').length === 4`), 'five steps and four arrows');
+  await b.ok(await lastReply(`m.querySelector('svg .dg-shape[points]') !== null`), 'the decision is a diamond');
+  await b.ok(await lastReply(`[...m.querySelectorAll('.dg-edge-label')].map((t) => t.textContent).sort().join() === 'No,Yes'`), 'arrow labels Yes and No are shown');
+  await b.ok(await lastReply(`/Contain the device/.test(m.querySelector('svg').textContent) && !/mermaid|flowchart/.test(m.querySelector('svg').textContent)`), 'step text is in the picture and the Mermaid source is not');
+  await b.ok(await lastReply(`m.querySelector('svg').getAttribute('role') === 'img' && m.querySelector('svg').getAttribute('aria-label').startsWith('Flowchart with 5 steps')`), 'the picture has a screen-reader description');
+  await b.ok(await lastReply(`m.querySelector('details.rich-diagram-src pre code').textContent.includes('flowchart TD')`), 'the diagram text is available under "Diagram text"');
+  await b.ok(await lastReply(`m.querySelector('.rich-diagram-scroll').getAttribute('tabindex') === '0'`), 'a wide diagram scrolls by keyboard');
+  await b.ok(await lastReply(`[...m.querySelectorAll('svg .dg-shape')].every((s) => { const r = s.getBoundingClientRect(); return r.width > 20 && r.height > 15; })`), 'the shapes have real size on screen (the CSS applied under the CSP)');
+  await b.ok(await lastReply(`getComputedStyle(m.querySelector('.dg-shape')).fill !== 'rgb(0, 0, 0)' && getComputedStyle(m.querySelector('.dg-shape')).stroke !== 'none'`), 'the shapes are styled by the theme, not left black');
+  await b.ok(await lastReply(`m.querySelectorAll('[style]').length === 0`), 'no inline style attribute anywhere in a rich reply');
+  await shot('exam-12-rich-flow');
+
+  await ask('SEQUENCE of the playbook');
+  await b.ok(await lastReply(`m.querySelectorAll('svg.dg-sequence').length === 1 && m.querySelectorAll('.dg-life').length === 2`), 'a sequence diagram is drawn with a lifeline per participant');
+  await b.ok(await lastReply(`/1\\. Run playbook/.test(m.querySelector('svg').textContent) && /Automation rule/.test(m.querySelector('svg').textContent)`), 'autonumber and the participant aliases are applied');
+  await shot('exam-13-rich-sequence');
+
+  // BADLINK is asked with Markdown-looking text on purpose: the learner's own message must come back exactly as typed.
+  await ask('BADLINK **not bold** and <b>x</b>');
+  await b.ok(await b.evalJs(`(() => { const you = [...document.querySelectorAll('.exam-msg.you .exam-msg-text')].at(-1); return you.querySelectorAll('strong, b').length === 0 && you.textContent === 'BADLINK **not bold** and <b>x</b>'; })()`), "the learner's own message is shown exactly as typed, never read as Markdown or HTML");
+  await b.ok(await lastReply(`[...m.querySelectorAll('a')].map((a) => a.href).join() === 'https://learn.microsoft.com/en-us/azure/sentinel/'`), 'only the Microsoft Learn link became a link');
+  await b.ok(await lastReply(`(() => { const a = m.querySelector('a'); return a.target === '_blank' && /noopener/.test(a.rel) && /noreferrer/.test(a.rel); })()`), 'the link opens in a new tab with noopener noreferrer');
+  await b.ok(await lastReply(`/javascript:alert\\(1\\)/.test(m.textContent) && /evil\\.example/.test(m.textContent)`), 'a refused link stays visible as text, so the learner can see where it pointed');
+
+  // One reply with three diagrams: one with a shape that never closes, one of an unsupported kind, and a last one cut off mid-label.
+  await ask('BROKEN diagram');
+  await b.ok(await lastReply(`m.querySelectorAll('.rich-diagram.is-text').length === 3`), 'diagrams that cannot be drawn fall back to their text (three of them in this reply)');
+  await b.ok(await lastReply(`/never closed/.test(m.textContent) && /gantt/.test(m.textContent) && /not supported/.test(m.textContent)`), 'the fallback says why, and still shows the text');
+  await b.ok(await lastReply(`m.textContent.includes('And a gantt chart') && m.textContent.includes('Last one')`), 'the rest of the reply is still shown around broken diagrams');
+  await b.ok(await lastReply(`m.querySelectorAll('svg').length === 0`), 'nothing half-drawn is left behind');
+  await shot('exam-14-rich-broken');
+  await b.ok(await b.evalJs(`document.querySelectorAll('.exam-chat-log img, .exam-chat-log script, .exam-chat-log iframe, .exam-chat-log [onerror], .exam-chat-log [onclick]').length === 0`), 'no element that could run code exists anywhere in the chat');
 });
 
 if (which === 'off') await run('tutor OFF (no ICA settings)', {}, async (b, shot) => {

@@ -3,6 +3,7 @@
 import { h, badge, clear } from '../dom.js';
 import * as api from '../api.js';
 import { ctx } from '../app.js';
+import { richView } from '../rich/view.js';
 
 const DOMAIN_LABEL = { manage: 'Manage a security operations environment', respond: 'Respond to security incidents', hunt: 'Perform threat hunting' };
 const TYPE_LABEL = { single: 'Choose one answer', multi: 'Choose more than one answer', order: 'Put the steps in order', dropdown: 'Complete each selection' };
@@ -375,13 +376,16 @@ function sourcesCard(r) {
 function tutorCard(q) {
   const log = h('div', { class: 'exam-chat-log', role: 'log', 'aria-live': 'polite' });
   const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
-  const box = h('textarea', { class: 'exam-chat-input', rows: 2, maxlength: 600, 'aria-label': 'Ask a question about this item', placeholder: 'Ask about this question: why is an option wrong, how do two features differ, what should I remember?' });
+  const box = h('textarea', { class: 'exam-chat-input', rows: 2, maxlength: 600, 'aria-label': 'Ask a question about this item', placeholder: 'Ask about this question: why is an option wrong, how do two features differ? Or ask for a diagram or a comparison table.' });
   const send = h('button', { class: 'btn primary', type: 'button', 'data-target': 'btn:exam-ask' }, 'Ask');
-  const hint = h('p', { class: 'muted small' }, 'The tutor can see this question, the correct answer, and what you chose. It can be wrong, so check anything that matters against the sources above.');
+  const hint = h('p', { class: 'muted small' }, 'The tutor can see this question, the correct answer, and what you chose. It can draw process flows, architecture and sequence diagrams, and make tables and lists, when you ask. It can be wrong, so check anything that matters against the sources above.');
   const form = h('div', { class: 'exam-chat-form' }, box, send);
   const card = h('section', { class: 'exam-card-sub exam-tutor', 'aria-label': 'Ask the tutor' }, h('h4', null, 'Ask the tutor'), hint, log, err, form);
 
-  const line = (who, text) => log.append(h('div', { class: `exam-msg ${who}` }, h('span', { class: 'exam-msg-who' }, who === 'you' ? 'You' : 'Tutor'), h('div', { class: 'exam-msg-text' }, text)));
+  // The learner's words stay plain text. The tutor's reply is read as Markdown (lists, tables, ```mermaid diagrams) and built with text
+  // nodes only, so nothing in it can become markup.
+  const line = (who, text) => log.append(h('div', { class: `exam-msg ${who}` }, h('span', { class: 'exam-msg-who' }, who === 'you' ? 'You' : 'Tutor'),
+    who === 'you' ? h('div', { class: 'exam-msg-text' }, text) : h('div', { class: 'exam-msg-text is-rich' }, richView(text))));
   const draw = (history) => { clear(log); for (const m of history) line(m.role === 'user' ? 'you' : 'tutor', m.content); log.scrollTop = log.scrollHeight; };
   const off = (why) => { form.hidden = true; hint.textContent = why; };
 
