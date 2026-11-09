@@ -4,10 +4,11 @@
 //   node --env-file=.env scripts/probe-ica.mjs models                 which chat models your key can use (set ICA_MODEL to one of them)
 //   node --env-file=.env scripts/probe-ica.mjs raw "a question"       one raw call: HTTP status, finish_reason, tokens, time
 //   node --env-file=.env scripts/probe-ica.mjs tutor                  the exam tutor: refuses before submitting, answers after, ignores an injection
-//   node --env-file=.env scripts/probe-ica.mjs generate [domain]      asks Claude for 4 exam questions and reports how many pass the quality checks
+//   node --env-file=.env scripts/probe-ica.mjs generate [runs]        makes the requests a 50-question live exam makes (10 in parallel, about 40 to 50 seconds each run)
+//                                                                     and reports, per request, why it failed (cut off, malformed, error) and which quality rules rejected questions
 import { DEFAULT_BASE_URL, icaConfig } from '../server/core/ica-client.js';
 import { ExamSession } from '../server/exam/session.js';
-import { ExamAgent } from '../server/agents/exam-agent.js';
+import { probeGenerate } from './lib/probe-generate.mjs';
 
 const [cmd, ...args] = process.argv.slice(2);
 const cfg = icaConfig(process.env, 'EXAM_MODEL');
@@ -66,17 +67,7 @@ async function tutor() {
 }
 
 async function generate() {
-  const domain = args[0] ?? 'respond';
-  const a = new ExamAgent({ env: process.env });
-  if (!a.available) { console.log('ICA is not configured (need ICA_API_KEY and ICA_MODEL)'); process.exit(2); }
-  const types = ['single', 'multi', 'order', 'dropdown'];
-  const t0 = Date.now();
-  const r = await a.generate(domain, types);
-  console.log(`asked ${types.length} (${domain}), accepted ${r.questions.length}, rejected ${r.rejected}, error: ${r.error}, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  for (const q of r.questions) {
-    const whys = [...(q.options ?? []), ...(q.steps ?? []), ...(q.blanks ?? []).flatMap((b) => b.options)].map((o) => o.why);
-    console.log(`  ${q.type.padEnd(8)} ok | ${whys.length} explanations, shortest ${Math.min(...whys.map((w) => w.length))} chars, all distinct: ${new Set(whys).size === whys.length}`);
-  }
+  await probeGenerate(Number(args[0] ?? 1));
 }
 
 const commands = { models, raw, tutor, generate };

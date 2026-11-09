@@ -44,5 +44,6 @@ export async function icaChatFull({ fetchImpl = globalThis.fetch, cfg, system, m
   const content = choice?.message?.content;
   const text = (typeof content === 'string' ? content : Array.isArray(content) ? content.map((p) => p?.text ?? '').join('') : '').trim();
   if (!text) throw Object.assign(new Error('empty'), { name: 'UpstreamError' });
-  return { text: text.slice(0, MAX_REPLY_BYTES), truncated: choice?.finish_reason === 'length' };
+  const tokens = Number.isFinite(body?.usage?.completion_tokens) ? body.usage.completion_tokens : null;
+  return { text: text.slice(0, MAX_REPLY_BYTES), truncated: choice?.finish_reason === 'length', finish: String(choice?.finish_reason ?? ''), tokens };
 }

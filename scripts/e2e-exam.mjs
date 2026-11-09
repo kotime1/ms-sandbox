@@ -146,8 +146,39 @@ try {
       await b.ok(await b.evalJs(`document.querySelectorAll('.exam-step-btns button').length === ${before.length * 2}`), 'every step has an up and a down arrow');
       await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-step-btns button')].every((x) => x.getAttribute('aria-label'))`), 'the arrows have accessible names that include the step text');
       await b.ok(await b.evalJs(`document.querySelector('.exam-step-btns button:last-child').disabled === false`) || before.length >= 3, 'the first step can move down');
+      // Drag with a real mouse (CDP mouse events become real pointer events): first step to below the last one.
+      const texts = () => b.evalJs(`[...document.querySelectorAll('.exam-step-text')].map((e) => e.textContent)`);
+      const centre = (i) => b.evalJs(`(() => { const e = document.querySelectorAll('.exam-step')[${i}]; e.scrollIntoView({ block: 'center' }); const r = document.querySelectorAll('.exam-step-text')[${i}].getBoundingClientRect(); return { x: Math.round(r.left + 20), y: Math.round(r.top + r.height / 2) }; })()`);
+      const mouse = (type, x, y, extra = {}) => b.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1, ...extra });
+      const dragFirstTo = async (toIndex, release = true) => {
+        const from = await centre(0);
+        const to = await centre(toIndex);
+        const from2 = await centre(0); // scrolling for the second lookup may have moved the first row
+        await mouse('mousePressed', from2.x, from2.y);
+        for (let k = 1; k <= 8; k++) await mouse('mouseMoved', from2.x, from2.y + Math.round(((to.y - from.y) + 12) * k / 8));
+        if (release) await mouse('mouseReleased', from2.x, to.y + 12);
+      };
+      await b.ok(await b.evalJs(`document.querySelector('.exam-steps').classList.contains('is-sortable') && !!document.querySelector('.exam-grip')`), 'the steps are marked draggable and show a grip');
+      await b.evalJs(`window.scrollTo(0, 0)`);
+      await dragFirstTo(before.length - 1);
+      const dragged = await texts();
+      await b.ok(dragged.at(-1) === before[0] && dragged.slice(0, -1).join('|') === before.slice(1).join('|'), 'dragging the first step below the last moves it there and keeps the others in order');
+      await b.ok(await b.evalJs(`!document.querySelector('.is-dragging') && !document.querySelector('.is-sorting')`), 'the drag styling is gone after the drop');
+      await b.ok(await b.evalJs(`document.querySelector('.exam-step-btns button').disabled && !document.querySelectorAll('.exam-step-btns button')[1].disabled`), 'the arrows are refreshed after a drop (the new top step has no up arrow)');
+      await b.ok(await b.evalJs(`document.querySelectorAll('.exam-step-btns button').length === ${before.length * 2}`), 'every step still has both arrows after a drag');
+      // Escape in the middle of a drag puts everything back.
+      await dragFirstTo(before.length - 1, false);
+      await b.ok(await b.evalJs(`!!document.querySelector('.is-dragging')`), 'a step is being dragged while the button is down');
+      await b.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await b.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 5, y: 5, button: 'left', buttons: 0, clickCount: 1 });
+      await b.ok((await texts()).join('|') === dragged.join('|') && await b.evalJs(`!document.querySelector('.is-dragging')`), 'Escape cancels a drag and restores the order');
+      // Clicking the arrows still works (they are not a drag handle).
+      const beforeArrow = await texts();
+      await b.evalJs(`document.querySelectorAll('.exam-step-btns button')[1].click()`);
+      await b.ok((await texts())[1] === beforeArrow[0], 'the arrows still work after dragging');
       // Move the last step to the top with the up arrow, and check the result.
-      const last = before.at(-1);
+      const last = (await texts()).at(-1);
       for (let i = 0; i < before.length - 1; i++) await b.evalJs(`(() => { const s = [...document.querySelectorAll('.exam-step')]; s[s.length - 1 - ${i}].querySelector('button').click(); })()`);
       await b.ok(await b.evalJs(`document.querySelector('.exam-step-text').textContent === ${JSON.stringify(last)}`), 'repeated up arrows move a step to the top');
       await shot('exam-6-order');
@@ -161,6 +192,9 @@ try {
       await b.ok(await b.evalJs(`[...document.querySelectorAll('.exam-step.is-wrong')].every((li) => { const m = /belongs at step (\\d+)/.exec(li.querySelector('.exam-mark').textContent); return m && li.querySelector('.exam-why').textContent.startsWith('Step ' + m[1] + ':'); })`), 'a misplaced step explains the position it should have had');
       await b.ok(await b.evalJs(`/of \\d steps in the right position/.test(document.querySelector('.exam-verdict').textContent)`), 'the verdict says how many steps were in the right place');
       await b.ok(await b.evalJs(`document.querySelectorAll('.exam-step-btns button').length === 0`), 'the arrows are gone after submitting');
+      const graded = await texts();
+      await dragFirstTo(before.length - 1);
+      await b.ok((await texts()).join('|') === graded.join('|') && await b.evalJs(`!document.querySelector('.is-dragging, .is-sortable, .exam-grip')`), 'steps cannot be dragged after submitting, and the grips are gone');
       await shot('exam-7-order-feedback');
       break;
     }

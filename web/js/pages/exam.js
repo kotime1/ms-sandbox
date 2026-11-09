@@ -32,7 +32,7 @@ function startScreen(host, sum) {
   const go = h('button', { class: 'btn primary', type: 'button', 'data-target': 'btn:exam-start', onclick: async () => {
     go.disabled = true;
     err.hidden = true;
-    go.textContent = live?.checked ? 'Writing questions, about a minute…' : 'Starting…';
+    go.textContent = live?.checked ? 'Writing questions, up to 90 seconds…' : 'Starting…';
     const out = await api.post('/api/exam/start', { count: Number(count.value), includeLive: Boolean(live?.checked) });
     go.disabled = false;
     go.textContent = 'Start practice exam';
@@ -58,7 +58,7 @@ function startScreen(host, sum) {
       h('h2', null, 'Start'),
       h('div', { class: 'field' }, h('label', { for: 'exam-count' }, 'Number of questions'), count, h('div', { id: 'exam-count-hint', class: 'hint-text' }, `${info.min} to ${info.max}. The real exam is about 40 to 60 questions.`)),
       info.live
-        ? h('div', { class: 'field' }, h('label', { class: 'toggle', for: 'exam-live' }, live, ' Also have Claude write some fresh questions'), h('div', { class: 'hint-text' }, 'About 40% of the exam is written on request and checked by the same answer-shape rules as the built-in questions. Preparing them takes about a minute, and generated questions can contain mistakes, so confirm anything surprising on Microsoft Learn.'))
+        ? h('div', { class: 'field' }, h('label', { class: 'toggle', for: 'exam-live' }, live, ' Also have Claude write some fresh questions'), h('div', { class: 'hint-text' }, 'About 40% of the exam is written on request and checked by the same answer-shape rules as the built-in questions. Preparing them takes one to a minute and a half, and generated questions can contain mistakes, so confirm anything surprising on Microsoft Learn.'))
         : h('p', { class: 'muted small' }, 'Fresh questions written by Claude are available when an Anthropic API key is configured. This session uses the built-in bank.'),
       err, go),
     sum?.answered ? h('p', { class: 'muted small' }, 'Starting a new exam replaces the one in progress.') : null,
@@ -200,14 +200,19 @@ function orderInput(q) {
   let locked = false;
   let result = null; // the graded steps, once submitted: the learner's order is then shown with each step marked
   const list = h('ol', { class: 'exam-steps' });
+  // Read by screen readers after a move, because the position is otherwise only visible.
+  const status = h('p', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
+  const announce = (id) => { status.textContent = `${text[id]}: now step ${order.indexOf(id) + 1} of ${order.length}.`; };
   const draw = (focusId, dir) => {
     clear(list);
+    list.classList.toggle('is-sortable', !locked && !result);
     order.forEach((id, i) => {
       const s = result?.find((x) => x.id === id);
       const right = s && s.position === i + 1;
       const up = h('button', { class: 'btn small', type: 'button', 'aria-label': `Move up: ${text[id]}`, disabled: locked || i === 0, onclick: () => move(id, -1, 'up') }, '↑');
       const down = h('button', { class: 'btn small', type: 'button', 'aria-label': `Move down: ${text[id]}`, disabled: locked || i === order.length - 1, onclick: () => move(id, 1, 'down') }, '↓');
-      list.append(h('li', { class: `exam-step${s ? (right ? ' is-right' : ' is-wrong') : ''}` },
+      list.append(h('li', { class: `exam-step${s ? (right ? ' is-right' : ' is-wrong') : ''}`, 'data-step': id },
+        s ? null : h('span', { class: 'exam-grip', 'aria-hidden': 'true' }, '⠿'),
         h('span', { class: 'exam-step-text' }, text[id],
           s ? h('span', { class: 'exam-mark' }, right ? 'Correct position' : `Not correct · belongs at step ${s.position}`) : null,
           // Why this step belongs where it does. For a misplaced step it explains the position it should have had.
@@ -223,11 +228,62 @@ function orderInput(q) {
     if (j < 0 || j >= order.length) return;
     [order[i], order[j]] = [order[j], order[i]];
     draw(id, dir);
+    announce(id);
   };
+
+  // Dragging. Pointer events, so a mouse, a pen and a finger all work. The pointer is captured on the list (which never leaves the page),
+  // because the row being dragged is moved in the DOM and a captured element that is moved loses its capture. The rows are only moved
+  // while dragging; `order` is updated when the pointer is released, and a cancel puts everything back. The arrows stay for the keyboard.
+  let drag = null;
+  const midY = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+  const settle = (commit) => {
+    if (!drag) return;
+    const { li, id, pointerId } = drag;
+    drag = null;
+    document.removeEventListener('keydown', onEscape);
+    if (list.hasPointerCapture?.(pointerId)) list.releasePointerCapture(pointerId);
+    li.classList.remove('is-dragging');
+    list.classList.remove('is-sorting');
+    if (commit) order = [...list.children].map((x) => x.dataset.step);
+    draw(); // restores the old order on a cancel; on a drop, refreshes the arrows (a step at either end loses one)
+    if (commit) announce(id);
+  };
+  const onEscape = (e) => { if (e.key === 'Escape') settle(false); };
+  list.addEventListener('pointerdown', (e) => {
+    const li = e.target.closest?.('.exam-step');
+    if (drag || locked || result || !li || e.button !== 0 || e.target.closest('button')) return;
+    // A finger starts a drag only on the grip, so the rest of the row still scrolls the page.
+    if (e.pointerType === 'touch' && !e.target.closest('.exam-grip')) return;
+    drag = { li, id: li.dataset.step, pointerId: e.pointerId };
+    list.setPointerCapture(e.pointerId);
+    li.classList.add('is-dragging');
+    list.classList.add('is-sorting');
+    document.addEventListener('keydown', onEscape);
+    e.preventDefault();
+  });
+  list.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const { li } = drag;
+    // Swap with a neighbour once the pointer passes its middle. Comparing only with the neighbours is stable for rows of different heights.
+    for (let guard = 0; guard < order.length * 2; guard++) {
+      const prev = li.previousElementSibling;
+      const next = li.nextElementSibling;
+      if (prev && e.clientY < midY(prev)) list.insertBefore(li, prev);
+      else if (next && e.clientY > midY(next)) list.insertBefore(next, li);
+      else break;
+    }
+    // Near the top or bottom edge of the window, scroll so a long list can be reordered.
+    if (e.clientY < 48) window.scrollBy(0, -14);
+    else if (e.clientY > window.innerHeight - 48) window.scrollBy(0, 14);
+  });
+  list.addEventListener('pointerup', () => settle(true));
+  list.addEventListener('pointercancel', () => settle(false));
+  list.addEventListener('lostpointercapture', () => settle(false));
+
   draw();
   return {
     hint: '',
-    node: h('div', null, h('p', { class: 'hint-text' }, 'Use the arrows to move each step. The first item in the list happens first.'), list),
+    node: h('div', null, h('p', { class: 'hint-text' }, 'Drag the steps into order, or use the arrows. The first item in the list happens first.'), list, status),
     read: () => ({ order: [...order] }),
     lock: () => { locked = true; draw(); },
     // A reloaded question has no local order, so show the learner's own order from the graded result.

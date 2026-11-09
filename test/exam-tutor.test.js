@@ -281,7 +281,7 @@ test('HTTP: ask validates its input; without ICA the tutor says it is unavailabl
 
 // ---- cut-off replies ---------------------------------------------------------------------------------
 import { finish } from '../server/agents/exam-tutor.js';
-import { icaChatFull } from '../server/core/ica-client.js';
+import { icaChat, icaChatFull } from '../server/core/ica-client.js';
 
 test('finish(): a complete reply is untouched; a cut-off one ends at a full sentence and says so', () => {
   assert.equal(finish('All done.', false), 'All done.');
@@ -295,8 +295,12 @@ test('icaChatFull reports truncation from finish_reason; icaChat still returns p
   const mk = (reason) => async () => ({ ok: true, json: async () => ({ choices: [{ finish_reason: reason, message: { content: 'text' } }] }) });
   const cfg = { key: 'k', model: 'm', base: 'https://x.example/v1' };
   const args = (f) => ({ fetchImpl: f, cfg, system: 's', messages: [], maxTokens: 5, timeoutMs: 1000 });
-  assert.deepEqual(await icaChatFull(args(mk('length'))), { text: 'text', truncated: true });
-  assert.deepEqual(await icaChatFull(args(mk('stop'))), { text: 'text', truncated: false });
+  assert.deepEqual(await icaChatFull(args(mk('length'))), { text: 'text', truncated: true, finish: 'length', tokens: null });
+  assert.deepEqual(await icaChatFull(args(mk('stop'))), { text: 'text', truncated: false, finish: 'stop', tokens: null });
+  // The token count comes from the service's usage block when present (the AI question log shows it), and is null otherwise.
+  const withUsage = async () => ({ ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: 'text' } }], usage: { completion_tokens: 42 } }) });
+  assert.equal((await icaChatFull(args(withUsage))).tokens, 42);
+  assert.equal(await icaChat(args(mk('stop'))), 'text');
 });
 
 test('the tutor gives the model room to think and marks a cut-off reply', async () => {

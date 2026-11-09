@@ -122,9 +122,35 @@ Questions live in `server/exam/bank/*.js` (one default-exported array per file, 
 
 **Answer shape must not reveal the answer.** The bank refuses to load if it does. Write every option in a set at about the same length, grammar and punctuation. Do not make the correct one the longest, the most detailed, or the only one with a comma, "and", brackets or digits. Do not overcorrect either: across the bank the correct option must be longest about 25% of the time and shortest about 25% (each length rank within 9 points), because "never the longest" is as guessable as "always the longest". Decide the target rank first and rotate it, then size the distractors around the answer. Put specifics in the scenario, not in the answer. No "all of the above" or "both A and B", and no distinctive stem words repeated more in the correct option. Short product names cannot be padded.
 
+**Ordering questions** can be dragged (pointer events: mouse, pen, touch) or moved with the arrow buttons, which remain for keyboard and screen-reader users and announce the new position. The pointer is captured on the `<ol>`, not the row, because a captured element that is moved in the DOM loses its capture; rows are moved live while dragging and `order` is committed on release. Escape or a cancelled pointer restores the old order. A finger drags from the grip only, so the rest of the row still scrolls. The CSP forbids inline styles, so there is no row following the pointer, only classes (`is-dragging`, `is-sorting`). `scripts/e2e-exam.mjs` drags with real CDP mouse events.
+
 **Sources.** The Sources card comes from the question's `objective` via `OBJECTIVE_REFS` in `server/exam/references.js` (a question can name tighter pages with `refs`). Add a page to `CATALOG` with the page's real title, then run `node scripts/check-refs.mjs` (needs the network): it fails on a 404 and reports redirects. A redirect to a generic page means the specific page is gone.
 
 **Live questions and the tutor** use `server/agents/exam-agent.js` and `exam-tutor.js` through `core/ica-client.js`. Generated questions pass the same validator or are discarded; the tutor can only be reached after a question is submitted. `node --env-file=.env scripts/probe-ica.mjs <models|raw|tutor|generate>` checks the real service.
+
+**How live questions are requested.** `server/exam/slots.js` plans one *slot* per question the model writes (about 40% of the exam): a domain, a type, an objective and whether it carries a scenario. Slots are grouped two to a request (`SLOTS_PER_REQUEST`), never mixing domains, and the requests run in parallel. Each question is **assigned its own objective**, because parallel requests cannot see each other and, left to choose, they pile onto the same popular objectives. If a request fails, the built-in bank fills the gap.
+
+This design came from measuring alternatives against the real model at the original 8,000-token limit (a 50-question exam: 8 + 8 + 4 live questions, fresh requests each time):
+
+| | 4 per request, free choice | 2 per request, free | 2 per request, assigned | 1 per request, assigned |
+|---|---|---|---|---|
+| Requests cut off | **4 of 10** | 0 of 20 | 0 of 20 | 0 of 20 |
+| Questions lost to cut-offs | 10 of 40 | 0 | 0 | 0 |
+| Time for the exam | 62 to 66 s | 35 to 47 s | 48 to 50 s | 28 s |
+| Same objective twice in a domain | 2 | **17** | **0** | 0 |
+| Peak tokens in one request | 8000 (the limit) | 6,053 | 6,245 | 2,451 |
+
+Four questions with an explanation on every choice need 5,300 to 10,700 tokens, so a reply of four is often cut off mid-array (`finish_reason: length`, shown as a `SyntaxError`). Two need about 3,000 to 6,700. Assigning objectives removed the repeats (14 distinct objectives in 39 questions became 30 in 34), and the model followed the assignment in 20 of 20 cases. Two per request was chosen over one because it sends about half the extra input and half the parallel calls; one per request was fastest but sends about 3x more input per question and has not been tried against an ICA rate limit.
+
+Safety nets stay in place: the output limit is 16,000 tokens, and a reply that is still cut off keeps the questions finished before the cut (`salvageObjects`; a half-written question is dropped, never repaired). Every question, salvaged or not, has to pass the validator.
+
+**When the exam start says "N of M requests failed", find out why with `node --env-file=.env scripts/probe-ica.mjs generate [runs]`.** It makes the ten requests of a 50-question exam with the app's own planner and prints, for each, the HTTP status, time, `finish_reason`, tokens and the cause of any failure, then the quality rules that rejected questions. The note shown to the learner also names the cause (`whyFailed` in `server/exam/session.js`).
+
+**The AI question log.** `server/exam/ai-log.js` writes `logs/ai-questions.log` (the `logs/` folder is gitignored). The server empties the file every time it starts, so it holds one run; `AI_LOG=off` turns it off and `AI_LOG=<path>` moves it. Per request it records the domain, what was asked (type, objective, scenario), time, `finish_reason`, tokens and any failure cause with the start of the reply; then every question the model returned, as JSON, marked accepted or REJECTED with the quality rules it broke. It never holds the API key, the Authorization header or the prompt. It is off unless `server/index.js` opens it, so tests and `probe-ica.mjs` do not write it, a failed write switches it off without touching the exam, and it stops at 5 MB.
+
+- **Identical requests are answered from a cache within seconds, with identical token counts, including a cut-off reply.** Measuring a failure rate by repeating one request tells you nothing; the tool tags every request so each is new. A run that takes 3 to 6 seconds instead of 30 to 60 was a cache replay.
+- A request takes 25 to 55 seconds and a whole exam 40 to 60. About a quarter of the questions are rejected by the answer-shape checks (length spread, the correct option clearly longest, escape-hatch wording, repeated stem words); that is the filter working, and it rejects hand-written questions for the same reasons.
+- Not explained: one run reported `correct must be true or omitted` for several questions; it did not reproduce in 60 further questions.
 
 ## Add a study note for the assistant
 

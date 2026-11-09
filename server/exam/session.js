@@ -4,16 +4,43 @@
 
 import { BANK } from './bank/index.js';
 import { DOMAINS, DOMAIN_KEYS } from './objectives.js';
-import { buildExam, apportion, TYPE_MIX, MIN_COUNT, MAX_COUNT, DEFAULT_COUNT } from './build.js';
+import { buildExam, MIN_COUNT, MAX_COUNT, DEFAULT_COUNT } from './build.js';
 import { makeItem, publicView, grade, ExamInputError } from './item.js';
 import { ExamAgent } from '../agents/exam-agent.js';
 import { ExamTutor } from '../agents/exam-tutor.js';
 import { refsFor } from './references.js';
+import { planSlots, toRequests } from './slots.js';
 
 /** Share of each domain's quota we ask the model to write when live generation is on. The rest comes from the bank. */
 const LIVE_SHARE = 0.4;
-/** Questions requested per model call. Kept small so a call finishes well inside the timeout. */
-const LIVE_BATCH = 4;
+
+/** Plain-English reason for a failed request, from the error name the agent reports. */
+const WHY = {
+  CutOffBeforeFirstQuestion: 'the reply was cut off at the length limit before the first question was finished',
+  MalformedJson: 'the reply was not valid JSON',
+  NoJsonArray: 'the reply contained no list of questions',
+  UpstreamError: 'the model service returned an error',
+  TimeoutError: 'the model took too long to answer',
+  AbortError: 'the model took too long to answer',
+};
+export const whyFailed = (error) => WHY[error] ?? `an unexpected error (${error})`;
+
+/** The notes shown to the learner about what the model did, built from the per-request results. */
+export function liveNotes(results, wanted, got) {
+  const notes = [];
+  const failed = results.filter((r) => r.error);
+  const rejected = results.reduce((s, r) => s + r.rejected, 0);
+  const salvaged = results.filter((r) => r.truncated && !r.error);
+  const reasons = [...new Set(failed.map((r) => whyFailed(r.error)))];
+  const failText = failed.length ? ` (${failed.length} of ${results.length} requests failed: ${reasons.join('; ')})` : '';
+  if (got === 0) notes.push(`Model did not return usable questions${failText}, so this exam uses the built-in bank.`);
+  else {
+    if (got < wanted) notes.push(`Model wrote ${got} of the ${wanted} questions asked for${failText}; the built-in bank filled the rest.`);
+    if (salvaged.length) notes.push(`${salvaged.length} reply(ies) hit the length limit, so only the questions finished before the cut were kept.`);
+    if (rejected) notes.push(`${rejected} generated question(s) were discarded because they did not pass the quality checks.`);
+  }
+  return notes;
+}
 
 export class ExamSession {
   constructor({ env = process.env, bank = BANK, agent, tutor, rand = Math.random } = {}) {
@@ -41,26 +68,14 @@ export class ExamSession {
       if (includeLive) {
         if (!this.agent.available) notes.push('Live question writing is not configured, so this exam uses the built-in bank.');
         else {
-          const quota = apportion(n, Object.fromEntries(DOMAIN_KEYS.map((d) => [d, DOMAINS[d].target])));
-          // Many small requests in parallel, not one big one per domain: a model writes ~4 questions in ~45 s, so 8 per
-          // domain in one request ran past the timeout. Each batch fails on its own and the bank fills any gap.
-          const jobs = DOMAIN_KEYS.flatMap((d) => {
-            const want = Math.round(quota[d] * LIVE_SHARE);
-            const types = Object.entries(apportion(want, TYPE_MIX)).flatMap(([t, k]) => Array(k).fill(t));
-            const batches = [];
-            for (let i = 0; i < types.length; i += LIVE_BATCH) batches.push(types.slice(i, i + LIVE_BATCH));
-            return batches.map((b) => this.agent.generate(d, b));
-          });
-          const results = await Promise.all(jobs);
+          // One slot per question to write, each with its own objective, so parallel requests cannot pick the same topic. Two slots per
+          // request: measured, those never hit the output limit and the whole exam is faster than with four. A failed request just leaves a
+          // gap that the built-in bank fills.
+          const slots = planSlots(n, { share: LIVE_SHARE, rand: this.rand });
+          const results = await Promise.all(toRequests(slots).map((r) => this.agent.generate(r.domain, r.slots)));
           extra = results.flatMap((r) => r.questions);
-          const rejected = results.reduce((s, r) => s + r.rejected, 0);
-          const failed = results.filter((r) => r.error).length;
-          const wanted = DOMAIN_KEYS.reduce((s, d) => s + Math.round(quota[d] * LIVE_SHARE), 0);
-          if (extra.length === 0) notes.push(`Model did not return usable questions${failed ? ` (${failed} of ${results.length} requests failed${results.find((r) => r.error)?.error ? `: ${results.find((r) => r.error).error}` : ''})` : ''}, so this exam uses the built-in bank.`);
-          else {
-            if (extra.length < wanted) notes.push(`Model wrote ${extra.length} of the ${wanted} questions asked for${failed ? ` (${failed} of ${results.length} requests failed)` : ''}; the built-in bank filled the rest.`);
-            if (rejected) notes.push(`${rejected} generated question(s) were discarded because they did not pass the quality checks.`);
-          }
+          const wanted = slots.length;
+          notes.push(...liveNotes(results, wanted, extra.length));
         }
       }
       const { questions, shortfall } = buildExam({ bank: this.bank, extra, count: n, seen: this.seen, rand: this.rand });

@@ -13,10 +13,15 @@
 import { DOMAINS, OBJECTIVES } from '../exam/objectives.js';
 import { validateQuestion } from '../exam/validate.js';
 import { randomToken } from '../core/util.js';
-import { icaConfig, icaChat } from '../core/ica-client.js';
+import { icaConfig, icaChatFull } from '../core/ica-client.js';
+import { aiLog } from '../exam/ai-log.js';
 
 const MAX_BODY_CHARS = 60_000;
-const TIMEOUT_MS = 90_000;
+const TIMEOUT_MS = 120_000;
+// The model spends a varying share of its token budget before the visible text (measured: 8000 tokens produced between 4,200 and 8,400
+// characters), and four questions with an explanation on every choice used 5,300 to 7,600 of 8000. At 8000 about one request in four was
+// cut off mid-array and lost whole; this leaves roughly twice the room.
+const MAX_TOKENS = 16_000;
 
 const EXAMPLE = {
   domain: 'respond',
@@ -62,14 +67,27 @@ const SYSTEM = [
   RULES,
 ].join('\n\n');
 
-function userPrompt(domain, types) {
+/**
+ * `slots` is either a list of type names (the model chooses objectives freely) or a list of { type, objective, scenario } (each question
+ * is assigned its own objective, type and scenario, so parallel requests cannot pick the same topic).
+ */
+function userPrompt(domain, slots) {
   const d = DOMAINS[domain];
   const groups = OBJECTIVES.filter((g) => g.domain === domain);
+  const assigned = typeof slots[0] === 'object';
+  const head = assigned
+    ? [
+      `Write exactly ${slots.length} question${slots.length > 1 ? 's' : ''} for the domain "${d.label}", one for each line below, in this order. Copy the objective text exactly into "objective".`,
+      ...slots.map((x, i) => `${i + 1}. type "${x.type}", objective "${x.objective}", ${x.scenario ? 'with a scenario' : 'without a scenario (a short direct question)'}`),
+    ]
+    : [
+      `Write ${slots.length} questions for the domain "${d.label}".`,
+      `Question types, in order: ${slots.join(', ')}. About 60% should have a scenario.`,
+      'Spread them over different objectives. Use these objectives (copy the text exactly into "objective"):',
+      ...groups.flatMap((g) => [`${g.group}:`, ...g.bullets.map((x) => `- ${x}`)]),
+    ];
   return [
-    `Write ${types.length} questions for the domain "${d.label}".`,
-    `Question types, in order: ${types.join(', ')}. About 60% should have a scenario.`,
-    'Spread them over different objectives. Use these objectives (copy the text exactly into "objective"):',
-    ...groups.flatMap((g) => [`${g.group}:`, ...g.bullets.map((b) => `- ${b}`)]),
+    ...head,
     `Set "domain" to "${domain}" on every question.`,
     'Example of one valid question (do not reuse it):',
     JSON.stringify(EXAMPLE),
@@ -83,9 +101,36 @@ function extractJson(text) {
   return JSON.parse(text.slice(s, e + 1));
 }
 
+/**
+ * A reply that was cut off at the token limit is an array that never closes. Return the objects that are COMPLETE before the cut: walk the
+ * text tracking strings and braces, and parse each top-level object on its own. A half-written object is dropped, never repaired.
+ */
+export function salvageObjects(text) {
+  const start = text.indexOf('[');
+  if (start < 0) return [];
+  const out = [];
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  let from = -1;
+  for (let i = start + 1; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{') { if (depth === 0) from = i; depth++; }
+    else if (c === '}') {
+      depth--;
+      if (depth === 0 && from >= 0) { try { out.push(JSON.parse(text.slice(from, i + 1))); } catch { /* not valid JSON: skip it */ } from = -1; }
+      if (depth < 0) break;
+    }
+  }
+  return out;
+}
+
 export class ExamAgent {
-  constructor({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
+  constructor({ env = process.env, fetchImpl = globalThis.fetch, log = aiLog } = {}) {
     this.fetch = fetchImpl;
+    this.log = log;
     this.cfg = icaConfig(env, 'EXAM_MODEL');
     this.model = this.cfg.model;
     this.available = this.cfg.enabled && env.EXAM_PROVIDER !== 'local';
@@ -95,26 +140,51 @@ export class ExamAgent {
    * Ask for `types.length` questions in `domain`. Never throws: returns { questions, rejected, error }.
    * `questions` have passed validateQuestion(); `rejected` counts the ones that did not.
    */
-  async generate(domain, types) {
-    if (!this.available || !Object.hasOwn(DOMAINS, domain) || !types.length) return { questions: [], rejected: 0, error: 'unavailable' };
+  async generate(domain, slots) {
+    const types = slots.map((x) => (typeof x === 'object' ? x.type : x));
+    if (!this.available || !Object.hasOwn(DOMAINS, domain) || !types.length) return { questions: [], rejected: 0, error: 'unavailable', truncated: false, salvaged: 0 };
+    const t0 = Date.now();
+    const asked = slots.map((x) => (typeof x === 'object' ? x : { type: x }));
     try {
-      const raw = await this.call(userPrompt(domain, types));
+      const { items, truncated, salvaged, ...meta } = await this.call(userPrompt(domain, slots));
       let rejected = 0;
       const questions = [];
-      for (const r of Array.isArray(raw) ? raw.slice(0, types.length + 2) : []) {
+      const verdicts = [];
+      for (const r of items.slice(0, types.length + 2)) {
         const q = { ...r, id: `live-${randomToken(6).toLowerCase().replace(/[^a-z0-9]/g, 'x').slice(0, 10)}`, source: 'live', domain };
         if (q.type === 'multi' && q.select === undefined && Array.isArray(q.options)) q.select = q.options.filter((o) => o?.correct).length;
-        if (validateQuestion(q).length) rejected++;
+        const problems = validateQuestion(q);
+        verdicts.push({ question: q, problems });
+        if (problems.length) rejected++;
         else questions.push(q);
       }
-      return { questions, rejected, error: null };
+      this.#log({ domain, asked, ms: Date.now() - t0, outcome: { error: null, truncated, salvaged, finish: meta.finish, tokens: meta.tokens }, verdicts });
+      return { questions, rejected, error: null, truncated, salvaged };
     } catch (err) {
-      return { questions: [], rejected: 0, error: err?.name || 'Error' };
+      const error = err?.cause ?? err?.name ?? 'Error';
+      this.#log({ domain, asked, ms: Date.now() - t0, outcome: { error, truncated: err?.truncated ?? false, salvaged: 0, finish: err?.finish, tokens: err?.tokens, preview: err?.preview, status: err?.status }, verdicts: [] });
+      return { questions: [], rejected: 0, error, truncated: err?.truncated ?? false, salvaged: 0 };
     }
   }
 
+  /** Logging must never change the outcome of a request. */
+  #log(entry) {
+    try { this.log.request({ ...entry, model: this.model }); } catch { /* the log is a convenience */ }
+  }
+
+  /** One model call. Returns { items, truncated, salvaged }; throws with a `cause` naming why when nothing usable came back. */
   async call(prompt) {
-    const text = await icaChat({ fetchImpl: this.fetch, cfg: this.cfg, system: SYSTEM, messages: [{ role: 'user', content: prompt }], maxTokens: 8000, timeoutMs: TIMEOUT_MS });
-    return extractJson(text.slice(0, MAX_BODY_CHARS));
+    const out = await icaChatFull({ fetchImpl: this.fetch, cfg: this.cfg, system: SYSTEM, messages: [{ role: 'user', content: prompt }], maxTokens: MAX_TOKENS, timeoutMs: TIMEOUT_MS });
+    const text = out.text.slice(0, MAX_BODY_CHARS);
+    const meta = { finish: out.finish, tokens: out.tokens, preview: text.slice(0, 600) };
+    if (!out.truncated) {
+      try { return { items: extractJson(text), truncated: false, salvaged: 0, ...meta }; } catch (e) {
+        throw Object.assign(new Error('bad reply'), { cause: e.name === 'SyntaxError' ? 'MalformedJson' : 'NoJsonArray', ...meta });
+      }
+    }
+    // Cut off at the token limit: keep the questions that were completed before the cut.
+    const items = salvageObjects(text);
+    if (!items.length) throw Object.assign(new Error('cut off'), { cause: 'CutOffBeforeFirstQuestion', truncated: true, ...meta });
+    return { items, truncated: true, salvaged: items.length, ...meta };
   }
 }

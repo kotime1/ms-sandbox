@@ -443,7 +443,8 @@ test('ExamAgent: keeps valid questions, drops invalid ones, forces domain/source
 
 test('ExamAgent: bad JSON, HTTP errors and timeouts return no questions instead of throwing', async () => {
   const mk = (f) => new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: f });
-  assert.equal((await mk(fakeFetch('sorry, no json')).generate('hunt', ['single'])).error, 'BadReply');
+  assert.equal((await mk(fakeFetch('sorry, no json')).generate('hunt', ['single'])).error, 'NoJsonArray');
+  assert.equal((await mk(fakeFetch('here: [ {"a": 1}, oops ]')).generate('hunt', ['single'])).error, 'MalformedJson');
   assert.equal((await mk(async () => ({ ok: false, status: 500 })).generate('hunt', ['single'])).error, 'UpstreamError');
   assert.equal((await mk(async () => { throw Object.assign(new Error('t'), { name: 'TimeoutError' }); }).generate('hunt', ['single'])).error, 'TimeoutError');
   assert.deepEqual((await mk(fakeFetch([])).generate('hunt', ['single'])).questions, []);
@@ -484,27 +485,36 @@ test('ExamSession: when Claude fails the exam still starts from the bank', async
   assert.match(out.notes.join(' '), /built-in bank/);
 });
 
-test('ExamSession live: asks for small batches in parallel, and reports what Claude did not deliver', async () => {
-  const calls = [];
+test('ExamSession live: 10 small requests, every question assigned its own objective, and a failure is reported with its cause', async () => {
+  const prompts = [];
   let n = 0;
   const f = async (url, init) => {
     const body = JSON.parse(init.body);
-    calls.push(body.messages[1].content.match(/Write (\d+) questions for the domain "([^"]+)"/).slice(1));
-    // Every third request fails; the others return one valid question each.
+    prompts.push(body.messages[1].content);
+    // Every third request fails; the others return one valid question per slot that they were given.
     if (++n % 3 === 0) return { ok: false, status: 500 };
-    const q = liveQuestion({ stem: `Which view shows the order of events on device number ${n}?` });
-    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify([q]) } }] }) };
+    const asked = [...body.messages[1].content.matchAll(/objective "([^"]+)"/g)].map((m) => m[1]);
+    const qs = asked.map((objective, i) => liveQuestion({ objective, stem: `Which view shows the order of events on device number ${n}-${i}?` }));
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify(qs) } }] }) };
   };
   const agent = new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: f });
   const s = new ExamSession({ env: {}, agent, rand: seeded(31) });
   const out = await s.start({ count: 50, includeLive: true });
-  assert.ok(calls.length >= 5, `${calls.length} requests`);
-  assert.ok(calls.every(([k]) => Number(k) <= 4), `no request asks for more than 4: ${calls.map((c) => c[0])}`);
-  assert.equal(calls.reduce((a, [k]) => a + Number(k), 0), 20, 'the batches add up to the 40% share of 50');
+  assert.equal(prompts.length, 10, 'the 20 live questions go out as 10 requests of 2');
+  const slotsIn = (p) => p.split(', objective "').length - 1; // each assigned slot names its objective exactly once
+  assert.equal(prompts.reduce((sum, p) => sum + slotsIn(p), 0), 20, 'every live question is an assigned slot');
+  assert.ok(prompts.every((p) => slotsIn(p) >= 1 && slotsIn(p) <= 2), 'no request asks for more than 2');
+  const byDomain = {};
+  for (const p of prompts) {
+    const dom = /for the domain "([^"]+)"/.exec(p)[1];
+    (byDomain[dom] ??= []).push(...[...p.matchAll(/objective "([^"]+)"/g)].map((m) => m[1]));
+  }
+  for (const [dom, objs] of Object.entries(byDomain)) assert.equal(new Set(objs).size, objs.length, `${dom}: no two questions share an objective`);
   assert.equal(out.total, 50, 'the bank fills any gap');
   assert.ok(out.live >= 1 && out.live < 20);
-  assert.match(out.notes.join(' '), /wrote \d+ of the 20 questions asked for/);
-  assert.match(out.notes.join(' '), /\d+ of \d+ requests failed/);
+  const text = out.notes.join(' ');
+  assert.ok(text.includes('of the 20 questions asked for'), text);
+  assert.ok(text.includes('of 10 requests failed: the model service returned an error'), text);
 });
 
 test('ExamSession live: when every request fails the note names the failure and the exam still starts', async () => {
@@ -512,5 +522,88 @@ test('ExamSession live: when every request fails the note names the failure and 
   const out = await new ExamSession({ env: {}, agent, rand: seeded(32) }).start({ count: 10, includeLive: true });
   assert.equal(out.total, 10);
   assert.equal(out.live, 0);
-  assert.match(out.notes.join(' '), /did not return usable questions \(\d+ of \d+ requests failed: UpstreamError\)/);
+  assert.match(out.notes.join(' '), /did not return usable questions \(\d+ of \d+ requests failed: the model service returned an error\)/);
+});
+
+// ---- cut-off replies: the reason live requests used to fail (finish_reason "length" left an array that never closed) ------------------
+import { salvageObjects } from '../server/agents/exam-agent.js';
+import { whyFailed, liveNotes } from '../server/exam/session.js';
+
+const cutFetch = (text, finish = 'length') => async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ finish_reason: finish, message: { content: text } }] }) });
+const mkAgent = (f) => new ExamAgent({ env: { ICA_API_KEY: 'k', ICA_MODEL: 'm' }, fetchImpl: f });
+
+test('salvageObjects keeps only the objects that are complete, and never repairs a half-written one', () => {
+  assert.deepEqual(salvageObjects('[{"a":1},{"b":2},{"c":"cut off he'), [{ a: 1 }, { b: 2 }]);
+  assert.deepEqual(salvageObjects('[{"x":1},{"y":[1,2,{"z":3}]}]'), [{ x: 1 }, { y: [1, 2, { z: 3 }] }]);
+  assert.deepEqual(salvageObjects('[{"x":"abc'), []);
+  assert.deepEqual(salvageObjects('no array here'), []);
+  assert.deepEqual(salvageObjects(''), []);
+});
+
+test('salvageObjects is not fooled by quotes, escapes and braces inside strings', () => {
+  // Built with JSON.stringify so the escapes are exactly what a model would send, whatever the source file's escaping.
+  const tricky = { a: 'he said "hi" {not a brace} and \\ a backslash', n: 1 };
+  const text = `[ ${JSON.stringify(tricky)}, {"b":2}, {"c":"cut off he`;
+  assert.deepEqual(salvageObjects(text), [tricky, { b: 2 }]);
+});
+
+test('a reply cut off at the length limit still yields the questions finished before the cut', async () => {
+  const good = liveQuestion({ stem: 'Which view shows the order of events on device number one?' });
+  const text = `[${JSON.stringify(good)},${JSON.stringify(liveQuestion({ stem: 'Which view shows the order of events on device number two?' }))},{"type":"single","stem":"this one was cut o`;
+  const r = await mkAgent(cutFetch(text)).generate('respond', ['single', 'single', 'single', 'single']);
+  assert.equal(r.error, null);
+  assert.equal(r.truncated, true);
+  assert.equal(r.salvaged, 2);
+  assert.equal(r.questions.length, 2, 'the two complete questions are kept');
+  assert.ok(r.questions.every((q) => validateQuestion(q).length === 0), 'a salvaged question still has to pass the quality checks');
+});
+
+test('a salvaged question that fails the quality checks is still discarded', async () => {
+  const bad = liveQuestion({ options: [{ text: 'The device timeline view that lists every single event on the device in time order', correct: true, why: 'It lists the events on a device in time order, which is what the question asks for.' }, { text: 'Inventory', why: 'Inventory lists installed software only.' }, { text: 'Score', why: 'The score summarises risk only.' }, { text: 'Groups', why: 'Groups define scope only.' }] });
+  const r = await mkAgent(cutFetch(`[${JSON.stringify(bad)},{"type":"single","stem":"cut o`)).generate('respond', ['single', 'single']);
+  assert.equal(r.salvaged, 1);
+  assert.equal(r.rejected, 1);
+  assert.equal(r.questions.length, 0);
+});
+
+test('a reply cut off before the first question is finished fails with a named cause, and says it was cut off', async () => {
+  const r = await mkAgent(cutFetch('[{"type":"single","stem":"this was cut o')).generate('respond', ['single']);
+  assert.equal(r.error, 'CutOffBeforeFirstQuestion');
+  assert.equal(r.truncated, true);
+  assert.deepEqual(r.questions, []);
+});
+
+test('a reply that finished normally is not treated as cut off, and a malformed one names its cause', async () => {
+  const ok = await mkAgent(cutFetch(JSON.stringify([liveQuestion()]), 'stop')).generate('respond', ['single']);
+  assert.equal(ok.truncated, false);
+  assert.equal(ok.salvaged, 0);
+  assert.equal(ok.questions.length, 1);
+  assert.equal((await mkAgent(cutFetch('[ {"a": 1}, oops ]', 'stop')).generate('respond', ['single'])).error, 'MalformedJson');
+});
+
+test('the agent allows enough output for four questions with an explanation on every choice', async () => {
+  let sent;
+  const f = async (url, init) => { sent = JSON.parse(init.body); return { ok: true, status: 200, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: '[]' } }] }) }; };
+  await mkAgent(f).generate('respond', ['single']);
+  assert.ok(sent.max_tokens >= 16000, `max_tokens ${sent.max_tokens}`);
+});
+
+test('whyFailed gives a plain reason for each cause, and still shows an unknown one', () => {
+  for (const [name, re] of [['CutOffBeforeFirstQuestion', /cut off/], ['MalformedJson', /not valid JSON/], ['NoJsonArray', /no list of questions/], ['UpstreamError', /service returned an error/], ['TimeoutError', /too long/]]) assert.match(whyFailed(name), re, name);
+  assert.match(whyFailed('SomethingNew'), /unexpected error \(SomethingNew\)/);
+});
+
+test('the note says WHY requests failed, groups equal reasons, and mentions a partly saved cut-off reply', () => {
+  const results = [
+    { questions: [{}], rejected: 0, error: null, truncated: false },
+    { questions: [], rejected: 0, error: 'CutOffBeforeFirstQuestion', truncated: true },
+    { questions: [], rejected: 0, error: 'CutOffBeforeFirstQuestion', truncated: true },
+    { questions: [{}, {}], rejected: 1, error: null, truncated: true, salvaged: 2 },
+    { questions: [], rejected: 0, error: 'UpstreamError', truncated: false },
+  ];
+  const text = liveNotes(results, 20, 3).join(' | ');
+  assert.match(text, /wrote 3 of the 20 questions asked for \(3 of 5 requests failed: the reply was cut off at the length limit before the first question was finished; the model service returned an error\)/);
+  assert.match(text, /1 reply\(ies\) hit the length limit, so only the questions finished before the cut were kept/);
+  assert.match(text, /1 generated question\(s\) were discarded/);
+  assert.doesNotMatch(liveNotes([{ questions: [{}], rejected: 0, error: null, truncated: false }], 1, 1).join(' '), /failed|discarded|length limit/, 'a clean run adds no notes');
 });
